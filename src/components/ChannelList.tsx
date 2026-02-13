@@ -40,19 +40,11 @@ export const ChannelList: React.FC = () => {
             const currentCount = p?.length || 0;
             const prevCount = prevParticipantsCount.current[roomId];
 
-            // Only play if we HAVE a previous count (not first load)
-            if (prevCount !== undefined) {
-                if (currentCount > prevCount) {
-                    // Play join sound (Bannerlord Quest Success)
-                    const audio = new Audio('/assets/sounds/join.mp3');
-                    audio.volume = 0.5;
-                    audio.play().catch(e => console.error("Join audio play failed:", e));
-                } else if (currentCount < prevCount) {
-                    // Play leave sound (Bannerlord Relation Decreased)
-                    const audio = new Audio('/assets/sounds/leave.mp3');
-                    audio.volume = 0.5;
-                    audio.play().catch(e => console.error("Leave audio play failed:", e));
-                }
+            // Only play if someone NEW joined (count increased)
+            if (prevCount !== undefined && currentCount > prevCount) {
+                const audio = new Audio('/assets/sounds/join.webm');
+                audio.volume = 0.5;
+                audio.play().catch(e => console.error("Join audio play failed:", e));
             }
             prevParticipantsCount.current[roomId] = currentCount;
         });
