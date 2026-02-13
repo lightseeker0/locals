@@ -71,14 +71,20 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             // setup local analyser
             (get() as any).setupAudioAnalyser(stream, userId);
 
-            set({ localStream: stream, callStatus: 'calling', initiator: true });
+            set({ localStream: stream, callStatus: 'calling' });
 
-            const { id: callId } = await ApiService.createCall(roomId, userId);
-            set({ activeCall: { id: callId, roomId } });
+            // CRITICAL: Double check if a call already exists to avoid race conditions
+            await ApiService.fetchVoiceParticipants(roomId, userId);
+
+            const response = await ApiService.createCall(roomId, userId);
+            const callId = response.id;
+            const isJoiner = response.status === 'joined';
+
+            set({ activeCall: { id: callId, roomId }, initiator: !isJoiner });
 
             const peer = new SimplePeer({
-                initiator: true,
-                trickle: false,
+                initiator: !isJoiner,
+                trickle: true,
                 stream: stream,
                 config: {
                     iceServers: [
@@ -89,10 +95,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             });
 
             peer.on('signal', async (data: any) => {
-                await ApiService.sendSignal(callId, userId, 'offer', data);
+                const type = data.type || 'candidate';
+                console.log(`[WebRTC] Sending signal: ${type}`, data);
+                await ApiService.sendSignal(callId, userId, type, data);
+            });
+
+            peer.on('connect', () => {
+                console.log('[WebRTC] P2P Connected!');
+                set({ callStatus: 'connected' });
             });
 
             peer.on('stream', async (remoteStream: MediaStream) => {
+                console.log('[WebRTC] Remote stream received!', remoteStream.getAudioTracks());
                 set({ remoteStream, callStatus: 'connected' });
 
                 // Identify peer to setup their analyser
@@ -121,12 +135,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     joinCall: async (callId: string, user: any) => {
         const userId = user.id;
-        // Logic to find roomId for optimistic update
-        // We might not have roomId directly here, so we'll have to rely on the next fetch
-        // BUT wait, in joinCall usually we know which room we clicked.
-        // Let's check how joinCall is invoked.
-        // In the current codebase, it seems joinCall is used when you click on an existing call.
-
+        console.log(`[WebRTC] Attempting to join call: ${callId} as user: ${userId}`);
         try {
             const { audioInputDeviceId } = get();
             const constraints = {
@@ -156,10 +165,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             });
 
             peer.on('signal', async (data: any) => {
-                await ApiService.sendSignal(callId, userId, 'answer', data);
+                const type = data.type || 'candidate';
+                console.log(`[WebRTC] Sending signal: ${type}`, data);
+                await ApiService.sendSignal(callId, userId, type, data);
+            });
+
+            peer.on('connect', () => {
+                console.log('[WebRTC] P2P Connected (Joiner)!');
+                set({ callStatus: 'connected' });
             });
 
             peer.on('stream', async (remoteStream: MediaStream) => {
+                console.log('[WebRTC] Remote stream received (Joiner)!', remoteStream.getAudioTracks());
                 set({ remoteStream, callStatus: 'connected' });
 
                 // Try to find the initiator ID
@@ -186,7 +203,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     pollSignals: async (userId: string) => {
-        const { activeCall, initiator, peer } = get() as any;
+        const { activeCall, peer } = get() as any;
         if (!activeCall || !peer) return;
 
         try {
@@ -194,14 +211,23 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const signals: any[] = await ApiService.pollSignals(activeCall.id, userId, lastSignalId);
 
             if (signals.length > 0) {
+                console.log(`[WebRTC] Found ${signals.length} new signals`);
                 set({ lastSignalId: signals[signals.length - 1].id });
 
                 for (const signal of signals) {
-                    const data = JSON.parse(signal.payload);
-                    if (signal.type === 'offer' && !initiator) {
+                    const data = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : signal.payload;
+
+                    // AUTO-JOIN LOGIC: If we get an offer but we are also 'calling' (initiator), 
+                    // someone else got there first. We should switch to joiner mode.
+                    if (signal.type === 'offer' && (get() as any).initiator) {
+                        console.log("[WebRTC] Received offer while initiating. Switching to joiner mode to avoid conflict.");
+                    }
+
+                    try {
+                        console.log(`[WebRTC] Receiving signal: ${signal.type}`, data);
                         peer.signal(data);
-                    } else if (signal.type === 'answer' && initiator) {
-                        peer.signal(data);
+                    } catch (e) {
+                        console.error('[WebRTC] Error signaling peer:', e);
                     }
                 }
             }

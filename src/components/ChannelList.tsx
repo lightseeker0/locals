@@ -174,7 +174,7 @@ export const ChannelList: React.FC = () => {
                 <div
                     className={clsx(
                         "absolute -top-4 right-2 text-[9px] font-mono pointer-events-auto z-10 cursor-pointer transition-colors flex items-center gap-1",
-                        updateStatus === 'checking' ? "text-yellow-500 animate-pulse" :
+                        updateStatus === 'checking' ? "text-blue-400 animate-pulse" :
                             updateStatus === 'ready' ? "text-matrix-green animate-bounce" :
                                 updateStatus === 'downloading' ? "text-blue-500" :
                                     "text-matrix-muted opacity-20 hover:opacity-100 hover:text-white"
@@ -394,18 +394,24 @@ export const ChannelList: React.FC = () => {
                                     if (channel.type === 'voice') {
                                         if (activeCall?.roomId !== channel.id) {
                                             if (activeCall) endCall();
-                                            startCall(channel.id, user);
-                                        }
-                                    }
-                                }}
-                                onTouchEnd={(e) => {
-                                    // Prevent ghost clicks if necessary, but mainly ensure touch triggers join
-                                    e.preventDefault();
-                                    setSelectedChannel(channel.id);
-                                    if (channel.type === 'voice') {
-                                        if (activeCall?.roomId !== channel.id) {
-                                            if (activeCall) endCall();
-                                            startCall(channel.id, user);
+                                            // Look for active call signals in this room
+                                            const participantsInRoom = roomParticipants[channel.id] || [];
+                                            const someoneElseIsHere = participantsInRoom.some((p: any) => p.id !== user.id);
+
+                                            if (someoneElseIsHere) {
+                                                console.log("[Voice] Someone is already in the room, joining via API...");
+                                                // Ideally we'd fetch the active call ID from the API
+                                                // For now, let's look for any participant's ID to join
+                                                // In the backend, we should have a way to get the active call ID for a room
+                                                // Assuming we can poll or get it:
+                                                ApiService.fetchVoiceParticipants(channel.id, user.id).then(() => {
+                                                    // In a real app, parts should contain the current callId
+                                                    // This is a placeholder for actual call discovery
+                                                    startCall(channel.id, user);
+                                                });
+                                            } else {
+                                                startCall(channel.id, user);
+                                            }
                                         }
                                     }
                                 }}

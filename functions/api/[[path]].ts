@@ -528,7 +528,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             if (path === '/voice/call') {
                 const { room_id } = body;
 
-                // End any previous active calls for this user in this room (or any room) to avoid duplicates
+                // Check if there is already an active call in this room
+                const existingCall = await env.DB.prepare('SELECT id FROM calls WHERE room_id = ? AND status = \'active\' ORDER BY created_at DESC LIMIT 1')
+                    .bind(room_id).first() as any;
+
+                if (existingCall) {
+                    return Response.json({ id: existingCall.id, status: 'joined' }, { headers: corsHeaders });
+                }
+
+                // End any previous active calls for this user in any room to avoid duplicates
                 await env.DB.prepare('UPDATE calls SET status = \'ended\' WHERE caller_id = ? AND status = \'active\'')
                     .bind(userIdHeader).run();
 
