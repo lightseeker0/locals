@@ -30,6 +30,34 @@ export const ChannelList: React.FC = () => {
     const [isStatusPickerOpen, setIsStatusPickerOpen] = useState(false);
     const [currentStatus, setCurrentStatus] = useState<'online' | 'idle' | 'dnd' | 'invisible'>('online');
 
+    // Auto-idle logic: Online -> Idle after 1 hour of inactivity
+    useEffect(() => {
+        let idleTimeout: any;
+        const ONE_HOUR = 60 * 60 * 1000;
+
+        const handleActivity = () => {
+            // Only track and reset if we are currently online
+            // If we are already idle, dnd, or invisible, we don't auto-change
+            if (currentStatus === 'online') {
+                if (idleTimeout) clearTimeout(idleTimeout);
+                idleTimeout = setTimeout(() => {
+                    setCurrentStatus('idle');
+                }, ONE_HOUR);
+            }
+        };
+
+        const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+        events.forEach(event => document.addEventListener(event, handleActivity));
+
+        // Start the timer initially if online
+        handleActivity();
+
+        return () => {
+            if (idleTimeout) clearTimeout(idleTimeout);
+            events.forEach(event => document.removeEventListener(event, handleActivity));
+        };
+    }, [currentStatus]);
+
     useEffect(() => {
         if (!window.electron) return;
 
