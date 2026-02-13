@@ -1,0 +1,437 @@
+import React, { useState, useEffect } from 'react';
+import { useAuthStore } from '../../stores/authStore';
+import { useThemeStore } from '../../stores/themeStore';
+import { useI18nStore } from '../../stores/i18nStore';
+import {
+    X, User, Palette, Sparkles, Plus,
+    Trash2, ExternalLink, Moon, Sun,
+    Save, Globe, Code, Upload, Link as LinkIcon, Edit2, Download
+} from 'lucide-react';
+import { clsx } from 'clsx';
+
+interface SettingsModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+}
+
+export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+    const { user, updateProfile } = useAuthStore();
+    const { themes, fetchThemes, saveTheme, deleteTheme, toggleTheme, currentBuiltInTheme, setBuiltInTheme } = useThemeStore();
+    const { t, lang, setLanguage } = useI18nStore();
+
+    const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'themes'>('profile');
+
+    // Profile state
+    const [displayName, setDisplayName] = useState(user?.display_name || '');
+    const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || '');
+
+    // Theme import state
+    const [showImport, setShowImport] = useState(false);
+    const [newThemeName, setNewThemeName] = useState('');
+    const [newThemeContent, setNewThemeContent] = useState('');
+    const [isUrl, setIsUrl] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && user) {
+            fetchThemes(user.id);
+        }
+    }, [isOpen, user, fetchThemes]);
+
+    const handleSaveProfile = async () => {
+        if (!user) return;
+        try {
+            await updateProfile({ display_name: displayName, avatar_url: avatarUrl });
+            alert('Profile updated successfully!');
+            onClose(); // Close on save
+        } catch (error) {
+            alert('Failed to update profile');
+        }
+    };
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const content = event.target?.result as string;
+            setNewThemeContent(content);
+            if (!newThemeName) {
+                setNewThemeName(file.name.replace('.css', '').replace('.theme', ''));
+            }
+            setIsUrl(false);
+        };
+        reader.readAsText(file);
+    };
+
+    const handleImportTheme = async () => {
+        if (!user || !newThemeName || !newThemeContent) return;
+        try {
+            await saveTheme(user.id, {
+                name: newThemeName,
+                css_content: newThemeContent,
+                is_url: isUrl,
+                is_active: true
+            });
+            setNewThemeName('');
+            setNewThemeContent('');
+            setShowImport(false);
+        } catch (error) {
+            alert('Failed to import theme');
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#15191E] w-full max-w-5xl h-[80vh] rounded-[2rem] border border-white/5 flex overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                {/* Sidebar */}
+                <div className="w-64 bg-[#101317] border-r border-white/5 p-6 flex flex-col gap-2">
+                    <h2 className="text-white/20 text-[11px] font-black uppercase tracking-widest mb-4 px-3">Settings</h2>
+
+                    <button
+                        onClick={() => setActiveTab('profile')}
+                        className={clsx(
+                            "flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-[14px]",
+                            activeTab === 'profile' ? "bg-matrix-green/10 text-matrix-green" : "text-matrix-muted hover:bg-white/5"
+                        )}
+                    >
+                        <User size={18} /> Profile
+                    </button>
+
+                    <button
+                        onClick={() => setActiveTab('appearance')}
+                        className={clsx(
+                            "flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-[14px]",
+                            activeTab === 'appearance' ? "bg-matrix-green/10 text-matrix-green" : "text-matrix-muted hover:bg-white/5"
+                        )}
+                    >
+                        <Palette size={18} /> Appearance
+                    </button>
+
+                    <button
+                        onClick={() => setActiveTab('themes')}
+                        className={clsx(
+                            "flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-[14px]",
+                            activeTab === 'themes' ? "bg-matrix-green/10 text-matrix-green" : "text-matrix-muted hover:bg-white/5"
+                        )}
+                    >
+                        <Sparkles size={18} /> Themes
+                    </button>
+
+                    <div className="mt-auto pt-6 border-t border-white/5 text-center">
+                        <p className="text-[10px] text-matrix-muted font-bold tracking-widest uppercase opacity-30">Locals v2.0 - Element Edition</p>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 flex flex-col min-w-0 bg-matrix-darker/50">
+                    <div className="h-16 flex items-center justify-between px-8 border-b border-white/5">
+                        <h1 className="text-xl font-black text-white capitalize">{activeTab}</h1>
+                        <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-matrix-muted transition-colors">
+                            <X size={24} />
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                        <div className="max-w-2xl mx-auto space-y-10">
+
+                            {activeTab === 'profile' && (
+                                <div className="space-y-8">
+                                    <div className="flex items-center gap-8">
+                                        <div className="relative group">
+                                            <div className="w-24 h-24 rounded-[2rem] bg-matrix-green/10 border-2 border-dashed border-matrix-green/30 flex items-center justify-center overflow-hidden">
+                                                {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" alt="" /> : <User size={40} className="text-matrix-green" />}
+                                            </div>
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity rounded-[2rem] cursor-pointer">
+                                                <Edit2 size={20} className="text-white hover:text-matrix-green transition-colors" />
+                                                {avatarUrl && <LinkIcon size={20} className="text-white hover:text-matrix-green transition-colors" />}
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 space-y-4">
+                                            <div>
+                                                <label className="block text-[11px] font-black text-matrix-muted uppercase tracking-widest mb-1.5 ml-1">Display Name</label>
+                                                <input
+                                                    value={displayName}
+                                                    onChange={e => setDisplayName(e.target.value)}
+                                                    className="w-full bg-[#101317] border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-matrix-green/30 transition-all font-medium"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] font-black text-matrix-muted uppercase tracking-widest mb-1.5 ml-1">Avatar Image</label>
+                                        <label className="w-full bg-[#101317] border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/5 flex items-center gap-3 transition-all group">
+                                            <Upload size={18} className="text-matrix-muted group-hover:text-white" />
+                                            <span className="text-sm font-medium text-matrix-muted group-hover:text-white">Click to upload new avatar...</span>
+                                            <input type="file" accept="image/*" onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = (ev) => {
+                                                        // Resize image logic here if needed, for now raw base64
+                                                        // Better to resize to max 200x200
+                                                        const img = new Image();
+                                                        img.onload = () => {
+                                                            const canvas = document.createElement('canvas');
+                                                            const MAX_SIZE = 200;
+                                                            let width = img.width;
+                                                            let height = img.height;
+                                                            if (width > height) {
+                                                                if (width > MAX_SIZE) {
+                                                                    height *= MAX_SIZE / width;
+                                                                    width = MAX_SIZE;
+                                                                }
+                                                            } else {
+                                                                if (height > MAX_SIZE) {
+                                                                    width *= MAX_SIZE / height;
+                                                                    height = MAX_SIZE;
+                                                                }
+                                                            }
+                                                            canvas.width = width;
+                                                            canvas.height = height;
+                                                            const ctx = canvas.getContext('2d');
+                                                            ctx?.drawImage(img, 0, 0, width, height);
+                                                            setAvatarUrl(canvas.toDataURL('image/jpeg', 0.8));
+                                                        };
+                                                        img.src = ev.target?.result as string;
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                            }} className="hidden" />
+                                        </label>
+                                    </div>
+
+                                    <button
+                                        onClick={handleSaveProfile}
+                                        className="bg-matrix-green text-matrix-darker px-8 py-3 rounded-xl font-black text-[14px] hover:scale-105 transition-all shadow-lg flex items-center gap-2"
+                                    >
+                                        <Save size={18} /> {t('save')}
+                                    </button>
+
+                                    {/* Language Switcher */}
+                                    <div className="pt-8 border-t border-white/5">
+                                        <h3 className="text-lg font-bold text-white mb-4">{t('language')}</h3>
+                                        <div className="flex gap-4">
+                                            <button
+                                                onClick={() => setLanguage('en')}
+                                                className={clsx(
+                                                    "px-6 py-3 rounded-xl font-bold text-sm transition-all border",
+                                                    lang === 'en' ? "bg-matrix-green/10 border-matrix-green text-matrix-green" : "bg-white/5 border-white/10 text-matrix-muted hover:text-white"
+                                                )}
+                                            >
+                                                English
+                                            </button>
+                                            <button
+                                                onClick={() => setLanguage('tr')}
+                                                className={clsx(
+                                                    "px-6 py-3 rounded-xl font-bold text-sm transition-all border",
+                                                    lang === 'tr' ? "bg-matrix-green/10 border-matrix-green text-matrix-green" : "bg-white/5 border-white/10 text-matrix-muted hover:text-white"
+                                                )}
+                                            >
+                                                Türkçe
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'appearance' && (
+                                <div className="space-y-8">
+                                    <h3 className="text-lg font-bold text-white mb-2">Built-in Themes</h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div
+                                            onClick={() => setBuiltInTheme('dark')}
+                                            className={clsx(
+                                                "p-6 rounded-2xl flex flex-col items-center gap-3 cursor-pointer transition-all",
+                                                currentBuiltInTheme === 'dark' ? "bg-matrix-green/10 border border-matrix-green/30" : "bg-white/5 border border-white/10 opacity-40 hover:opacity-100"
+                                            )}
+                                        >
+                                            <Moon size={32} className={currentBuiltInTheme === 'dark' ? "text-matrix-green" : "text-white"} />
+                                            <span className={clsx("font-black", currentBuiltInTheme === 'dark' ? "text-matrix-green" : "text-white")}>Dark</span>
+                                        </div>
+                                        <div
+                                            onClick={() => setBuiltInTheme('light-mode')}
+                                            className={clsx(
+                                                "p-6 rounded-2xl flex flex-col items-center gap-3 cursor-pointer transition-all",
+                                                currentBuiltInTheme === 'light-mode' ? "bg-blue-500/10 border border-blue-500/30" : "bg-white/5 border border-white/10 opacity-40 hover:opacity-100"
+                                            )}
+                                        >
+                                            <Sun size={32} className={currentBuiltInTheme === 'light-mode' ? "text-blue-500" : "text-white"} />
+                                            <span className={clsx("font-black", currentBuiltInTheme === 'light-mode' ? "text-blue-500" : "text-white")}>Light Mode</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Compact Layout Removed */}
+                                </div>
+                            )}
+
+                            {activeTab === 'themes' && (
+                                <div className="space-y-6">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-lg font-bold text-white">Custom Themes</h3>
+                                        <button
+                                            onClick={() => setShowImport(true)}
+                                            className="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all"
+                                        >
+                                            <Plus size={16} /> Import Theme
+                                        </button>
+                                    </div>
+
+                                    {showImport && (
+                                        <div className="bg-[#101317] border border-matrix-green/30 p-6 rounded-2xl space-y-4 animate-in slide-in-from-top-4 duration-200">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="font-black text-matrix-green uppercase text-xs tracking-widest">New Custom Theme</h4>
+                                                <button onClick={() => setShowImport(false)} className="text-matrix-muted p-1"><X size={16} /></button>
+                                            </div>
+
+                                            <input
+                                                placeholder="Theme Name (e.g. Frosted Glass)"
+                                                value={newThemeName}
+                                                onChange={e => setNewThemeName(e.target.value)}
+                                                className="w-full bg-matrix-darker border border-white/5 rounded-xl px-4 py-3 text-white outline-none focus:border-matrix-green/30 font-medium"
+                                            />
+
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setIsUrl(true)}
+                                                    className={clsx(
+                                                        "flex-1 py-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all",
+                                                        isUrl ? "bg-matrix-green/10 border-matrix-green/30 text-matrix-green" : "border-white/5 text-matrix-muted opacity-50"
+                                                    )}
+                                                >
+                                                    <Globe size={16} /> CSS URL
+                                                </button>
+                                                <button
+                                                    onClick={() => setIsUrl(false)}
+                                                    className={clsx(
+                                                        "flex-1 py-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all",
+                                                        !isUrl ? "bg-matrix-green/10 border-matrix-green/30 text-matrix-green" : "border-white/5 text-matrix-muted opacity-50"
+                                                    )}
+                                                >
+                                                    <Code size={16} /> Raw CSS
+                                                </button>
+                                                <label className="flex-1 py-3 rounded-xl border border-white/5 text-matrix-muted opacity-50 hover:opacity-100 hover:bg-white/5 hover:border-white/10 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+                                                    <Upload size={16} /> Upload File
+                                                    <input type="file" accept=".css" onChange={handleFileUpload} className="hidden" />
+                                                </label>
+                                            </div>
+
+                                            <textarea
+                                                placeholder={isUrl ? "https://betterdiscord.app/theme/Example.css" : ".app-mount { background: red; }"}
+                                                value={newThemeContent}
+                                                onChange={e => setNewThemeContent(e.target.value)}
+                                                rows={4}
+                                                className="w-full bg-matrix-darker border border-white/5 rounded-xl px-4 py-3 text-white outline-none focus:border-matrix-green/30 font-mono text-xs resize-none"
+                                            />
+
+                                            <button
+                                                onClick={handleImportTheme}
+                                                className="w-full bg-matrix-green text-matrix-darker py-3 rounded-xl font-black text-[14px] hover:scale-[1.02] transition-all shadow-xl flex items-center justify-center gap-2"
+                                            >
+                                                <Download size={18} />
+                                                {t('install_apply')}
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-3">
+                                        {themes.length === 0 && !showImport && (
+                                            <div className="text-center py-12 bg-white/[0.02] rounded-3xl border border-dashed border-white/5">
+                                                <Sparkles className="mx-auto text-matrix-muted/20 mb-4" size={40} />
+                                                <p className="text-matrix-muted text-sm font-medium">No custom themes added yet.</p>
+                                            </div>
+                                        )}
+                                        {themes.map(theme => (
+                                            <div key={theme.id} className="bg-white/5 border border-white/5 p-5 rounded-2xl flex items-center justify-between group hover:border-white/10 transition-all">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={clsx(
+                                                        "w-12 h-12 rounded-xl flex items-center justify-center border",
+                                                        theme.is_active ? "bg-matrix-green/10 border-matrix-green/30 text-matrix-green" : "bg-white/5 border-white/5 text-matrix-muted"
+                                                    )}>
+                                                        {theme.is_url ? <Globe size={20} /> : <Code size={20} />}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-white">{theme.name}</h4>
+                                                        <p className="text-[10px] text-matrix-muted font-black uppercase tracking-widest opacity-40">
+                                                            {theme.is_url ? 'External CSS' : 'Custom Block'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        onClick={() => toggleTheme(user!.id, theme.id)}
+                                                        className={clsx(
+                                                            "px-4 py-2 rounded-lg font-bold text-xs transition-all",
+                                                            theme.is_active ? "bg-matrix-green text-matrix-darker shadow-lg shadow-matrix-green/20" : "bg-white/5 text-matrix-muted hover:bg-white/10"
+                                                        )}
+                                                    >
+                                                        {theme.is_active ? 'Enabled' : 'Enable'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteTheme(user!.id, theme.id)}
+                                                        className="p-2 text-matrix-muted hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="pt-4">
+                                        <h3 className="text-[11px] font-black text-matrix-muted uppercase tracking-[0.2em] mb-4 opacity-50">Featured Themes</h3>
+                                        <div className="grid grid-cols-1 gap-3">
+                                            <div className="bg-matrix-green/5 border border-matrix-green/20 p-5 rounded-2xl flex items-center justify-between group hover:border-matrix-green/40 transition-all">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-matrix-green/10 flex items-center justify-center text-matrix-green border border-matrix-green/20">
+                                                        <Sparkles size={24} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-white">Dark Matter</h4>
+                                                        <p className="text-[10px] text-matrix-muted font-black uppercase tracking-widest opacity-40">
+                                                            A cold, dark & frosty theme
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!user) return;
+                                                        await saveTheme(user.id, {
+                                                            name: 'Dark Matter',
+                                                            css_content: 'https://DiscordStyles.github.io/DarkMatter/src/base.css',
+                                                            is_url: true,
+                                                            is_active: true
+                                                        });
+                                                        alert('Dark Matter theme installed!');
+                                                    }}
+                                                    className="bg-matrix-green/10 hover:bg-matrix-green text-matrix-green hover:text-matrix-darker px-4 py-2 rounded-lg font-bold text-xs transition-all border border-matrix-green/20"
+                                                >
+                                                    {t('install_apply')}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-blue-500/5 border border-blue-500/20 p-6 rounded-2xl flex gap-4 items-start">
+                                        <ExternalLink className="text-blue-500 shrink-0 mt-0.5" size={20} />
+                                        <div>
+                                            <h4 className="font-bold text-blue-200 text-sm mb-1">BetterDiscord Themes</h4>
+                                            <p className="text-xs text-blue-200/60 leading-relaxed">
+                                                Locals supports CSS themes designed for BetterDiscord. Simply copy the raw CSS content or the direct link to a `.theme.css` file and paste it above.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};

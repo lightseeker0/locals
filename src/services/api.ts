@@ -1,0 +1,202 @@
+export class ApiService {
+    private static baseUrl = (import.meta.env.VITE_API_URL as string) || 'https://locals-1ni.pages.dev/api';
+
+    private static getHeaders(userId?: string) {
+        const headers: any = { 'Content-Type': 'application/json' };
+        if (userId) headers['X-User-ID'] = userId;
+        return headers;
+    }
+
+    static async get(path: string, userId?: string) {
+        const response = await fetch(`${this.baseUrl}${path}`, {
+            headers: this.getHeaders(userId)
+        });
+        const contentType = response.headers.get('content-type');
+        if (!response.ok) {
+            if (contentType && contentType.includes('application/json')) {
+                const err = await response.json();
+                throw new Error(err.error || response.statusText);
+            }
+            throw new Error(response.statusText);
+        }
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        }
+        return response.text(); // Fallback for non-JSON success? Or throw?
+    }
+
+    static async post(path: string, data: any, userId?: string) {
+        const response = await fetch(`${this.baseUrl}${path}`, {
+            method: 'POST',
+            headers: this.getHeaders(userId),
+            body: JSON.stringify(data)
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: response.statusText }));
+            throw new Error(err.error || response.statusText);
+        }
+        return response.json();
+    }
+
+    // --- Auth ---
+    static async login(data: { username: string, password?: string }) {
+        return this.post('/auth/login', data);
+    }
+
+    static async register(data: { username: string, password?: string }) {
+        return this.post('/auth/register', data);
+    }
+
+    static async getMe(userId: string) {
+        return this.get('/auth/me', userId);
+    }
+
+    // --- User ---
+    static async updateProfile(userId: string, data: { display_name: string, avatar_url: string, bio?: string }) {
+        return this.post('/user/profile', { id: userId, ...data }, userId);
+    }
+
+    static async fetchUserList(userId: string) {
+        return this.get('/users/list', userId);
+    }
+
+    static async searchUsers(query: string, userId: string) {
+        return this.get(`/users/search?q=${encodeURIComponent(query)}`, userId);
+    }
+
+    // --- Spaces & Rooms ---
+    static async fetchSpaces(userId?: string) {
+        return this.get('/spaces', userId);
+    }
+
+    static async createSpace(userId: string, name: string, isPrivate: boolean = false) {
+        return this.post('/spaces', { name, owner_id: userId, is_private: isPrivate }, userId);
+    }
+
+    static async fetchRooms(spaceId: string, userId?: string) {
+        return this.get(`/rooms/${spaceId}`, userId);
+    }
+
+    static async createRoom(userId: string, spaceId: string, name: string, type: 'text' | 'voice' = 'text') {
+        return this.post('/rooms', { space_id: spaceId, name, type }, userId);
+    }
+
+    // --- Direct Messaging ---
+    static async fetchDMs(userId: string) {
+        return this.get('/dm/list', userId);
+    }
+
+    static async createDM(userId: string, targetUserId: string) {
+        return this.post('/dm/create', { target_user_id: targetUserId }, userId);
+    }
+
+    // --- Messages, Reactions, Receipts ---
+    static async fetchMessages(roomId: string, userId?: string) {
+        return this.get(`/messages/${roomId}`, userId);
+    }
+
+    static async sendMessage(roomId: string, userId: string, content: string, replyToId?: string) {
+        return this.post('/messages/send', {
+            room_id: roomId,
+            user_id: userId,
+            content,
+            reply_to_id: replyToId
+        }, userId);
+    }
+
+    static async toggleReaction(messageId: string, userId: string, emoji: string) {
+        return this.post('/reactions', { message_id: messageId, user_id: userId, emoji }, userId);
+    }
+
+    static async updateReadReceipt(roomId: string, userId: string, messageId: string) {
+        return this.post('/read-receipts', { room_id: roomId, user_id: userId, message_id: messageId }, userId);
+    }
+
+    static async setTyping(roomId: string, userId: string, isTyping: boolean) {
+        return this.post('/typing', { room_id: roomId, user_id: userId, is_typing: isTyping }, userId);
+    }
+
+    // --- Themes ---
+    static async fetchThemes(userId: string) {
+        return this.get('/themes', userId);
+    }
+
+    static async saveTheme(userId: string, theme: { id?: string, name: string, css_content: string, is_url: boolean, is_active: boolean }) {
+        return this.post('/themes', theme, userId);
+    }
+
+    static async deleteTheme(userId: string, id: string) {
+        return this.post('/themes/delete', { id }, userId);
+    }
+
+    // --- Voice Chat ---
+    static async createCall(roomId: string, userId: string) {
+        return this.post('/voice/call', { room_id: roomId }, userId);
+    }
+
+    static async sendSignal(callId: string, userId: string, type: string, payload: any) {
+        return this.post('/voice/signal', { call_id: callId, type, payload }, userId);
+    }
+
+    static async pollSignals(callId: string, userId: string, lastSignalId: number) {
+        return this.post('/voice/poll', { call_id: callId, last_signal_id: lastSignalId }, userId);
+    }
+
+    static async fetchVoiceParticipants(roomId: string, userId: string) {
+        return this.get(`/voice/participants/${roomId}`, userId);
+    }
+
+    static async endCall(userId: string) {
+        return this.post('/voice/end', {}, userId);
+    }
+
+    static async deleteMessage(messageId: string, userId: string) {
+        return this.post(`/messages/delete/${messageId}`, {}, userId);
+    }
+
+    static async deleteSpace(spaceId: string, userId: string) {
+        return this.post(`/spaces/delete/${spaceId}`, {}, userId);
+    }
+
+    static async kickUser(spaceId: string, userId: string, targetUserId: string) {
+        return this.post('/spaces/kick', { space_id: spaceId, target_user_id: targetUserId }, userId);
+    }
+
+    static async banUser(userId: string, targetUserId: string, ban: boolean = true) {
+        return this.post('/users/ban', { target_user_id: targetUserId, ban }, userId);
+    }
+
+    static async fetchAdminUsers(userId: string) {
+        return this.get('/admin/users', userId);
+    }
+
+    static async fetchBannedUsers(userId: string) {
+        return this.get('/admin/banned', userId);
+    }
+
+    static async unbanUser(userId: string, targetUserId: string) {
+        return this.post('/users/ban', { target_user_id: targetUserId, ban: false }, userId);
+    }
+
+    // --- Notifications ---
+    static async fetchNotifications(userId: string) {
+        return this.get('/notifications', userId);
+    }
+
+    static async markNotificationAsRead(userId: string, notificationId: string) {
+        return this.post('/notifications/read', { notification_id: notificationId }, userId);
+    }
+
+    static async markAllNotificationsAsRead(userId: string) {
+        return this.post('/notifications/read', { all: true }, userId);
+    }
+
+    // --- Pinning ---
+    static async fetchPinnedMessages(roomId: string) {
+        return this.get(`/messages/pinned/${roomId}`);
+    }
+
+    static async pinMessage(messageId: string, isPinned: boolean) {
+        return this.post('/messages/pin', { message_id: messageId, is_pinned: isPinned });
+    }
+}

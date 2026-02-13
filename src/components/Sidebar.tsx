@@ -1,0 +1,101 @@
+import React from 'react';
+import { useAppStore } from '../stores/appStore';
+import { Plus, LogIn } from 'lucide-react';
+import { twMerge } from 'tailwind-merge';
+import { CreateSpaceModal } from './modals/CreateSpaceModal';
+import { JoinSpaceModal } from './modals/JoinSpaceModal';
+
+import { useI18nStore } from '../stores/i18nStore';
+
+export const Sidebar: React.FC = () => {
+    const { servers, selectedServerId, setSelectedServer } = useAppStore();
+    const { t } = useI18nStore();
+    const [isCreateSpaceOpen, setIsCreateSpaceOpen] = React.useState(false);
+    const [isJoinSpaceOpen, setIsJoinSpaceOpen] = React.useState(false);
+
+    const handleServerClick = (id: string | null) => {
+        setSelectedServer(id);
+    };
+
+    return (
+        <nav className="w-[72px] bg-matrix-darker flex flex-col items-center py-3 gap-2 overflow-y-auto no-scrollbar shrink-0 border-r border-white/5 sidebar">
+            {/* ... Home ... */}
+            <SidebarItem
+                active={selectedServerId === null}
+                onClick={() => handleServerClick(null)}
+                tooltip={t('home')}
+            >
+                <div className="w-6 h-6 border-2 border-matrix-green rounded-sm flex items-center justify-center">
+                    <div className="w-2 h-2 bg-matrix-green rounded-full" />
+                </div>
+            </SidebarItem>
+
+            <div className="w-8 h-[1px] bg-white/10 mx-auto my-1" />
+
+            {/* Spaces List */}
+            {servers.map((server) => (
+                <SidebarItem
+                    key={server.id}
+                    active={selectedServerId === server.id}
+                    onClick={() => handleServerClick(server.id)}
+                    tooltip={server.title}
+                >
+                    {server.avatar ? (
+                        <img src={server.avatar} alt={server.title} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="flex items-center justify-center w-full h-full bg-matrix-green/5">
+                            <span className="text-xs font-bold text-matrix-muted group-hover:text-white transition-colors">
+                                {server.title.substring(0, 1).toUpperCase()}
+                            </span>
+                        </div>
+                    )}
+                </SidebarItem>
+            ))}
+
+            <SidebarItem onClick={() => setIsCreateSpaceOpen(true)} className="text-matrix-green bg-matrix-dark hover:bg-matrix-green hover:text-white border border-matrix-green/20">
+                <Plus size={24} />
+            </SidebarItem>
+
+            <SidebarItem onClick={() => setIsJoinSpaceOpen(true)} className="text-matrix-green bg-matrix-dark hover:bg-matrix-green hover:text-white border border-matrix-green/20" tooltip="Join Space">
+                <LogIn size={20} />
+            </SidebarItem>
+
+
+            <CreateSpaceModal isOpen={isCreateSpaceOpen} onClose={() => setIsCreateSpaceOpen(false)} />
+            <JoinSpaceModal isOpen={isJoinSpaceOpen} onClose={() => setIsJoinSpaceOpen(false)} />
+        </nav>
+    );
+};
+
+interface SidebarItemProps extends React.HTMLAttributes<HTMLDivElement> {
+    active?: boolean;
+    tooltip?: string;
+    children: React.ReactNode;
+}
+
+const SidebarItem: React.FC<SidebarItemProps> = ({ active, children, className, onClick, tooltip }) => {
+    return (
+        <div className="relative group flex items-center justify-center w-12 h-12 cursor-pointer" onClick={onClick}>
+            {/* Hover Pill */}
+            <div className={twMerge(
+                "absolute left-[-16px] bg-matrix-green rounded-r-lg w-1.5 transition-all duration-200",
+                active ? "h-8 opacity-100" : "h-2 opacity-0 group-hover:opacity-100 group-hover:h-5"
+            )} style={{ left: '-2px' }} />
+
+            <div className={twMerge(
+                "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 overflow-hidden border border-transparent",
+                active ? "bg-matrix-darker border-matrix-green/50 shadow-[0_0_10px_rgba(13,189,139,0.2)]" : "bg-matrix-dark group-hover:bg-matrix-darker group-hover:border-white/10",
+                className
+            )}>
+                {children}
+            </div>
+
+            {/* Tooltip */}
+            {tooltip && (
+                <div className="absolute left-[70px] bg-matrix-darker border border-white/10 text-white text-xs font-medium px-2.5 py-1.5 rounded-md hidden group-hover:block whitespace-nowrap z-50 shadow-xl">
+                    {tooltip}
+                </div>
+            )}
+        </div>
+    )
+}

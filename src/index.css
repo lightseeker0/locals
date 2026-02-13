@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@theme {
+  --color-matrix-green: #0dbd8b;
+  --color-matrix-dark: #15191e;
+  --color-matrix-darker: #0d1217;
+  --color-matrix-text: #e1e1e1;
+  --color-matrix-muted: #8e9297;
+  --color-discord-blurple: #5865f2;
+}
+
+:root {
+  --sidebar-width: 72px;
+  --channel-list-width: 240px;
+  --member-list-width: 240px;
+
+  /* Theme Variables - Matrix Dark (Default) */
+  --matrix-green: #0dbd8b;
+  --matrix-dark: #15191e;
+  --matrix-darker: #0d1217;
+  --matrix-text: #e1e1e1;
+  --matrix-muted: #8e9297;
+  --discord-blurple: #5865f2;
+  --bg-primary: var(--matrix-darker);
+  --bg-secondary: var(--matrix-dark);
+  --text-normal: var(--matrix-text);
+  --text-muted: var(--matrix-muted);
+}
+
+.light-mode {
+  --matrix-green: #008f68;
+  --matrix-dark: #f2f3f5;
+  --matrix-darker: #ffffff;
+  --matrix-text: #2e3338;
+  --matrix-muted: #747f8d;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f2f3f5;
+  --text-normal: #2e3338;
+  --text-muted: #747f8d;
+}
+
+/* BetterDiscord Compatibility Aliases */
+.app-mount,
+.app-inner {
+  background-color: var(--bg-primary);
+  color: var(--text-normal);
+}
+
+.sidebar {
+  background-color: var(--bg-secondary);
+}
+
+.chat-content {
+  background-color: var(--bg-primary);
+}
+
+.member-list {
+  background-color: var(--bg-secondary);
+}
+
+.header {
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+@theme {
+  --color-matrix-green: var(--matrix-green);
+  --color-matrix-dark: var(--matrix-dark);
+  --color-matrix-darker: var(--matrix-darker);
+  --color-matrix-text: var(--matrix-text);
+  --color-matrix-muted: var(--matrix-muted);
+  --color-discord-blurple: var(--discord-blurple);
+}
+
+body {
+  background-color: var(--color-matrix-darker);
+  color: var(--color-matrix-text);
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Mobile Optimizations */
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: auto;
+  /* Allow native pull-to-refresh */
+  touch-action: manipulation;
+}
+
+/* Safe Area Utilities with fallback */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.pb-safe-lg {
+  padding-bottom: max(2rem, env(safe-area-inset-bottom));
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+.px-safe {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Disable selection for non-text areas to feel more native */
+.select-none {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Custom Scrollbar - Element Style */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #39434b;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4e5a65;
+}

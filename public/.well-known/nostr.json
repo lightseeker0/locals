@@ -1,0 +1,12 @@
+{
+    "names": {
+        "locals": "YOUR_NOSTR_PUBLIC_KEY_HEX_HERE"
+    },
+    "relays": {
+        "YOUR_NOSTR_PUBLIC_KEY_HEX_HERE": [
+            "wss://relay.damus.io",
+            "wss://nos.lol",
+            "wss://relay.nostr.band"
+        ]
+    }
+}
