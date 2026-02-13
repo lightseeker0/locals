@@ -16,12 +16,29 @@ function App() {
   const { currentBuiltInTheme } = useThemeStore();
   const { isSettingsOpen, setSettingsOpen, isUserListOpen } = useAppStore();
   const [debugStatus, setDebugStatus] = useState('Initializing...');
+  const [updateInfo, setUpdateInfo] = useState<{ status: 'available' | 'downloading' | 'ready', progress?: number } | null>(null);
 
   const { initElectronListener } = useThemeStore();
   useAppData();
 
   useEffect(() => {
     initElectronListener();
+
+    // Auto-update listeners
+    if ((window as any).electron) {
+      (window as any).electron.onUpdateAvailable(() => {
+        setUpdateInfo({ status: 'available' });
+      });
+
+      (window as any).electron.onUpdateProgress((progress: any) => {
+        setUpdateInfo({ status: 'downloading', progress: progress.percent });
+      });
+
+      (window as any).electron.onUpdateDownloaded(() => {
+        setUpdateInfo({ status: 'ready' });
+      });
+    }
+
     const init = async () => {
       try {
         setDebugStatus('Starting session validation...');
@@ -72,6 +89,45 @@ function App() {
             )}
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
           </div>
+
+          {/* Update Notification */}
+          {updateInfo && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
+              <div className="bg-matrix-darker border border-matrix-green/50 rounded-xl shadow-2xl p-4 flex items-center gap-4 min-w-[300px]">
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-white mb-1">
+                    {updateInfo.status === 'available' && 'Yeni güncelleme bulundu...'}
+                    {updateInfo.status === 'downloading' && 'Güncelleme indiriliyor...'}
+                    {updateInfo.status === 'ready' && 'Güncelleme hazır!'}
+                  </div>
+                  {updateInfo.status === 'downloading' && (
+                    <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-matrix-green h-full transition-all duration-300"
+                        style={{ width: `${updateInfo.progress || 0}%` }}
+                      />
+                    </div>
+                  )}
+                  {updateInfo.status === 'ready' && (
+                    <div className="text-xs text-matrix-muted uppercase tracking-wider font-bold">
+                      Yüklemek için yeniden başlatın
+                    </div>
+                  )}
+                </div>
+                {updateInfo.status === 'ready' && (
+                  <button
+                    onClick={() => (window as any).electron?.installUpdate()}
+                    className="bg-matrix-green text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-white transition-all shadow-lg active:scale-95"
+                  >
+                    Hemen Başlat
+                  </button>
+                )}
+                {updateInfo.status !== 'ready' && (
+                  <div className="w-5 h-5 border-2 border-matrix-green/30 border-t-matrix-green rounded-full animate-spin" />
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </Router>

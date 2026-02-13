@@ -1,4 +1,5 @@
 const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const isDev = process.env.NODE_ENV === 'development';
@@ -73,8 +74,48 @@ function loadThemes() {
     reloadThemes();
 }
 
+function setupAutoUpdater() {
+    if (isDev) {
+        // Optional: Skip auto-update in dev mode
+        // return;
+    }
+
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('update-available', (info) => {
+        if (mainWindow) {
+            mainWindow.webContents.send('update-available', info);
+        }
+    });
+
+    autoUpdater.on('download-progress', (progressObj) => {
+        if (mainWindow) {
+            mainWindow.webContents.send('update-progress', progressObj);
+        }
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+        if (mainWindow) {
+            mainWindow.webContents.send('update-downloaded', info);
+        }
+    });
+
+    autoUpdater.on('error', (err) => {
+        console.error('Updater error:', err);
+    });
+
+    // Check for updates
+    autoUpdater.checkForUpdatesAndNotify();
+}
+
+ipcMain.on('install-update', () => {
+    autoUpdater.quitAndInstall();
+});
+
 app.whenReady().then(() => {
     createWindow();
+    setupAutoUpdater();
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
