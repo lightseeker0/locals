@@ -30,6 +30,19 @@ autoUpdater.logger.transports.file.level = 'info';
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
+autoUpdater.on('error', (err) => {
+    log.error('Auto-updater error:', err);
+});
+autoUpdater.on('checking-for-update', () => {
+    log.info('Checking for update...');
+});
+autoUpdater.on('update-available', (info) => {
+    log.info('Update available:', info);
+});
+autoUpdater.on('update-not-available', (info) => {
+    log.info('Update not available:', info);
+});
+
 function createWindow() {
     // ... existing BrowserWindow config ...
     win = new BrowserWindow({

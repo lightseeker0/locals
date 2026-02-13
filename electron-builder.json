@@ -1,0 +1,32 @@
+{
+    "appId": "com.locals.app",
+    "productName": "Locals",
+    "directories": {
+        "output": "dist-electron"
+    },
+    "files": [
+        "dist/**/*",
+        "electron/**/*",
+        "public/**/*",
+        "package.json"
+    ],
+    "publish": [
+        {
+            "provider": "github",
+            "owner": "lightseeker0",
+            "repo": "locals",
+            "releaseType": "release"
+        }
+    ],
+    "win": {
+        "target": "nsis",
+        "icon": "public/logo.png"
+    },
+    "nsis": {
+        "oneClick": true,
+        "perMachine": false,
+        "allowToChangeInstallationDirectory": false,
+        "deleteAppDataOnUninstall": false,
+        "runAfterFinish": true
+    }
+}
