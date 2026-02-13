@@ -134,7 +134,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             if (path === '/dm/list') {
                 if (!userIdHeader) return new Response('Unauthorized', { status: 401 });
                 const { results } = await env.DB.prepare(`
-                    SELECT r.*, u.username as other_username, u.display_name as other_display_name, u.avatar_url as other_avatar 
+                    SELECT r.*, u.username as other_username, u.display_name as other_display_name, u.avatar_url as other_avatar, u.last_seen
                     FROM rooms r
                     JOIN participants p ON r.id = p.room_id
                     JOIN participants p2 ON r.id = p2.room_id AND p2.user_id != p.user_id
@@ -273,6 +273,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
                 await updateLastSeen(user.id);
                 const { password_hash, ...safeUser } = user;
+
+                const adminUsername = env.ADMIN_USERNAME || 'ds4d';
+                (safeUser as any).is_admin = safeUser.username.toLowerCase() === adminUsername.toLowerCase();
+
                 return Response.json(safeUser, { headers: corsHeaders });
             }
 

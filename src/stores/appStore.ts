@@ -14,6 +14,7 @@ interface Channel {
     title: string;
     type: 'text' | 'voice' | 'dm';
     avatar?: string;
+    last_seen?: string;
 }
 
 interface AppState {

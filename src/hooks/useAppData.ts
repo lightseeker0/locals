@@ -42,7 +42,8 @@ export const useAppData = () => {
                     id: d.id,
                     title: d.other_display_name || d.other_username,
                     type: 'dm',
-                    avatar: d.other_avatar
+                    avatar: d.other_avatar,
+                    last_seen: d.last_seen
                 })));
             }
         } catch (error) {

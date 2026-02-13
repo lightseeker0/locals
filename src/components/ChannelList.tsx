@@ -177,28 +177,34 @@ export const ChannelList: React.FC = () => {
                 </div>
 
                 <div className="space-y-0.5 mt-2">
-                    {channels.filter(c => c.type === 'dm').map((dm) => (
-                        <div
-                            key={dm.id}
-                            className={clsx(
-                                "flex items-center px-2 py-2 rounded-xl cursor-pointer group transition-all",
-                                selectedChannelId === dm.id ? "bg-matrix-green/10 text-matrix-green border border-matrix-green/20" : "text-matrix-muted hover:bg-white/5 hover:text-gray-200 border border-transparent"
-                            )}
-                            onClick={() => setSelectedChannel(dm.id)}
-                        >
-                            <div className="relative mr-3 shrink-0">
-                                {dm.avatar ? (
-                                    <img src={dm.avatar} className="w-8 h-8 rounded-xl object-cover" alt="" />
-                                ) : (
-                                    <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center">
-                                        <AtSign size={14} className="opacity-40" />
-                                    </div>
+                    {channels.filter(c => c.type === 'dm').map((dm) => {
+                        const isOnline = dm.last_seen && (new Date().getTime() - new Date(dm.last_seen).getTime() < 5 * 60 * 1000); // 5 mins
+                        return (
+                            <div
+                                key={dm.id}
+                                className={clsx(
+                                    "flex items-center px-2 py-2 rounded-xl cursor-pointer group transition-all",
+                                    selectedChannelId === dm.id ? "bg-matrix-green/10 text-matrix-green border border-matrix-green/20" : "text-matrix-muted hover:bg-white/5 hover:text-gray-200 border border-transparent"
                                 )}
-                                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-matrix-green rounded-full border-2 border-matrix-dark"></div>
+                                onClick={() => setSelectedChannel(dm.id)}
+                            >
+                                <div className="relative mr-3 shrink-0">
+                                    {dm.avatar ? (
+                                        <img src={dm.avatar} className="w-8 h-8 rounded-xl object-cover" alt="" />
+                                    ) : (
+                                        <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center">
+                                            <AtSign size={14} className="opacity-40" />
+                                        </div>
+                                    )}
+                                    <div className={clsx(
+                                        "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-matrix-dark",
+                                        isOnline ? "bg-matrix-green" : "bg-matrix-muted opacity-50"
+                                    )}></div>
+                                </div>
+                                <span className="font-bold truncate text-[13px]">{dm.title}</span>
                             </div>
-                            <span className="font-bold truncate text-[13px]">{dm.title}</span>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
             {renderUserControls()}

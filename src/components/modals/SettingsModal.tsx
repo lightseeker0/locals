@@ -5,7 +5,7 @@ import { useI18nStore } from '../../stores/i18nStore';
 import {
     X, User, Palette, Sparkles, Plus,
     Trash2, ExternalLink, Moon, Sun,
-    Save, Globe, Code, Upload, Link as LinkIcon, Edit2, Download
+    Save, Globe, Code, Upload, Download
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -141,13 +141,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 <div className="space-y-8">
                                     <div className="flex items-center gap-8">
                                         <div className="relative group">
-                                            <div className="w-24 h-24 rounded-[2rem] bg-matrix-green/10 border-2 border-dashed border-matrix-green/30 flex items-center justify-center overflow-hidden">
-                                                {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" alt="" /> : <User size={40} className="text-matrix-green" />}
-                                            </div>
-                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity rounded-[2rem] cursor-pointer">
-                                                <Edit2 size={20} className="text-white hover:text-matrix-green transition-colors" />
-                                                {avatarUrl && <LinkIcon size={20} className="text-white hover:text-matrix-green transition-colors" />}
-                                            </div>
+                                            <label className="cursor-pointer block">
+                                                <div className="w-24 h-24 rounded-[2rem] bg-matrix-green/10 border-2 border-dashed border-matrix-green/30 flex items-center justify-center overflow-hidden hover:border-matrix-green/60 transition-colors relative">
+                                                    {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" alt="" /> : <User size={40} className="text-matrix-green" />}
+
+                                                    {/* Hover Overlay */}
+                                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-1 transition-opacity">
+                                                        <Upload size={20} className="text-white" />
+                                                        <span className="text-[10px] font-bold text-white uppercase tracking-wider">Change</span>
+                                                    </div>
+                                                </div>
+                                                <input type="file" accept="image/*" onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) {
+                                                        const reader = new FileReader();
+                                                        reader.onload = (ev) => {
+                                                            const img = new Image();
+                                                            img.onload = () => {
+                                                                const canvas = document.createElement('canvas');
+                                                                const MAX_SIZE = 400; // Increased quality slightly
+                                                                let width = img.width;
+                                                                let height = img.height;
+                                                                if (width > height) {
+                                                                    if (width > MAX_SIZE) {
+                                                                        height *= MAX_SIZE / width;
+                                                                        width = MAX_SIZE;
+                                                                    }
+                                                                } else {
+                                                                    if (height > MAX_SIZE) {
+                                                                        width *= MAX_SIZE / height;
+                                                                        height = MAX_SIZE;
+                                                                    }
+                                                                }
+                                                                canvas.width = width;
+                                                                canvas.height = height;
+                                                                const ctx = canvas.getContext('2d');
+                                                                ctx?.drawImage(img, 0, 0, width, height);
+                                                                setAvatarUrl(canvas.toDataURL('image/jpeg', 0.9));
+                                                            };
+                                                            img.src = ev.target?.result as string;
+                                                        };
+                                                        reader.readAsDataURL(file);
+                                                    }
+                                                }} className="hidden" />
+                                            </label>
                                         </div>
                                         <div className="flex-1 space-y-4">
                                             <div>
@@ -159,49 +196,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                                 />
                                             </div>
                                         </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-[11px] font-black text-matrix-muted uppercase tracking-widest mb-1.5 ml-1">Avatar Image</label>
-                                        <label className="w-full bg-[#101317] border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/5 flex items-center gap-3 transition-all group">
-                                            <Upload size={18} className="text-matrix-muted group-hover:text-white" />
-                                            <span className="text-sm font-medium text-matrix-muted group-hover:text-white">Click to upload new avatar...</span>
-                                            <input type="file" accept="image/*" onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                    const reader = new FileReader();
-                                                    reader.onload = (ev) => {
-                                                        // Resize image logic here if needed, for now raw base64
-                                                        // Better to resize to max 200x200
-                                                        const img = new Image();
-                                                        img.onload = () => {
-                                                            const canvas = document.createElement('canvas');
-                                                            const MAX_SIZE = 200;
-                                                            let width = img.width;
-                                                            let height = img.height;
-                                                            if (width > height) {
-                                                                if (width > MAX_SIZE) {
-                                                                    height *= MAX_SIZE / width;
-                                                                    width = MAX_SIZE;
-                                                                }
-                                                            } else {
-                                                                if (height > MAX_SIZE) {
-                                                                    width *= MAX_SIZE / height;
-                                                                    height = MAX_SIZE;
-                                                                }
-                                                            }
-                                                            canvas.width = width;
-                                                            canvas.height = height;
-                                                            const ctx = canvas.getContext('2d');
-                                                            ctx?.drawImage(img, 0, 0, width, height);
-                                                            setAvatarUrl(canvas.toDataURL('image/jpeg', 0.8));
-                                                        };
-                                                        img.src = ev.target?.result as string;
-                                                    };
-                                                    reader.readAsDataURL(file);
-                                                }
-                                            }} className="hidden" />
-                                        </label>
                                     </div>
 
                                     <button
