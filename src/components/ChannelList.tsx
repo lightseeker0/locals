@@ -30,6 +30,27 @@ export const ChannelList: React.FC = () => {
     const currentServer = servers.find(s => s.id === selectedServerId);
 
     const { roomParticipants, speakingUsers, fetchParticipants } = useVoiceStore();
+    const prevParticipantsCount = React.useRef<Record<string, number>>({});
+
+    useEffect(() => {
+        if (!user) return;
+
+        // Check for new participants in all rooms
+        Object.entries(roomParticipants).forEach(([roomId, p]) => {
+            const currentCount = p?.length || 0;
+            const prevCount = prevParticipantsCount.current[roomId] || 0;
+
+            // Only play if someone NEW joined (count increased)
+            // And if we are in that specific room OR it's a join in the current server
+            if (currentCount > prevCount) {
+                // Play join sound
+                const audio = new Audio('/assets/sounds/join.mp3');
+                audio.volume = 0.5;
+                audio.play().catch(e => console.error("Audio play failed:", e));
+            }
+            prevParticipantsCount.current[roomId] = currentCount;
+        });
+    }, [roomParticipants, user?.id]);
 
     useEffect(() => {
         if (!user || !selectedServerId) return;
