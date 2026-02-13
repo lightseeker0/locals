@@ -91,12 +91,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             });
 
             peer.on('signal', async (data: any) => {
-                // If the signal is an offer, we label it as such, otherwise it's a candidate
                 const type = data.type || 'candidate';
+                console.log(`[WebRTC] Sending signal: ${type}`, data);
                 await ApiService.sendSignal(callId, userId, type, data);
             });
 
+            peer.on('connect', () => {
+                console.log('[WebRTC] P2P Connected!');
+                set({ callStatus: 'connected' });
+            });
+
             peer.on('stream', async (remoteStream: MediaStream) => {
+                console.log('[WebRTC] Remote stream received!', remoteStream.getAudioTracks());
                 set({ remoteStream, callStatus: 'connected' });
 
                 // Identify peer to setup their analyser
@@ -167,10 +173,17 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
             peer.on('signal', async (data: any) => {
                 const type = data.type || 'candidate';
+                console.log(`[WebRTC] Sending signal: ${type}`, data);
                 await ApiService.sendSignal(callId, userId, type, data);
             });
 
+            peer.on('connect', () => {
+                console.log('[WebRTC] P2P Connected (Joiner)!');
+                set({ callStatus: 'connected' });
+            });
+
             peer.on('stream', async (remoteStream: MediaStream) => {
+                console.log('[WebRTC] Remote stream received (Joiner)!', remoteStream.getAudioTracks());
                 set({ remoteStream, callStatus: 'connected' });
 
                 // Try to find the initiator ID
@@ -213,11 +226,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 set({ lastSignalId: signals[signals.length - 1].id });
 
                 for (const signal of signals) {
-                    const data = JSON.parse(signal.payload);
+                    const data = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : signal.payload;
                     try {
+                        console.log(`[WebRTC] Receiving signal: ${signal.type}`, data);
                         peer.signal(data);
                     } catch (e) {
-                        console.error('Error signaling peer:', e);
+                        console.error('[WebRTC] Error signaling peer:', e);
                     }
                 }
             }
