@@ -43,10 +43,12 @@
 [data-theme='roundmoled'] .sidebar,
 [data-theme='roundmoled'] .channel-list,
 [data-theme='roundmoled'] .chat-content,
+[data-theme='roundmoled'] .members-3WRCEx,
 [data-theme='roundmoled'] .member-list {
     border-radius: 20px !important;
     background-color: var(--rm-dark-primary) !important;
     border: none !important;
+    overflow: hidden !important;
 }
 
 /* Separation and Individual Backgrounds */
