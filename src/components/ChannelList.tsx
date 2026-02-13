@@ -579,20 +579,34 @@ export const ChannelList: React.FC = () => {
 };
 
 const VoiceAudioPlayer = () => {
-    const { remoteStream, audioOutputDeviceId, isDeafened } = useVoiceStore();
+    const { remoteStreams, audioOutputDeviceId, isDeafened } = useVoiceStore();
+
+    return (
+        <>
+            {Object.entries(remoteStreams).map(([userId, stream]) => (
+                <RemoteAudioItem
+                    key={userId}
+                    stream={stream}
+                    outputDeviceId={audioOutputDeviceId}
+                    isDeafened={isDeafened}
+                />
+            ))}
+        </>
+    );
+};
+
+const RemoteAudioItem = ({ stream, outputDeviceId, isDeafened }: { stream: MediaStream, outputDeviceId: string | null, isDeafened: boolean }) => {
     const audioRef = React.useRef<HTMLAudioElement>(null);
 
     React.useEffect(() => {
-        if (audioRef.current && remoteStream) {
-            audioRef.current.srcObject = remoteStream;
-
-            // Set output device if supported (Chromium/Electron)
-            if (audioOutputDeviceId && (audioRef.current as any).setSinkId) {
-                (audioRef.current as any).setSinkId(audioOutputDeviceId)
+        if (audioRef.current && stream) {
+            audioRef.current.srcObject = stream;
+            if (outputDeviceId && (audioRef.current as any).setSinkId) {
+                (audioRef.current as any).setSinkId(outputDeviceId)
                     .catch((err: any) => console.error("Failed to set output device:", err));
             }
         }
-    }, [remoteStream, audioOutputDeviceId]);
+    }, [stream, outputDeviceId]);
 
     return (
         <audio

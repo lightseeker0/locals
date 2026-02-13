@@ -7,12 +7,10 @@ interface VoiceState {
     activeCall: { id: string, roomId: string } | null;
     callStatus: 'idle' | 'calling' | 'connected' | 'ended';
     localStream: MediaStream | null;
-    remoteStream: MediaStream | null;
+    remoteStreams: Record<string, MediaStream>; // userId -> stream
     isMuted: boolean;
-    initiator: boolean;
-    peer: SimplePeer.Instance | null;
+    peers: Record<string, any>; // userId -> SimplePeer
     lastSignalId: number;
-    participants: any[]; // Deprecated, use roomParticipants
     roomParticipants: Record<string, any[]>;
     speakingUsers: Record<string, boolean>;
     audioInputDeviceId: string | null;
@@ -32,16 +30,13 @@ interface VoiceState {
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
     activeCall: null,
-
     callStatus: 'idle',
     localStream: null,
-    remoteStream: null,
+    remoteStreams: {},
     isMuted: false,
     isDeafened: false,
-    initiator: false,
-    peer: null,
+    peers: {},
     lastSignalId: 0,
-    participants: [], // Kept for backward compatibility if needed, but we'll prefer roomParticipants
     roomParticipants: {},
     speakingUsers: {},
     audioInputDeviceId: localStorage.getItem('audioInputDeviceId'),
@@ -49,15 +44,6 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     startCall: async (roomId: string, user: any) => {
         const userId = user.id;
-        // Optimistic update
-        set(state => ({
-            roomParticipants: {
-                ...state.roomParticipants,
-                [roomId]: [...(state.roomParticipants[roomId] || []), user]
-            }
-        }));
-
-        // Play sound immediately for local user
         (get() as any).playJoinSound();
 
         try {
@@ -67,75 +53,39 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 video: false
             };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-            // setup local analyser
             (get() as any).setupAudioAnalyser(stream, userId);
 
             set({ localStream: stream, callStatus: 'calling' });
 
-            // CRITICAL: Double check if a call already exists to avoid race conditions
-            await ApiService.fetchVoiceParticipants(roomId, userId);
-
             const response = await ApiService.createCall(roomId, userId);
             const callId = response.id;
-            const isJoiner = response.status === 'joined';
+            const status = response.status;
 
-            set({ activeCall: { id: callId, roomId }, initiator: !isJoiner });
+            set({ activeCall: { id: callId, roomId } });
 
-            const peer = new SimplePeer({
-                initiator: !isJoiner,
-                trickle: true,
-                stream: stream,
-                config: {
-                    iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:global.stun.twilio.com:3478' }
-                    ]
-                }
-            });
-
-            peer.on('signal', async (data: any) => {
-                const type = data.type || 'candidate';
-                console.log(`[WebRTC] Sending signal: ${type}`, data);
-                await ApiService.sendSignal(callId, userId, type, data);
-            });
-
-            peer.on('connect', () => {
-                console.log('[WebRTC] P2P Connected!');
-                set({ callStatus: 'connected' });
-            });
-
-            peer.on('stream', async (remoteStream: MediaStream) => {
-                console.log('[WebRTC] Remote stream received!', remoteStream.getAudioTracks());
-                set({ remoteStream, callStatus: 'connected' });
-
-                // Identify peer to setup their analyser
-                // In a 1:1, we find the other guy in the room
+            if (status === 'joined') {
+                console.log("[WebRTC] Joined existing call, initiating mesh connections...");
                 const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
-                const other = participants.find((p: any) => p.id !== userId);
-                if (other) {
-                    (get() as any).setupAudioAnalyser(remoteStream, other.id);
+                for (const p of participants) {
+                    if (p.id !== userId) {
+                        (get() as any).initiatePeerConnection(callId, userId, p.id, stream);
+                    }
                 }
-            });
+            }
 
-            (get() as any).peer = peer;
+            await get().fetchParticipants(roomId, userId);
 
         } catch (err) {
-            console.error('Failed to start call:', err);
-            // Rollback optimistic update
-            set(state => ({
-                roomParticipants: {
-                    ...state.roomParticipants,
-                    [roomId]: (state.roomParticipants[roomId] || []).filter(p => p.id !== userId)
-                }
-            }));
+            console.error('Failed to start call/join logic:', err);
             get().endCall(userId);
         }
     },
 
     joinCall: async (callId: string, user: any) => {
         const userId = user.id;
-        console.log(`[WebRTC] Attempting to join call: ${callId} as user: ${userId}`);
+        const { activeCall } = get();
+        const roomId = activeCall?.roomId || '';
+
         try {
             const { audioInputDeviceId } = get();
             const constraints = {
@@ -143,16 +93,74 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 video: false
             };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-            // setup local analyser
             (get() as any).setupAudioAnalyser(stream, userId);
-
-            // Play sound immediately for local user
             (get() as any).playJoinSound();
 
-            set({ localStream: stream, callStatus: 'calling', activeCall: { id: callId, roomId: '' }, initiator: false });
+            set({ localStream: stream, callStatus: 'calling', activeCall: { id: callId, roomId } });
 
-            const peer = new SimplePeer({
+            // Fetch current participants to initiate connections with them
+            const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
+            for (const p of participants) {
+                if (p.id !== userId) {
+                    (get() as any).initiatePeerConnection(callId, userId, p.id, stream);
+                }
+            }
+
+        } catch (err) {
+            console.error('Failed to join call:', err);
+            get().endCall(userId);
+        }
+    },
+
+    initiatePeerConnection: (callId: string, userId: string, targetId: string, stream: MediaStream) => {
+        console.log(`[WebRTC] Initiating P2P with ${targetId}`);
+        const peer = new SimplePeer({
+            initiator: true,
+            trickle: true,
+            stream: stream,
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:global.stun.twilio.com:3478' }
+                ]
+            }
+        });
+
+        peer.on('signal', async (data: any) => {
+            // Signal payload includes target info
+            await ApiService.sendSignal(callId, userId, data.type || 'signal', {
+                signal: data,
+                to: targetId,
+                from: userId
+            });
+        });
+
+        peer.on('connect', () => {
+            console.log(`[WebRTC] Connected with ${targetId}`);
+            set({ callStatus: 'connected' });
+        });
+
+        peer.on('stream', (remoteStream: MediaStream) => {
+            console.log(`[WebRTC] Stream from ${targetId} received`);
+            set(state => ({
+                remoteStreams: { ...state.remoteStreams, [targetId]: remoteStream }
+            }));
+            (get() as any).setupAudioAnalyser(remoteStream, targetId);
+        });
+
+        set(state => ({
+            peers: { ...state.peers, [targetId]: peer }
+        }));
+    },
+
+    handleIncomingSignal: async (callId: string, userId: string, signalData: any, stream: MediaStream) => {
+        const fromId = signalData.from;
+        const payload = signalData.signal;
+        let peer = get().peers[fromId];
+
+        if (!peer) {
+            console.log(`[WebRTC] Creating peer for incoming signal from ${fromId}`);
+            peer = new SimplePeer({
                 initiator: false,
                 trickle: true,
                 stream: stream,
@@ -165,78 +173,45 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             });
 
             peer.on('signal', async (data: any) => {
-                const type = data.type || 'candidate';
-                console.log(`[WebRTC] Sending signal: ${type}`, data);
-                await ApiService.sendSignal(callId, userId, type, data);
+                await ApiService.sendSignal(callId, userId, data.type || 'signal', {
+                    signal: data,
+                    to: fromId,
+                    from: userId
+                });
             });
 
-            peer.on('connect', () => {
-                console.log('[WebRTC] P2P Connected (Joiner)!');
-                set({ callStatus: 'connected' });
+            peer.on('stream', (remoteStream: MediaStream) => {
+                set(state => ({
+                    remoteStreams: { ...state.remoteStreams, [fromId]: remoteStream }
+                }));
+                (get() as any).setupAudioAnalyser(remoteStream, fromId);
             });
 
-            peer.on('stream', async (remoteStream: MediaStream) => {
-                console.log('[WebRTC] Remote stream received (Joiner)!', remoteStream.getAudioTracks());
-                set({ remoteStream, callStatus: 'connected' });
-
-                // Try to find the initiator ID
-                try {
-                    const roomParticipants = get().roomParticipants;
-                    const roomId = Object.keys(roomParticipants).find(rid =>
-                        roomParticipants[rid].some(p => p.id === userId)
-                    );
-                    if (roomId) {
-                        const other = roomParticipants[roomId].find(p => p.id !== userId);
-                        if (other) {
-                            (get() as any).setupAudioAnalyser(remoteStream, other.id);
-                        }
-                    }
-                } catch (e) { }
-            });
-
-            (get() as any).peer = peer;
-
-        } catch (err) {
-            console.error('Failed to join call:', err);
-            get().endCall(userId);
+            set(state => ({
+                peers: { ...state.peers, [fromId]: peer }
+            }));
         }
+
+        peer.signal(payload);
     },
 
     pollSignals: async (userId: string) => {
-        const { activeCall, peer } = get() as any;
-        if (!activeCall || !peer) return;
+        const { activeCall, localStream } = get();
+        if (!activeCall || !localStream) return;
 
         try {
-            const lastSignalId = (get() as any).lastSignalId || 0;
+            const lastSignalId = get().lastSignalId || 0;
             const signals: any[] = await ApiService.pollSignals(activeCall.id, userId, lastSignalId);
 
             if (signals.length > 0) {
-                console.log(`[WebRTC] Polled ${signals.length} new signals from server`);
                 set({ lastSignalId: signals[signals.length - 1].id });
 
                 for (const signal of signals) {
                     const data = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : signal.payload;
-                    console.log(`[WebRTC] Processing incoming signal: type=${signal.type}`, data);
 
-                    // AUTO-JOIN LOGIC: If we get an offer but we are also 'initiating', 
-                    // someone else got there first. We should switch to joiner mode to avoid both sending offers.
-                    if (signal.type === 'offer' && (get() as any).initiator) {
-                        console.warn("[WebRTC] Conflict detected: Received offer while initiating. Switching to joiner mode...");
-                        // We need to re-initialize the peer as a joiner
-                        set({ initiator: false });
-                        if (peer) {
-                            try { peer.destroy(); } catch (e) { }
-                        }
-                        // Re-trigger join flow with this callId
-                        (get() as any).joinCall(activeCall.id, { id: userId });
-                        return; // Stop processing further signals for the old peer
-                    }
-
-                    try {
-                        peer.signal(data);
-                        console.log(`[WebRTC] Successfully signaled peer with ${signal.type}`);
-                    } catch (e) {
-                        console.error('[WebRTC] Error applying signal to peer:', e);
+                    // Filter: Only process signals meant for US
+                    if (data.to === userId) {
+                        await (get() as any).handleIncomingSignal(activeCall.id, userId, data, localStream);
                     }
                 }
             }
@@ -246,7 +221,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     endCall: async (userId?: string) => {
-        const { localStream, peer } = get() as any;
+        const { localStream, peers } = get();
 
         // Stop all analysers
         const intervals = (get() as any).analyserIntervals || {};
@@ -255,32 +230,25 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         if (userId) {
             try {
                 await ApiService.endCall(userId);
-            } catch (err) {
-                console.error('Failed to notify backend about ending call:', err);
-            }
+            } catch (e) { }
         }
 
         if (localStream) {
             localStream.getTracks().forEach((t: any) => t.stop());
         }
-        if (peer) {
-            try {
-                peer.destroy();
-            } catch (e) {
-                console.error('Peer destroy error:', e);
-            }
-        }
+
+        Object.values(peers).forEach((p: any) => {
+            try { p.destroy(); } catch (e) { }
+        });
+
         set({
             activeCall: null,
             callStatus: 'idle',
             localStream: null,
-            remoteStream: null,
-            peer: null,
+            remoteStreams: {},
+            peers: {},
             lastSignalId: 0,
-            initiator: false,
-            isMuted: false,
-            isDeafened: false,
-            participants: [],
+            roomParticipants: {},
             speakingUsers: {},
             analyserIntervals: {}
         } as any);
@@ -289,21 +257,17 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     fetchParticipants: async (roomId: string, userId: string) => {
         try {
             const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
-
             set(state => ({
-                participants: roomId === state.activeCall?.roomId ? participants : state.participants,
                 roomParticipants: {
                     ...state.roomParticipants,
                     [roomId]: participants
                 }
             }));
-        } catch (err) {
-            console.error('Failed to fetch voice participants:', err);
-        }
+        } catch (err) { }
     },
 
     toggleMute: () => {
-        const { localStream, isMuted } = get() as any;
+        const { localStream, isMuted } = get();
         if (localStream) {
             localStream.getAudioTracks().forEach((track: any) => {
                 track.enabled = isMuted;
@@ -316,12 +280,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         const { isDeafened, isMuted, toggleMute } = get();
         const nextDeafened = !isDeafened;
         set({ isDeafened: nextDeafened });
-
-        // If deafening, also mute
-        if (nextDeafened && !isMuted) {
-            toggleMute();
-        }
-        // If undeafening, we typically stay muted (following Discord pattern)
+        if (nextDeafened && !isMuted) toggleMute();
     },
 
     setAudioInputDevice: (deviceId: string) => {
@@ -334,62 +293,41 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         set({ audioOutputDeviceId: deviceId });
     },
 
-    // Internal helper to setup analyser
     setupAudioAnalyser: (stream: MediaStream, targetUserId: string) => {
         try {
             const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
             const analyser = audioContext.createAnalyser();
             const source = audioContext.createMediaStreamSource(stream);
             source.connect(analyser);
-            analyser.fftSize = 512; // Increased for better resolution
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
+            analyser.fftSize = 512;
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-            const checkVolume = () => {
+            const interval = setInterval(() => {
                 analyser.getByteFrequencyData(dataArray);
                 let sum = 0;
-                for (let i = 0; i < bufferLength; i++) {
-                    sum += dataArray[i];
-                }
-                const average = sum / bufferLength;
-
-                // Threshold for speaking - increased for background noise
+                for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                const average = sum / dataArray.length;
                 const isSpeaking = average > 25;
 
                 set(state => {
                     if (state.speakingUsers[targetUserId] !== isSpeaking) {
-                        return {
-                            speakingUsers: {
-                                ...state.speakingUsers,
-                                [targetUserId]: isSpeaking
-                            }
-                        };
+                        return { speakingUsers: { ...state.speakingUsers, [targetUserId]: isSpeaking } };
                     }
                     return {};
                 });
-            };
-
-            const interval = setInterval(checkVolume, 100);
+            }, 100);
 
             set(state => ({
-                analyserIntervals: {
-                    ...((state as any).analyserIntervals || {}),
-                    [targetUserId]: interval
-                }
+                analyserIntervals: { ...((state as any).analyserIntervals || {}), [targetUserId]: interval }
             } as any));
-
-        } catch (e) {
-            console.error("Audio analyser setup failed", e);
-        }
+        } catch (e) { }
     },
 
     playJoinSound: () => {
         try {
             const audio = new Audio('assets/sounds/join.webm');
             audio.volume = 0.5;
-            audio.play().catch(e => console.error("Join audio play failed:", e));
-        } catch (e) {
-            console.error("Sound playback error:", e);
-        }
+            audio.play().catch(() => { });
+        } catch (e) { }
     }
 }));
