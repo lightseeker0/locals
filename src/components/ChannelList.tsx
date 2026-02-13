@@ -42,9 +42,12 @@ export const ChannelList: React.FC = () => {
 
             // Only play if someone NEW joined (count increased)
             if (prevCount !== undefined && currentCount > prevCount) {
-                const audio = new Audio('/assets/sounds/join.webm');
-                audio.volume = 0.5;
-                audio.play().catch(e => console.error("Join audio play failed:", e));
+                // Only play if the user is in THIS channel
+                if (activeCall?.roomId === roomId) {
+                    const audio = new Audio('/assets/sounds/join.webm');
+                    audio.volume = 0.5;
+                    audio.play().catch(e => console.error("Join audio play failed:", e));
+                }
             }
             prevParticipantsCount.current[roomId] = currentCount;
         });
