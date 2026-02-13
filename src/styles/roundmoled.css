@@ -4,7 +4,7 @@
     --rm-dark-secondary: #050505;
     --rm-dark-secondary-alt: #080808;
     --rm-dark-bright: #0b0b0b;
-    --rm-background: #142339;
+    --rm-background: #1A1A1A;
     --rm-border: #1f1f1f;
     --rm-accent: #5865f2;
     --rm-chat-bar: #070b10;
@@ -92,11 +92,11 @@
     background-color: var(--rm-accent) !important;
     color: white !important;
     border-radius: 12px !important;
-    box-shadow: 0 4px 15px rgba(88, 101, 242, 0.2) !important;
+    box-shadow: 0 4px 15px rgba(26, 26, 26, 0.2) !important;
 }
 
 [data-theme='roundmoled'] .bg-matrix-green\/10 {
-    background-color: rgba(88, 101, 242, 0.1) !important;
+    background-color: rgba(26, 26, 26, 0.1) !important;
 }
 
 [data-theme='roundmoled'] .text-matrix-green {
@@ -115,6 +115,6 @@
 
 /* Selected Items */
 [data-theme='roundmoled'] .bg-matrix-green\/10.text-matrix-green {
-    background: linear-gradient(90deg, #1f2d4d 0%, rgba(31, 45, 77, 0.5) 100%) !important;
+    background: linear-gradient(90deg, #1A1A1A 0%, rgba(26, 26, 26, 0.5) 100%) !important;
     border-radius: 10px !important;
 }
