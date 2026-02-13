@@ -14,8 +14,10 @@ autoUpdater.autoInstallOnAppQuit = true;
 function createWindow() {
     // ... existing BrowserWindow config ...
     win = new BrowserWindow({
-        width: 1200,
-        height: 800,
+        width: 1280,
+        height: 850,
+        minWidth: 900,
+        minHeight: 600,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,

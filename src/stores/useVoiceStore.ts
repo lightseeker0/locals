@@ -338,7 +338,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     playJoinSound: () => {
         try {
-            const audio = new Audio('/assets/sounds/join.webm');
+            const audio = new Audio('assets/sounds/join.webm');
             audio.volume = 0.5;
             audio.play().catch(e => console.error("Join audio play failed:", e));
         } catch (e) {
