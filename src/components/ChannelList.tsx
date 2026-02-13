@@ -247,10 +247,10 @@ export const ChannelList: React.FC = () => {
                         <div className="text-[10px] font-black text-matrix-muted uppercase tracking-[0.2em] p-2 pb-1 opacity-50 select-none">{t('set_status')}</div>
 
                         {[
-                            { id: 'online', label: t('online'), color: 'text-matrix-green', icon: <Circle size={10} fill="currentColor" /> },
-                            { id: 'idle', label: t('idle'), color: 'text-yellow-500', icon: <Clock size={10} fill="currentColor" /> },
-                            { id: 'dnd', label: t('dnd'), color: 'text-red-500', icon: <MinusCircle size={10} fill="currentColor" /> },
-                            { id: 'invisible', label: t('offline'), color: 'text-gray-400', icon: <Circle size={10} /> },
+                            { id: 'online', label: t('online'), color: 'text-matrix-green', icon: <Circle size={12} fill="currentColor" /> },
+                            { id: 'idle', label: t('idle'), color: 'text-yellow-500', icon: <Clock size={12} fill="currentColor" /> },
+                            { id: 'dnd', label: t('dnd'), color: 'text-red-500', icon: <MinusCircle size={12} fill="currentColor" /> },
+                            { id: 'invisible', label: t('offline'), color: 'text-gray-400', icon: <Circle size={12} /> },
                         ].map((s) => (
                             <div
                                 key={s.id}
@@ -260,12 +260,12 @@ export const ChannelList: React.FC = () => {
                                 }}
                                 className="flex items-center gap-3 p-2.5 hover:bg-white/5 rounded-xl cursor-pointer transition-all group active:scale-[0.98]"
                             >
-                                <div className={clsx("shrink-0", s.color)}>
+                                <div className={clsx("w-5 h-5 flex items-center justify-center shrink-0", s.color)}>
                                     {s.icon}
                                 </div>
                                 <span className="text-xs font-bold text-matrix-muted group-hover:text-white transition-colors">{s.label}</span>
                                 {currentStatus === s.id && (
-                                    <div className="ml-auto w-1 h-1 bg-matrix-green rounded-full shadow-[0_0_5px_rgba(0,255,100,0.5)]" />
+                                    <div className="ml-auto mr-1 w-1.5 h-1.5 bg-matrix-green rounded-full shadow-[0_0_8px_rgba(0,255,100,0.6)] animate-pulse" />
                                 )}
                             </div>
                         ))}
