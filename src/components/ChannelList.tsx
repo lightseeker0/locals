@@ -104,7 +104,8 @@ export const ChannelList: React.FC = () => {
         };
 
         poll();
-        const interval = setInterval(poll, 1500); // Check every 1.5 seconds for faster responsiveness
+        poll();
+        const interval = setInterval(poll, 5000); // Check every 5 seconds (Optimized for quota)
         return () => clearInterval(interval);
     }, [selectedServerId, channels, user?.id]);
 
@@ -312,7 +313,7 @@ export const ChannelList: React.FC = () => {
     if (!selectedServerId) return renderHomeView();
 
     return (
-        <div className="w-[var(--channel-list-width)] bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 sidebar">
+        <div className="w-[var(--channel-list-width)] bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 channel-list da-channels">
             {/* Space Header */}
             <div className="h-12 flex items-center justify-between p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors group">
                 <h1 className="font-bold text-white truncate max-w-[140px] group-hover:text-matrix-green">{currentServer?.title || 'Space'}</h1>

@@ -55,35 +55,27 @@
 }
 
 .sidebar-1tnWFu,
-.da-sidebar {
-  background-color: var(--bg-secondary);
-  /* Remove !important */
-}
-
-/* Local Sidebar overrides */
+.da-sidebar,
 .sidebar {
-  background-color: var(--bg-secondary);
-  /* Remove !important */
+  background-color: var(--background-secondary);
 }
 
 .chat-2Z9I9e,
 .da-chat,
 .chat-content {
-  background-color: var(--bg-primary);
-  /* Remove !important */
+  background-color: var(--background-primary);
 }
 
 .members-3WRCEx,
 .da-members,
 .member-list {
-  background-color: var(--bg-secondary);
-  /* Remove !important */
+  background-color: var(--background-secondary);
 }
 
 .container-1NXEAG,
 .da-channels,
 .channel-list {
-  background-color: var(--bg-secondary);
+  background-color: var(--background-secondary);
 }
 
 /* User Popout & Modals Shim */

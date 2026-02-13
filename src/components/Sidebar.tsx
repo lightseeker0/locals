@@ -18,7 +18,7 @@ export const Sidebar: React.FC = () => {
     };
 
     return (
-        <nav className="w-[var(--sidebar-width)] bg-matrix-darker flex flex-col items-center py-3 gap-2 overflow-y-auto no-scrollbar shrink-0 border-r border-white/5 sidebar">
+        <nav className="w-[var(--sidebar-width)] bg-matrix-darker flex flex-col items-center py-3 gap-2 overflow-y-auto no-scrollbar shrink-0 border-r border-white/5 sidebar da-sidebar">
             {/* ... Home ... */}
             <SidebarItem
                 active={selectedServerId === null}
