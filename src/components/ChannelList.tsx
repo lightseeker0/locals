@@ -17,7 +17,7 @@ import { AdminPanel } from './modals/AdminPanel';
 
 export const ChannelList: React.FC = () => {
     const { selectedServerId, servers, channels, selectedChannelId, setSelectedChannel, setSettingsOpen, setSelectedServer } = useAppStore();
-    const { user } = useAuthStore();
+    const { user, userStatus, setUserStatus } = useAuthStore();
     const { refreshRooms, refreshSpaces } = useAppData();
     const { t } = useI18nStore();
     const [isDMOpen, setIsDMOpen] = useState(false);
@@ -28,7 +28,6 @@ export const ChannelList: React.FC = () => {
     const [appVersion, setAppVersion] = useState<string>('');
     const [updateStatus, setUpdateStatus] = useState<string>('idle'); // 'idle', 'checking', 'available', 'not-available', 'downloading', 'ready'
     const [isStatusPickerOpen, setIsStatusPickerOpen] = useState(false);
-    const [currentStatus, setCurrentStatus] = useState<'online' | 'idle' | 'dnd' | 'invisible'>('online');
 
     // Auto-idle logic: Online -> Idle after 1 hour of inactivity
     useEffect(() => {
@@ -38,10 +37,10 @@ export const ChannelList: React.FC = () => {
         const handleActivity = () => {
             // Only track and reset if we are currently online
             // If we are already idle, dnd, or invisible, we don't auto-change
-            if (currentStatus === 'online') {
+            if (userStatus === 'online') {
                 if (idleTimeout) clearTimeout(idleTimeout);
                 idleTimeout = setTimeout(() => {
-                    setCurrentStatus('idle');
+                    setUserStatus('idle');
                 }, ONE_HOUR);
             }
         };
@@ -56,7 +55,7 @@ export const ChannelList: React.FC = () => {
             if (idleTimeout) clearTimeout(idleTimeout);
             events.forEach(event => document.removeEventListener(event, handleActivity));
         };
-    }, [currentStatus]);
+    }, [userStatus, setUserStatus]);
 
     useEffect(() => {
         if (!window.electron) return;
@@ -238,7 +237,7 @@ export const ChannelList: React.FC = () => {
                             <div
                                 key={s.id}
                                 onClick={() => {
-                                    setCurrentStatus(s.id as any);
+                                    setUserStatus(s.id as any);
                                     setIsStatusPickerOpen(false);
                                 }}
                                 className="flex items-center gap-3 p-2.5 hover:bg-white/5 rounded-xl cursor-pointer transition-all group active:scale-[0.98]"
@@ -247,7 +246,7 @@ export const ChannelList: React.FC = () => {
                                     {s.icon}
                                 </div>
                                 <span className="text-xs font-bold text-matrix-muted group-hover:text-white transition-colors">{s.label}</span>
-                                {currentStatus === s.id && (
+                                {userStatus === s.id && (
                                     <div className="ml-auto mr-1 w-1.5 h-1.5 bg-matrix-green rounded-full shadow-[0_0_8px_rgba(0,255,100,0.6)] animate-pulse" />
                                 )}
                             </div>
@@ -271,19 +270,19 @@ export const ChannelList: React.FC = () => {
                         )}
                         <div className={clsx(
                             "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-matrix-darker transition-colors",
-                            currentStatus === 'online' ? "bg-matrix-green" :
-                                currentStatus === 'idle' ? "bg-yellow-500" :
-                                    currentStatus === 'dnd' ? "bg-red-500" :
+                            userStatus === 'online' ? "bg-matrix-green" :
+                                userStatus === 'idle' ? "bg-yellow-500" :
+                                    userStatus === 'dnd' ? "bg-red-500" :
                                         "bg-gray-500"
                         )}>
-                            {currentStatus === 'dnd' && <div className="w-1.5 h-0.5 bg-matrix-darker absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" />}
-                            {currentStatus === 'idle' && <div className="w-1.5 h-1.5 bg-matrix-darker absolute -top-0.5 -left-0.5 rounded-full" />}
+                            {userStatus === 'dnd' && <div className="w-1.5 h-0.5 bg-matrix-darker absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" />}
+                            {userStatus === 'idle' && <div className="w-1.5 h-1.5 bg-matrix-darker absolute -top-0.5 -left-0.5 rounded-full" />}
                         </div>
                     </div>
                     <div className="text-xs flex-1 min-w-0">
                         <div className="font-black text-white truncate text-[12px] leading-tight">{user?.display_name || user?.username}</div>
                         <div className="text-matrix-muted truncate text-[9px] font-bold opacity-40 uppercase tracking-widest leading-none">
-                            {t(currentStatus === 'invisible' ? 'offline' : currentStatus)}
+                            {t(userStatus === 'invisible' ? 'offline' : userStatus)}
                         </div>
                     </div>
                 </div>

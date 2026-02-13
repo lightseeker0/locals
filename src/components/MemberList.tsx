@@ -3,11 +3,13 @@ import { ApiService } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { UserMinus, Ban } from 'lucide-react';
+import { useI18nStore } from '../stores/i18nStore';
 import { useChatMessages } from '../hooks/useChatMessages';
 
 export const MemberList: React.FC = () => {
     const [members, setMembers] = useState<any[]>([]);
-    const { user } = useAuthStore();
+    const { user, userStatus } = useAuthStore();
+    const { t } = useI18nStore();
     const { selectedServerId, servers, selectedChannelId } = useAppStore();
     const { messages } = useChatMessages(selectedChannelId || '');
 
@@ -119,7 +121,7 @@ export const MemberList: React.FC = () => {
                 </div>
                 {/* Custom status or presence */}
                 <div className="text-[10px] text-matrix-muted truncate opacity-50 group-hover:opacity-100 transition-opacity">
-                    {m.custom_status || (status === 'online' ? 'Online' : 'Offline')}
+                    {m.id === user?.id ? t(userStatus === 'invisible' ? 'offline' : userStatus) : (m.custom_status || (status === 'online' ? 'Online' : 'Offline'))}
                 </div>
             </div>
 
