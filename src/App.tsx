@@ -25,31 +25,34 @@ function App() {
     initElectronListener();
 
     // Auto-update listeners
-    if ((window as any).electron) {
-      (window as any).electron.onUpdateAvailable(() => {
+    const el = (window as any).electron;
+    if (el) {
+      el.onUpdateAvailable?.(() => {
         setUpdateInfo({ status: 'available' });
       });
 
-      (window as any).electron.onUpdateProgress((progress: any) => {
+      el.onUpdateProgress?.((progress: any) => {
         setUpdateInfo({ status: 'downloading', progress: progress.percent });
       });
 
-      (window as any).electron.onUpdateDownloaded(() => {
+      el.onUpdateDownloaded?.(() => {
         setUpdateInfo({ status: 'ready' });
       });
     }
 
     const init = async () => {
       try {
+        console.log('App starting...');
         setDebugStatus('Starting session validation...');
         await validateSession();
         setDebugStatus('Session validation complete.');
       } catch (e: any) {
+        console.error('App init failed:', e);
         setDebugStatus(`Error: ${e.message}`);
       }
     };
     init();
-  }, []);
+  }, [initElectronListener, validateSession]);
 
   useEffect(() => {
     // Apply theme
