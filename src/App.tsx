@@ -61,6 +61,8 @@ function App() {
     document.documentElement.setAttribute('data-theme', currentBuiltInTheme);
   }, [currentBuiltInTheme]);
 
+  const isElectron = !!(window as any).electron;
+
   return (
     <Router>
       {isLoading ? (
@@ -76,8 +78,8 @@ function App() {
         <Login />
       ) : (
         <div id="app-mount" className="da-app appMount-3stXN7 app-mount layer-container h-full">
-          <div className="flex h-screen bg-transparent text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app pt-8 layer__960e4 baseLayer__960e4">
-            <TitleBar />
+          <div className={`flex h-screen bg-transparent text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app layer__960e4 baseLayer__960e4 ${isElectron ? 'pt-8' : ''}`}>
+            {isElectron && <TitleBar />}
             <Sidebar />
             <ChannelList />
             <div className="flex-1 flex flex-col min-w-0 bg-matrix-darker relative z-10 box-399657 da-chat">
