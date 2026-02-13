@@ -174,7 +174,7 @@ export const ChannelList: React.FC = () => {
                 <div
                     className={clsx(
                         "absolute -top-4 right-2 text-[9px] font-mono pointer-events-auto z-10 cursor-pointer transition-colors flex items-center gap-1",
-                        updateStatus === 'checking' ? "text-yellow-500 animate-pulse" :
+                        updateStatus === 'checking' ? "text-blue-400 animate-pulse" :
                             updateStatus === 'ready' ? "text-matrix-green animate-bounce" :
                                 updateStatus === 'downloading' ? "text-blue-500" :
                                     "text-matrix-muted opacity-20 hover:opacity-100 hover:text-white"
