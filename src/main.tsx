@@ -6,9 +6,9 @@ import { Buffer } from 'buffer'
 
 // Polyfills for simple-peer
 if (typeof window !== 'undefined') {
-  window.Buffer = window.Buffer || Buffer
-  window.global = window.global || window
-  window.process = window.process || { env: {} } as any
+  (window as any).Buffer = (window as any).Buffer || Buffer;
+  (window as any).global = (window as any).global || window;
+  (window as any).process = (window as any).process || { env: {} };
 }
 
 createRoot(document.getElementById('root')!).render(
