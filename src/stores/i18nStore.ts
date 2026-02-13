@@ -19,7 +19,10 @@ export const translations: Translations = {
     'settings': { en: 'Settings', tr: 'Ayarlar' },
     'home': { en: 'Home', tr: 'Ana Sayfa' },
     'online': { en: 'Online', tr: 'Çevrimiçi' },
+    'idle': { en: 'Idle', tr: 'Boşta' },
+    'dnd': { en: 'Do Not Disturb', tr: 'Rahatsız Etmeyin' },
     'offline': { en: 'Offline', tr: 'Çevrimdışı' },
+    'set_status': { en: 'Set Status', tr: 'Durum Belirle' },
     'search': { en: 'Search', tr: 'Ara' },
     'loading': { en: 'Loading...', tr: 'Yükleniyor...' },
 

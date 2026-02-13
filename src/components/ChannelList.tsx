@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
-import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Settings, Trash2, Bell } from 'lucide-react';
+import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Settings, Trash2, Bell, Circle, Clock, MinusCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DirectMessageModal } from './modals/DirectMessageModal';
 import { useVoiceStore } from '../stores/useVoiceStore';
@@ -27,6 +27,8 @@ export const ChannelList: React.FC = () => {
     const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
     const [appVersion, setAppVersion] = useState<string>('');
     const [updateStatus, setUpdateStatus] = useState<string>('idle'); // 'idle', 'checking', 'available', 'not-available', 'downloading', 'ready'
+    const [isStatusPickerOpen, setIsStatusPickerOpen] = useState(false);
+    const [currentStatus, setCurrentStatus] = useState<'online' | 'idle' | 'dnd' | 'invisible'>('online');
 
     useEffect(() => {
         if (!window.electron) return;
@@ -192,10 +194,44 @@ export const ChannelList: React.FC = () => {
             {/* Popups */}
             {showNotifications && <NotificationList onClose={() => setShowNotifications(false)} />}
 
+            {/* Status Picker Popup */}
+            {isStatusPickerOpen && (
+                <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsStatusPickerOpen(false)} />
+                    <div className="absolute bottom-[65px] left-2 w-52 bg-matrix-darker border border-white/10 rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] p-1.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div className="text-[10px] font-black text-matrix-muted uppercase tracking-[0.2em] p-2 pb-1 opacity-50 select-none">{t('set_status')}</div>
+
+                        {[
+                            { id: 'online', label: t('online'), color: 'text-matrix-green', icon: <Circle size={10} fill="currentColor" /> },
+                            { id: 'idle', label: t('idle'), color: 'text-yellow-500', icon: <Clock size={10} fill="currentColor" /> },
+                            { id: 'dnd', label: t('dnd'), color: 'text-red-500', icon: <MinusCircle size={10} fill="currentColor" /> },
+                            { id: 'invisible', label: t('offline'), color: 'text-gray-400', icon: <Circle size={10} /> },
+                        ].map((s) => (
+                            <div
+                                key={s.id}
+                                onClick={() => {
+                                    setCurrentStatus(s.id as any);
+                                    setIsStatusPickerOpen(false);
+                                }}
+                                className="flex items-center gap-3 p-2.5 hover:bg-white/5 rounded-xl cursor-pointer transition-all group active:scale-[0.98]"
+                            >
+                                <div className={clsx("shrink-0", s.color)}>
+                                    {s.icon}
+                                </div>
+                                <span className="text-xs font-bold text-matrix-muted group-hover:text-white transition-colors">{s.label}</span>
+                                {currentStatus === s.id && (
+                                    <div className="ml-auto w-1 h-1 bg-matrix-green rounded-full shadow-[0_0_5px_rgba(0,255,100,0.5)]" />
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </>
+            )}
+
             <div className="h-[56px] bg-matrix-darker/50 backdrop-blur-md border-t border-white/5 flex items-center px-2 justify-between">
                 <div
                     className="flex items-center gap-2 hover:bg-white/5 p-1.5 rounded-xl cursor-pointer transition-colors flex-1 min-w-0"
-                    onClick={() => setSettingsOpen(true)}
+                    onClick={() => setIsStatusPickerOpen(!isStatusPickerOpen)}
                 >
                     <div className="relative shrink-0">
                         {user?.avatar_url ? (
@@ -205,12 +241,21 @@ export const ChannelList: React.FC = () => {
                                 <span className="text-[10px] font-black text-white">{(user?.display_name || user?.username || '?').substring(0, 1).toUpperCase()}</span>
                             </div>
                         )}
-                        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-matrix-green rounded-full border-2 border-matrix-darker"></div>
+                        <div className={clsx(
+                            "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-matrix-darker transition-colors",
+                            currentStatus === 'online' ? "bg-matrix-green" :
+                                currentStatus === 'idle' ? "bg-yellow-500" :
+                                    currentStatus === 'dnd' ? "bg-red-500" :
+                                        "bg-gray-500"
+                        )}>
+                            {currentStatus === 'dnd' && <div className="w-1.5 h-0.5 bg-matrix-darker absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" />}
+                            {currentStatus === 'idle' && <div className="w-1.5 h-1.5 bg-matrix-darker absolute -top-0.5 -left-0.5 rounded-full" />}
+                        </div>
                     </div>
                     <div className="text-xs flex-1 min-w-0">
                         <div className="font-black text-white truncate text-[12px] leading-tight">{user?.display_name || user?.username}</div>
                         <div className="text-matrix-muted truncate text-[9px] font-bold opacity-40 uppercase tracking-widest leading-none">
-                            {t('online')}
+                            {t(currentStatus === 'invisible' ? 'offline' : currentStatus)}
                         </div>
                     </div>
                 </div>
