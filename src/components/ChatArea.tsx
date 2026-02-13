@@ -169,7 +169,7 @@ export const ChatArea: React.FC = () => {
                         <Menu size={24} />
                     </button>
                     {isDM ? <AtSign size={18} className="text-matrix-green" /> : <Hash size={18} className="text-matrix-green" />}
-                    <h3 className="font-black text-white text-[14px] md:text-[15px] tracking-tight truncate max-w-[120px] md:max-w-none">{currentChannel?.title}</h3>
+                    <h3 className="font-black text-[var(--text-normal)] text-[14px] md:text-[15px] tracking-tight truncate max-w-[120px] md:max-w-none">{currentChannel?.title}</h3>
                     <div className="h-4 w-[1px] bg-white/10 mx-1 md:block hidden" />
                     <div className="text-matrix-muted text-[11px] font-bold uppercase tracking-widest opacity-40 truncate md:block hidden">
                         {isDM ? 'Private Conversation' : 'General Room'}
@@ -222,7 +222,7 @@ export const ChatArea: React.FC = () => {
                         <div className="w-16 h-16 md:w-20 md:h-20 bg-matrix-green/10 rounded-2xl md:rounded-3xl flex items-center justify-center mb-8 border border-matrix-green/20">
                             {isDM ? <AtSign size={32} className="text-matrix-green" /> : <Hash size={32} className="text-matrix-green" />}
                         </div>
-                        <h1 className="text-3xl md:text-5xl font-black text-white mb-4 tracking-tighter">
+                        <h1 className="text-3xl md:text-5xl font-black text-[var(--text-normal)] mb-4 tracking-tighter">
                             {isDM ? `Chatting with ${currentChannel?.title}` : `Welcome to #${currentChannel?.title}`}
                         </h1>
                         <p className="text-matrix-muted text-base md:text-lg font-medium max-w-xl leading-relaxed opacity-70">

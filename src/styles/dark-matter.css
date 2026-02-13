@@ -6,6 +6,15 @@
     --dm-white: 255, 255, 255;
     --dm-accent: 242, 234, 68;
     --dm-overlay: rgba(0, 0, 0, 0.6);
+
+    /* Core Variable Overrides - Force Translucency */
+    --matrix-dark: rgba(0, 0, 0, 0.4);
+    --matrix-darker: rgba(0, 0, 0, 0.2);
+    --bg-primary: var(--matrix-darker);
+    --bg-secondary: var(--matrix-dark);
+    --matrix-green: rgb(242, 234, 68);
+    --text-normal: #ffffff;
+    --text-muted: #cdcdcd;
 }
 
 [data-theme='dark-matter'] body {
