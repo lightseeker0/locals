@@ -57,6 +57,7 @@ function App() {
   useEffect(() => {
     // Apply theme
     document.documentElement.className = currentBuiltInTheme;
+    document.documentElement.setAttribute('data-theme', currentBuiltInTheme);
   }, [currentBuiltInTheme]);
 
   return (

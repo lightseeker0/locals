@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import '../index.css';
+import '../styles/frosted-glass.css'; // Native integration
 import { persist } from 'zustand/middleware';
 import { ApiService } from '../services/api';
 
@@ -13,12 +15,13 @@ export interface Theme {
 interface ThemeState {
     themes: Theme[];
     localThemes: string[];
-    currentBuiltInTheme: 'dark' | 'light-mode';
+    currentBuiltInTheme: 'dark' | 'light-mode' | 'frosted-glass';
+    builtInThemes: { id: string; name: string; class: string }[];
     fetchThemes: (userId: string) => Promise<void>;
     saveTheme: (userId: string, theme: Omit<Theme, 'id'> & { id?: string }) => Promise<void>;
     deleteTheme: (userId: string, id: string) => Promise<void>;
     toggleTheme: (userId: string, id: string) => Promise<void>;
-    setBuiltInTheme: (theme: 'dark' | 'light-mode') => void;
+    setBuiltInTheme: (theme: 'dark' | 'light-mode' | 'frosted-glass') => void;
     applyThemes: () => void;
     initElectronListener: () => void;
 }
@@ -29,6 +32,11 @@ export const useThemeStore = create<ThemeState>()(
             themes: [],
             localThemes: [],
             currentBuiltInTheme: 'dark',
+            builtInThemes: [
+                { id: 'matrix-dark', name: 'Matrix Dark', class: 'matrix-dark' },
+                { id: 'light-mode', name: 'Light Mode', class: 'light-mode' },
+                { id: 'frosted-glass', name: 'Frosted Glass', class: 'frosted-glass' }
+            ],
             fetchThemes: async (userId: string) => {
                 const themes = await ApiService.fetchThemes(userId);
                 set({ themes });

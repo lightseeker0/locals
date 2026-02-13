@@ -1,0 +1,73 @@
+/* Frosted Glass Theme Integration */
+:root {
+    /* Default Frosted Glass Variables */
+    --backdrop-image: url('https://i.imgur.com/kYW2H5C.jpg');
+    --backdrop-blur: 5px;
+    --backdrop-overlay: rgba(0, 0, 0, 0.4);
+
+    --glass-sidebar: rgba(0, 0, 0, 0.2);
+    --glass-chat: rgba(0, 0, 0, 0.3);
+    --glass-panels: rgba(0, 0, 0, 0.2);
+    --glass-border: rgba(255, 255, 255, 0.05);
+
+    --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='frosted-glass'] body {
+    background: var(--backdrop-image) center/cover no-repeat fixed !important;
+}
+
+[data-theme='frosted-glass'] #app-mount,
+[data-theme='frosted-glass'] .da-app {
+    background: transparent !important;
+    backdrop-filter: blur(var(--backdrop-blur));
+}
+
+/* Sidebar */
+[data-theme='frosted-glass'] .da-sidebar {
+    background-color: var(--glass-sidebar) !important;
+    border-right: 1px solid var(--glass-border);
+}
+
+/* Channel List */
+[data-theme='frosted-glass'] .da-channels {
+    background-color: var(--glass-sidebar) !important;
+    border-right: 1px solid var(--glass-border);
+}
+
+/* Chat Area */
+[data-theme='frosted-glass'] .da-chat {
+    background-color: var(--glass-chat) !important;
+}
+
+[data-theme='frosted-glass'] .header {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+/* Member List */
+[data-theme='frosted-glass'] .da-members {
+    background-color: var(--glass-sidebar) !important;
+    border-left: 1px solid var(--glass-border);
+}
+
+/* Messages */
+[data-theme='frosted-glass'] .message-content {
+    background-color: rgba(0, 0, 0, 0.4) !important;
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(5px);
+}
+
+/* Hover Effects */
+[data-theme='frosted-glass'] .da-channels .channel-item:hover,
+[data-theme='frosted-glass'] .da-members .member-item:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Text Enhancements */
+[data-theme='frosted-glass'] {
+    --text-normal: #fff;
+    --text-muted: rgba(255, 255, 255, 0.7);
+    text-shadow: var(--text-shadow);
+}

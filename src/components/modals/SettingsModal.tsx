@@ -260,26 +260,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 <div className="space-y-8">
                                     <h3 className="text-lg font-bold text-white mb-2">Built-in Themes</h3>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div
-                                            onClick={() => setBuiltInTheme('dark')}
-                                            className={clsx(
-                                                "p-6 rounded-2xl flex flex-col items-center gap-3 cursor-pointer transition-all",
-                                                currentBuiltInTheme === 'dark' ? "bg-matrix-green/10 border border-matrix-green/30" : "bg-white/5 border border-white/10 opacity-40 hover:opacity-100"
-                                            )}
-                                        >
-                                            <Moon size={32} className={currentBuiltInTheme === 'dark' ? "text-matrix-green" : "text-white"} />
-                                            <span className={clsx("font-black", currentBuiltInTheme === 'dark' ? "text-matrix-green" : "text-white")}>Dark</span>
-                                        </div>
-                                        <div
-                                            onClick={() => setBuiltInTheme('light-mode')}
-                                            className={clsx(
-                                                "p-6 rounded-2xl flex flex-col items-center gap-3 cursor-pointer transition-all",
-                                                currentBuiltInTheme === 'light-mode' ? "bg-blue-500/10 border border-blue-500/30" : "bg-white/5 border border-white/10 opacity-40 hover:opacity-100"
-                                            )}
-                                        >
-                                            <Sun size={32} className={currentBuiltInTheme === 'light-mode' ? "text-blue-500" : "text-white"} />
-                                            <span className={clsx("font-black", currentBuiltInTheme === 'light-mode' ? "text-blue-500" : "text-white")}>Light Mode</span>
-                                        </div>
+                                        {themes.filter(t => !t.is_active).length === 0 && (
+                                            // Fallback if no themes loaded yet, though we are using builtInThemes from store now
+                                            null
+                                        )}
+                                        {useThemeStore.getState().builtInThemes.map(theme => (
+                                            <div
+                                                key={theme.id}
+                                                onClick={() => setBuiltInTheme(theme.id as any)}
+                                                className={clsx(
+                                                    "p-6 rounded-2xl flex flex-col items-center gap-3 cursor-pointer transition-all",
+                                                    currentBuiltInTheme === theme.id ? "bg-matrix-green/10 border border-matrix-green/30" : "bg-white/5 border border-white/10 opacity-40 hover:opacity-100"
+                                                )}
+                                            >
+                                                {theme.id === 'light-mode' ? <Sun size={32} className={currentBuiltInTheme === theme.id ? "text-blue-500" : "text-white"} /> :
+                                                    theme.id === 'frosted-glass' ? <Sparkles size={32} className={currentBuiltInTheme === theme.id ? "text-purple-400" : "text-white"} /> :
+                                                        <Moon size={32} className={currentBuiltInTheme === theme.id ? "text-matrix-green" : "text-white"} />}
+
+                                                <span className={clsx("font-black",
+                                                    currentBuiltInTheme === theme.id && theme.id === 'light-mode' ? "text-blue-500" :
+                                                        currentBuiltInTheme === theme.id && theme.id === 'frosted-glass' ? "text-purple-400" :
+                                                            currentBuiltInTheme === theme.id ? "text-matrix-green" : "text-white"
+                                                )}>
+                                                    {theme.name}
+                                                </span>
+                                            </div>
+                                        ))}
                                     </div>
 
                                     {/* Compact Layout Removed */}
