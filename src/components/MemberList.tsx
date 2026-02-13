@@ -117,7 +117,7 @@ export const MemberList: React.FC = () => {
             <div className="flex-1 min-w-0">
                 <div className={`font-medium text-[14px] truncate ${status === 'offline' ? 'text-matrix-muted' : 'text-gray-200'} group-hover:text-white`}>
                     {m.display_name || m.username}
-                    {m.is_banned && <span className="ml-2 text-[10px] text-red-500 font-bold uppercase">(BANNED)</span>}
+                    {!!m.is_banned && <span className="ml-2 text-[10px] text-red-500 font-bold uppercase">(BANNED)</span>}
                 </div>
                 {/* Custom status or presence */}
                 <div className="text-[10px] text-matrix-muted truncate opacity-50 group-hover:opacity-100 transition-opacity">

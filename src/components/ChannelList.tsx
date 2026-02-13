@@ -216,7 +216,7 @@ export const ChannelList: React.FC = () => {
 
     const renderUserControls = () => (
         <div className="flex flex-col shrink-0 relative">
-            {appVersion && (
+            {!!appVersion && (
                 <div
                     className={clsx(
                         "absolute -top-4 right-2 text-[9px] font-mono pointer-events-auto z-10 cursor-pointer transition-colors flex items-center gap-1",
