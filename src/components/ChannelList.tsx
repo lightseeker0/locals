@@ -38,15 +38,21 @@ export const ChannelList: React.FC = () => {
         // Check for new participants in all rooms
         Object.entries(roomParticipants).forEach(([roomId, p]) => {
             const currentCount = p?.length || 0;
-            const prevCount = prevParticipantsCount.current[roomId] || 0;
+            const prevCount = prevParticipantsCount.current[roomId];
 
-            // Only play if someone NEW joined (count increased)
-            // And if we are in that specific room OR it's a join in the current server
-            if (currentCount > prevCount) {
-                // Play join sound
-                const audio = new Audio('/assets/sounds/join.mp3');
-                audio.volume = 0.5;
-                audio.play().catch(e => console.error("Audio play failed:", e));
+            // Only play if we HAVE a previous count (not first load)
+            if (prevCount !== undefined) {
+                if (currentCount > prevCount) {
+                    // Play join sound (Bannerlord Quest Success)
+                    const audio = new Audio('/assets/sounds/join.mp3');
+                    audio.volume = 0.5;
+                    audio.play().catch(e => console.error("Join audio play failed:", e));
+                } else if (currentCount < prevCount) {
+                    // Play leave sound (Bannerlord Relation Decreased)
+                    const audio = new Audio('/assets/sounds/leave.mp3');
+                    audio.volume = 0.5;
+                    audio.play().catch(e => console.error("Leave audio play failed:", e));
+                }
             }
             prevParticipantsCount.current[roomId] = currentCount;
         });
