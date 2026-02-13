@@ -404,7 +404,7 @@ export const ChannelList: React.FC = () => {
                                                 // For now, let's look for any participant's ID to join
                                                 // In the backend, we should have a way to get the active call ID for a room
                                                 // Assuming we can poll or get it:
-                                                ApiService.fetchVoiceParticipants(channel.id, user.id).then(parts => {
+                                                ApiService.fetchVoiceParticipants(channel.id, user.id).then(() => {
                                                     // In a real app, parts should contain the current callId
                                                     // This is a placeholder for actual call discovery
                                                     startCall(channel.id, user);
