@@ -192,6 +192,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
                 return Response.json(user, { headers: corsHeaders });
             }
 
+            if (path === '/users/list') {
+                if (!userIdHeader) return new Response('Unauthorized', { status: 401 });
+                const { results } = await env.DB.prepare(`
+                    SELECT id, username, display_name, avatar_url, last_seen, is_banned, custom_status 
+                    FROM users 
+                    ORDER BY 
+                        CASE WHEN last_seen IS NOT NULL THEN 1 ELSE 2 END,
+                        last_seen DESC 
+                    LIMIT 200
+                `).all();
+                return Response.json(results, { headers: corsHeaders });
+            }
+
             if (path === '/themes') {
                 if (!userIdHeader) return new Response('Unauthorized', { status: 401 });
                 const { results } = await env.DB.prepare('SELECT * FROM user_themes WHERE user_id = ?')
