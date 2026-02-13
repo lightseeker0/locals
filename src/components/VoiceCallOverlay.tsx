@@ -5,7 +5,7 @@ import { PhoneOff, Mic, MicOff, Headphones, HeadphoneOff } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export const VoiceCallOverlay: React.FC = () => {
-    const { activeCall, callStatus, localStream, remoteStream, isMuted, isDeafened, toggleMute, toggleDeafen, endCall, pollSignals } = useVoiceStore();
+    const { activeCall, callStatus, isMuted, isDeafened, toggleMute, toggleDeafen, endCall, pollSignals } = useVoiceStore();
     const { user } = useAuthStore();
 
     useEffect(() => {
@@ -37,9 +37,7 @@ export const VoiceCallOverlay: React.FC = () => {
                 </div>
             </div>
 
-            {/* Audio Elements (Hidden) */}
-            {localStream && <audio ref={(el) => { if (el) el.srcObject = localStream }} muted autoPlay />}
-            {remoteStream && <audio ref={(el) => { if (el) el.srcObject = remoteStream }} autoPlay />}
+            {/* Audio Elements (Handled in ChannelList.tsx via VoiceAudioPlayer) */}
 
             <div className="flex justify-center gap-4 mt-2">
                 <button

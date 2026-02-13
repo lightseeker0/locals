@@ -79,7 +79,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const peer = new SimplePeer({
                 initiator: true,
                 trickle: false,
-                stream: stream
+                stream: stream,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' }
+                    ]
+                }
             });
 
             peer.on('signal', async (data: any) => {
@@ -140,7 +146,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const peer = new SimplePeer({
                 initiator: false,
                 trickle: false,
-                stream: stream
+                stream: stream,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' }
+                    ]
+                }
             });
 
             peer.on('signal', async (data: any) => {
