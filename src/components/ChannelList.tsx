@@ -101,6 +101,23 @@ export const ChannelList: React.FC = () => {
     } = useVoiceStore();
     const prevParticipants = React.useRef<Record<string, any[]>>({});
 
+    // Poll voice participants periodically
+    useEffect(() => {
+        if (!user || !selectedServerId) return;
+
+        const poll = async () => {
+            const voiceRooms = channels.filter(c => c.type === 'voice');
+            for (const room of voiceRooms) {
+                await fetchParticipants(room.id, user.id);
+            }
+        };
+
+        const interval = setInterval(poll, 5000); // 5s poll
+        poll();
+
+        return () => clearInterval(interval);
+    }, [user, selectedServerId, channels, fetchParticipants]);
+
     useEffect(() => {
         if (!user) return;
 

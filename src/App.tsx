@@ -12,6 +12,7 @@ import { useAuthStore } from './stores/authStore';
 import { useAppData } from './hooks/useAppData';
 import { useThemeStore } from './stores/themeStore';
 import { useAppStore } from './stores/appStore';
+import { VoiceCallOverlay } from './components/VoiceCallOverlay';
 
 function App() {
   const { user, isLoading, validateSession } = useAuthStore();
@@ -108,6 +109,7 @@ function App() {
             )}
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
             <ThemeAnnouncementModal isOpen={showAnnouncement} onClose={() => setShowAnnouncement(false)} />
+            <VoiceCallOverlay />
           </div>
 
           {/* Update Notification - Forced Overlay */}

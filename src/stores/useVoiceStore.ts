@@ -218,10 +218,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                     const data = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : signal.payload;
                     console.log(`[WebRTC] Processing incoming signal: type=${signal.type}`, data);
 
-                    // AUTO-JOIN LOGIC: If we get an offer but we are also 'calling' (initiator), 
-                    // someone else got there first. We should switch to joiner mode.
+                    // AUTO-JOIN LOGIC: If we get an offer but we are also 'initiating', 
+                    // someone else got there first. We should switch to joiner mode to avoid both sending offers.
                     if (signal.type === 'offer' && (get() as any).initiator) {
-                        console.log("[WebRTC] Received offer while initiating. Possible conflict.");
+                        console.warn("[WebRTC] Conflict detected: Received offer while initiating. Switching to joiner mode...");
+                        // We need to re-initialize the peer as a joiner
+                        set({ initiator: false });
+                        if (peer) {
+                            try { peer.destroy(); } catch (e) { }
+                        }
+                        // Re-trigger join flow with this callId
+                        (get() as any).joinCall(activeCall.id, { id: userId });
+                        return; // Stop processing further signals for the old peer
                     }
 
                     try {
