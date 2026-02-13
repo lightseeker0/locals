@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
 import { useVoiceStore } from '../stores/useVoiceStore';
 import { useAuthStore } from '../stores/authStore';
-import { PhoneOff, Mic, MicOff } from 'lucide-react';
+import { PhoneOff, Mic, MicOff, Headphones, HeadphoneOff } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export const VoiceCallOverlay: React.FC = () => {
-    const { activeCall, callStatus, localStream, remoteStream, isMuted, toggleMute, endCall, pollSignals } = useVoiceStore();
+    const { activeCall, callStatus, localStream, remoteStream, isMuted, isDeafened, toggleMute, toggleDeafen, endCall, pollSignals } = useVoiceStore();
     const { user } = useAuthStore();
 
     useEffect(() => {
@@ -50,6 +50,15 @@ export const VoiceCallOverlay: React.FC = () => {
                     )}
                 >
                     {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                </button>
+                <button
+                    onClick={toggleDeafen}
+                    className={clsx(
+                        "p-3 rounded-full transition-all",
+                        isDeafened ? "bg-red-500/20 text-red-500 hover:bg-red-500/30" : "bg-white/5 text-gray-300 hover:bg-white/10"
+                    )}
+                >
+                    {isDeafened ? <HeadphoneOff size={20} /> : <Headphones size={20} />}
                 </button>
                 <button
                     onClick={() => endCall(user?.id)}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
-import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, PhoneOff, Settings, Trash2, Bell } from 'lucide-react';
+import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Settings, Trash2, Bell } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DirectMessageModal } from './modals/DirectMessageModal';
 import { useVoiceStore } from '../stores/useVoiceStore';
@@ -18,7 +18,6 @@ import { AdminPanel } from './modals/AdminPanel';
 export const ChannelList: React.FC = () => {
     const { selectedServerId, servers, channels, selectedChannelId, setSelectedChannel, setSettingsOpen, setSelectedServer } = useAppStore();
     const { user } = useAuthStore();
-    const { activeCall, startCall, endCall, isMuted, toggleMute } = useVoiceStore();
     const { refreshRooms, refreshSpaces } = useAppData();
     const { t } = useI18nStore();
     const [isDMOpen, setIsDMOpen] = useState(false);
@@ -29,7 +28,18 @@ export const ChannelList: React.FC = () => {
 
     const currentServer = servers.find(s => s.id === selectedServerId);
 
-    const { roomParticipants, speakingUsers, fetchParticipants } = useVoiceStore();
+    const {
+        activeCall,
+        startCall,
+        isMuted,
+        isDeafened,
+        roomParticipants,
+        speakingUsers,
+        toggleMute,
+        toggleDeafen,
+        endCall,
+        fetchParticipants
+    } = useVoiceStore();
     const prevParticipants = React.useRef<Record<string, any[]>>({});
 
     useEffect(() => {
@@ -105,8 +115,15 @@ export const ChannelList: React.FC = () => {
                         >
                             {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
                         </button>
-                        <button className="p-2 rounded-lg bg-white/5 text-matrix-muted hover:bg-white/10 hover:text-white transition-all">
-                            <Headphones size={16} />
+                        <button
+                            onClick={toggleDeafen}
+                            className={clsx(
+                                "p-2 rounded-lg transition-all",
+                                isDeafened ? "bg-red-500/20 text-red-500 hover:bg-red-500/30" : "bg-white/5 text-matrix-muted hover:bg-white/10 hover:text-white"
+                            )}
+                            title={isDeafened ? "Undeafen" : "Deafen"}
+                        >
+                            {isDeafened ? <HeadphoneOff size={16} /> : <Headphones size={16} />}
                         </button>
                     </div>
                     <button
@@ -419,7 +436,7 @@ export const ChannelList: React.FC = () => {
 };
 
 const VoiceAudioPlayer = () => {
-    const { remoteStream, audioOutputDeviceId } = useVoiceStore();
+    const { remoteStream, audioOutputDeviceId, isDeafened } = useVoiceStore();
     const audioRef = React.useRef<HTMLAudioElement>(null);
 
     React.useEffect(() => {
@@ -438,6 +455,7 @@ const VoiceAudioPlayer = () => {
         <audio
             ref={audioRef}
             autoPlay
+            muted={isDeafened}
             style={{ display: 'none' }}
         />
     );

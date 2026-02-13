@@ -26,6 +26,8 @@ interface VoiceState {
     setAudioInputDevice: (deviceId: string) => void;
     setAudioOutputDevice: (deviceId: string) => void;
     playJoinSound: () => void;
+    isDeafened: boolean;
+    toggleDeafen: () => void;
 }
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
@@ -35,6 +37,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     localStream: null,
     remoteStream: null,
     isMuted: false,
+    isDeafened: false,
     initiator: false,
     peer: null,
     lastSignalId: 0,
@@ -229,6 +232,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             lastSignalId: 0,
             initiator: false,
             isMuted: false,
+            isDeafened: false,
             participants: [],
             speakingUsers: {},
             analyserIntervals: {}
@@ -259,6 +263,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             });
             set({ isMuted: !isMuted });
         }
+    },
+
+    toggleDeafen: () => {
+        const { isDeafened, isMuted, toggleMute } = get();
+        const nextDeafened = !isDeafened;
+        set({ isDeafened: nextDeafened });
+
+        // If deafening, also mute
+        if (nextDeafened && !isMuted) {
+            toggleMute();
+        }
+        // If undeafening, we typically stay muted (following Discord pattern)
     },
 
     setAudioInputDevice: (deviceId: string) => {
