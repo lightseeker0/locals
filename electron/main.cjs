@@ -22,7 +22,11 @@ if (!gotTheLock) {
     });
 }
 
+const log = require('electron-log');
+
 // Configure Auto-Updater
+autoUpdater.logger = log;
+autoUpdater.logger.transports.file.level = 'info';
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
@@ -61,6 +65,10 @@ function createWindow() {
         loadThemes();
         if (!isDev) {
             autoUpdater.checkForUpdatesAndNotify();
+            // Check every hour
+            setInterval(() => {
+                autoUpdater.checkForUpdates();
+            }, 60 * 60 * 1000);
         }
     });
 
@@ -116,6 +124,14 @@ autoUpdater.on('update-available', (info) => {
     if (win) win.webContents.send('update-available', info);
 });
 
+autoUpdater.on('checking-for-update', () => {
+    if (win) win.webContents.send('checking-for-update');
+});
+
+autoUpdater.on('update-not-available', (info) => {
+    if (win) win.webContents.send('update-not-available', info);
+});
+
 autoUpdater.on('download-progress', (progressObj) => {
     if (win) win.webContents.send('update-progress', progressObj);
 });
@@ -134,6 +150,12 @@ ipcMain.on('install-update', () => {
 
 ipcMain.handle('get-app-version', () => {
     return app.getVersion();
+});
+
+ipcMain.on('check-for-updates', () => {
+    if (!isDev) {
+        autoUpdater.checkForUpdates();
+    }
 });
 
 function createTray() {

@@ -26,12 +26,29 @@ export const ChannelList: React.FC = () => {
     const [showNotifications, setShowNotifications] = useState(false);
     const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
     const [appVersion, setAppVersion] = useState<string>('');
+    const [updateStatus, setUpdateStatus] = useState<string>(''); // 'idle', 'checking', 'available', 'not-available', 'downloading', 'ready'
 
     useEffect(() => {
-        if (window.electron?.getAppVersion) {
-            window.electron.getAppVersion().then(v => setAppVersion(v));
-        }
+        if (!window.electron) return;
+
+        window.electron.getAppVersion().then(v => setAppVersion(v));
+
+        window.electron.onCheckingForUpdate(() => setUpdateStatus('checking'));
+        window.electron.onUpdateAvailable(() => setUpdateStatus('available'));
+        window.electron.onUpdateNotAvailable(() => {
+            setUpdateStatus('not-available');
+            setTimeout(() => setUpdateStatus('idle'), 3000);
+        });
+        window.electron.onUpdateProgress(() => setUpdateStatus('downloading'));
+        window.electron.onUpdateDownloaded(() => setUpdateStatus('ready'));
     }, []);
+
+    const checkForUpdates = () => {
+        if (window.electron && updateStatus === 'idle') {
+            setUpdateStatus('checking');
+            window.electron.checkForUpdates();
+        }
+    };
 
     const currentServer = servers.find(s => s.id === selectedServerId);
 
@@ -148,8 +165,21 @@ export const ChannelList: React.FC = () => {
     const renderUserControls = () => (
         <div className="flex flex-col shrink-0 relative">
             {appVersion && (
-                <div className="absolute -top-3 right-2 text-[9px] text-matrix-muted opacity-20 font-mono pointer-events-none z-10">
-                    v{appVersion}
+                <div
+                    className={clsx(
+                        "absolute -top-4 right-2 text-[9px] font-mono pointer-events-auto z-10 cursor-pointer transition-colors flex items-center gap-1",
+                        updateStatus === 'checking' ? "text-yellow-500 animate-pulse" :
+                            updateStatus === 'ready' ? "text-matrix-green animate-bounce" :
+                                updateStatus === 'downloading' ? "text-blue-500" :
+                                    "text-matrix-muted opacity-20 hover:opacity-100 hover:text-white"
+                    )}
+                    onClick={checkForUpdates}
+                    title="Click to check for updates"
+                >
+                    {updateStatus === 'checking' ? 'Checking...' :
+                        updateStatus === 'ready' ? 'Update Ready!' :
+                            updateStatus === 'downloading' ? 'Downloading...' :
+                                `v${appVersion}`}
                 </div>
             )}
             {renderVoiceControlBar()}
