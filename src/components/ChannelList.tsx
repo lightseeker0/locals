@@ -30,28 +30,32 @@ export const ChannelList: React.FC = () => {
     const currentServer = servers.find(s => s.id === selectedServerId);
 
     const { roomParticipants, speakingUsers, fetchParticipants } = useVoiceStore();
-    const prevParticipantsCount = React.useRef<Record<string, number>>({});
+    const prevParticipants = React.useRef<Record<string, any[]>>({});
 
     useEffect(() => {
         if (!user) return;
 
         // Check for new participants in all rooms
         Object.entries(roomParticipants).forEach(([roomId, p]) => {
-            const currentCount = p?.length || 0;
-            const prevCount = prevParticipantsCount.current[roomId];
+            const currentList = p || [];
+            const prevList = prevParticipants.current[roomId] || [];
 
             // Only play if someone NEW joined (count increased)
-            if (prevCount !== undefined && currentCount > prevCount) {
-                // Only play if the user is in THIS channel
-                if (activeCall?.roomId === roomId) {
+            if (currentList.length > prevList.length) {
+                // Determine if the joined user is someone ELSE
+                const joinedUser = currentList.find(u => !prevList.some(pu => pu.id === u.id));
+
+                // If someone else joined (or we joined but we handle our own sound in the store)
+                // We specifically only play for OTHERS here to avoid double sound
+                if (joinedUser && joinedUser.id !== user.id && activeCall?.roomId === roomId) {
                     const audio = new Audio('/assets/sounds/join.webm');
                     audio.volume = 0.5;
                     audio.play().catch(e => console.error("Join audio play failed:", e));
                 }
             }
-            prevParticipantsCount.current[roomId] = currentCount;
+            prevParticipants.current[roomId] = currentList;
         });
-    }, [roomParticipants, user?.id]);
+    }, [roomParticipants, user?.id, activeCall?.roomId]);
 
     useEffect(() => {
         if (!user || !selectedServerId) return;
@@ -61,14 +65,12 @@ export const ChannelList: React.FC = () => {
 
         const poll = () => {
             voiceChannels.forEach(channel => {
-                // If we are in the call, we might already have data, but good to refresh
-                // Especially updates "roomParticipants"
                 fetchParticipants(channel.id, user.id);
             });
         };
 
         poll();
-        const interval = setInterval(poll, 5000); // Check every 5 seconds
+        const interval = setInterval(poll, 1500); // Check every 1.5 seconds for faster responsiveness
         return () => clearInterval(interval);
     }, [selectedServerId, channels, user?.id]);
 

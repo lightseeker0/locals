@@ -13,7 +13,7 @@ export const VoiceCallOverlay: React.FC = () => {
         if (activeCall && user) {
             interval = setInterval(() => {
                 pollSignals(user.id);
-            }, 2000); // Poll every 2 seconds
+            }, 500); // Poll every 500ms for faster connection
         }
         return () => clearInterval(interval);
     }, [activeCall, user, pollSignals]);

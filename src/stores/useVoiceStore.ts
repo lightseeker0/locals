@@ -25,6 +25,7 @@ interface VoiceState {
     fetchParticipants: (roomId: string, userId: string) => Promise<void>;
     setAudioInputDevice: (deviceId: string) => void;
     setAudioOutputDevice: (deviceId: string) => void;
+    playJoinSound: () => void;
 }
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
@@ -52,6 +53,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 [roomId]: [...(state.roomParticipants[roomId] || []), user]
             }
         }));
+
+        // Play sound immediately for local user
+        (get() as any).playJoinSound();
 
         try {
             const { audioInputDeviceId } = get();
@@ -124,6 +128,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
             // setup local analyser
             (get() as any).setupAudioAnalyser(stream, userId);
+
+            // Play sound immediately for local user
+            (get() as any).playJoinSound();
 
             set({ localStream: stream, callStatus: 'calling', activeCall: { id: callId, roomId: '' }, initiator: false });
 
@@ -310,6 +317,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
         } catch (e) {
             console.error("Audio analyser setup failed", e);
+        }
+    },
+
+    playJoinSound: () => {
+        try {
+            const audio = new Audio('/assets/sounds/join.webm');
+            audio.volume = 0.5;
+            audio.play().catch(e => console.error("Join audio play failed:", e));
+        } catch (e) {
+            console.error("Sound playback error:", e);
         }
     }
 }));
