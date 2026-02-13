@@ -93,41 +93,60 @@ function App() {
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
           </div>
 
-          {/* Update Notification */}
+          {/* Update Notification - Forced Overlay */}
           {updateInfo && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
-              <div className="bg-matrix-darker border border-matrix-green/50 rounded-xl shadow-2xl p-4 flex items-center gap-4 min-w-[300px]">
-                <div className="flex-1">
-                  <div className="text-sm font-bold text-white mb-1">
-                    {updateInfo.status === 'available' && 'Yeni güncelleme bulundu...'}
-                    {updateInfo.status === 'downloading' && 'Güncelleme indiriliyor...'}
-                    {updateInfo.status === 'ready' && 'Güncelleme hazır!'}
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-fade-in">
+              <div className="bg-matrix-darker border-2 border-matrix-green shadow-[0_0_50px_rgba(13,189,139,0.3)] rounded-2xl p-8 max-w-md w-full text-center relative overflow-hidden group">
+                {/* Background pulse effect */}
+                <div className="absolute inset-0 bg-matrix-green/5 animate-pulse" />
+
+                <div className="relative z-10">
+                  <div className="mb-6 inline-flex p-4 rounded-full bg-matrix-green/10 border border-matrix-green/20">
+                    <div className="w-12 h-12 border-4 border-matrix-green/30 border-t-matrix-green rounded-full animate-spin" />
                   </div>
+
+                  <h2 className="text-2xl font-black text-white mb-2 tracking-tight">
+                    {updateInfo.status === 'available' && 'SİSTEM GÜNCELLEMESİ'}
+                    {updateInfo.status === 'downloading' && 'VERİ AKTARILIYOR'}
+                    {updateInfo.status === 'ready' && 'GÜNCELLEME HAZIR'}
+                  </h2>
+
+                  <p className="text-matrix-muted text-sm mb-8 leading-relaxed">
+                    {updateInfo.status === 'available' && 'Yeni bir sürüm tespit edildi. Devam etmek için güncelleme zorunludur.'}
+                    {updateInfo.status === 'downloading' && 'Kritik sistem dosyaları indiriliyor. Lütfen bekleyin...'}
+                    {updateInfo.status === 'ready' && 'Tüm dosyalar doğrulandı. Değişikliklerin uygulanması için yeniden başlatın.'}
+                  </p>
+
                   {updateInfo.status === 'downloading' && (
-                    <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-matrix-green h-full transition-all duration-300"
-                        style={{ width: `${updateInfo.progress || 0}%` }}
-                      />
+                    <div className="mb-8">
+                      <div className="flex justify-between text-[10px] font-bold text-matrix-green uppercase mb-2">
+                        <span>İlerleme</span>
+                        <span>{Math.round(updateInfo.progress || 0)}%</span>
+                      </div>
+                      <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/10">
+                        <div
+                          className="bg-matrix-green h-full transition-all duration-300 shadow-[0_0_15px_rgba(13,189,139,0.5)]"
+                          style={{ width: `${updateInfo.progress || 0}%` }}
+                        />
+                      </div>
                     </div>
                   )}
-                  {updateInfo.status === 'ready' && (
-                    <div className="text-xs text-matrix-muted uppercase tracking-wider font-bold">
-                      Yüklemek için yeniden başlatın
-                    </div>
-                  )}
+
+                  <div className="flex flex-col gap-3">
+                    {updateInfo.status === 'ready' ? (
+                      <button
+                        onClick={() => (window as any).electron?.installUpdate()}
+                        className="w-full bg-matrix-green text-black py-4 rounded-xl font-black text-sm hover:bg-white transition-all shadow-[0_0_30px_rgba(13,189,139,0.4)] active:scale-[0.98] uppercase tracking-widest"
+                      >
+                        Sistemi Güncelle ve Başlat
+                      </button>
+                    ) : (
+                      <div className="text-[10px] font-bold text-matrix-green/40 uppercase tracking-[0.2em] animate-pulse">
+                        Giriş Engellendi
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {updateInfo.status === 'ready' && (
-                  <button
-                    onClick={() => (window as any).electron?.installUpdate()}
-                    className="bg-matrix-green text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-white transition-all shadow-lg active:scale-95"
-                  >
-                    Hemen Başlat
-                  </button>
-                )}
-                {updateInfo.status !== 'ready' && (
-                  <div className="w-5 h-5 border-2 border-matrix-green/30 border-t-matrix-green rounded-full animate-spin" />
-                )}
               </div>
             </div>
           )}

@@ -7,6 +7,21 @@ const isDev = process.env.NODE_ENV === 'development';
 let tray = null;
 let win = null;
 
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', (event, commandLine, workingDirectory) => {
+        // Someone tried to run a second instance, we should focus our window.
+        if (win) {
+            if (win.isMinimized()) win.restore();
+            win.show();
+            win.focus();
+        }
+    });
+}
+
 // Configure Auto-Updater
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
