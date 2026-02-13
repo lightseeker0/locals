@@ -10,6 +10,8 @@ interface AuthState {
     register: (username: string, password?: string) => Promise<void>;
     updateProfile: (data: { display_name: string, avatar_url: string }) => Promise<void>;
     validateSession: () => Promise<void>;
+    userStatus: 'online' | 'idle' | 'dnd' | 'invisible';
+    setUserStatus: (status: 'online' | 'idle' | 'dnd' | 'invisible') => void;
     logout: () => void;
 }
 
@@ -19,6 +21,9 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: false,
             user: null,
             isLoading: true,
+            userStatus: 'online',
+
+            setUserStatus: (status) => set({ userStatus: status }),
 
             login: async (username: string, password?: string) => {
                 const user = await ApiService.login({ username, password });
