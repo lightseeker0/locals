@@ -26,7 +26,7 @@ export const ChannelList: React.FC = () => {
     const [showNotifications, setShowNotifications] = useState(false);
     const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
     const [appVersion, setAppVersion] = useState<string>('');
-    const [updateStatus, setUpdateStatus] = useState<string>(''); // 'idle', 'checking', 'available', 'not-available', 'downloading', 'ready'
+    const [updateStatus, setUpdateStatus] = useState<string>('idle'); // 'idle', 'checking', 'available', 'not-available', 'downloading', 'ready'
 
     useEffect(() => {
         if (!window.electron) return;
