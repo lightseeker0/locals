@@ -76,18 +76,19 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             // CRITICAL: Double check if a call already exists to avoid race conditions
             await ApiService.fetchVoiceParticipants(roomId, userId);
 
-            const { id: callId } = await ApiService.createCall(roomId, userId);
-            set({ activeCall: { id: callId, roomId }, initiator: true });
+            const response = await ApiService.createCall(roomId, userId);
+            const callId = response.id;
+            const isJoiner = response.status === 'joined';
+
+            set({ activeCall: { id: callId, roomId }, initiator: !isJoiner });
 
             const peer = new SimplePeer({
-                initiator: true,
+                initiator: !isJoiner,
                 trickle: true,
                 stream: stream,
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' },
-                        { urls: 'stun:stun2.l.google.com:19302' },
                         { urls: 'stun:global.stun.twilio.com:3478' }
                     ]
                 }
@@ -109,6 +110,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 set({ remoteStream, callStatus: 'connected' });
 
                 // Identify peer to setup their analyser
+                // In a 1:1, we find the other guy in the room
                 const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
                 const other = participants.find((p: any) => p.id !== userId);
                 if (other) {
@@ -116,12 +118,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 }
             });
 
-            peer.on('error', (err: any) => {
-                console.error('Peer error:', err);
-                get().endCall(userId);
-            });
-
-            set({ peer });
+            (get() as any).peer = peer;
 
         } catch (err) {
             console.error('Failed to start call:', err);
@@ -157,13 +154,11 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
             const peer = new SimplePeer({
                 initiator: false,
-                trickle: true,
+                trickle: false,
                 stream: stream,
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' },
-                        { urls: 'stun:stun2.l.google.com:19302' },
                         { urls: 'stun:global.stun.twilio.com:3478' }
                     ]
                 }
@@ -199,12 +194,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 } catch (e) { }
             });
 
-            peer.on('error', (err: any) => {
-                console.error('Peer error in joinCall:', err);
-                get().endCall(userId);
-            });
-
-            set({ peer });
+            (get() as any).peer = peer;
 
         } catch (err) {
             console.error('Failed to join call:', err);
@@ -221,28 +211,24 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const signals: any[] = await ApiService.pollSignals(activeCall.id, userId, lastSignalId);
 
             if (signals.length > 0) {
-                if (signals.length > 0) {
-                    console.log(`[WebRTC] Found ${signals.length} new signals`);
-                    set({ lastSignalId: signals[signals.length - 1].id });
-                }
+                console.log(`[WebRTC] Polled ${signals.length} new signals from server`);
+                set({ lastSignalId: signals[signals.length - 1].id });
 
                 for (const signal of signals) {
                     const data = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : signal.payload;
+                    console.log(`[WebRTC] Processing incoming signal: type=${signal.type}`, data);
 
                     // AUTO-JOIN LOGIC: If we get an offer but we are also 'calling' (initiator), 
                     // someone else got there first. We should switch to joiner mode.
-                    if (signal.type === 'offer' && get().initiator) {
-                        console.log("[WebRTC] Received offer while initiating. Switching to joiner mode to avoid conflict.");
-                        // This requires re-initializing the peer as a non-initiator
-                        // For a quick fix, let's just process it if possible, 
-                        // but better to prevent this in startCall.
+                    if (signal.type === 'offer' && (get() as any).initiator) {
+                        console.log("[WebRTC] Received offer while initiating. Possible conflict.");
                     }
 
                     try {
-                        console.log(`[WebRTC] Receiving signal: ${signal.type}`, data);
                         peer.signal(data);
+                        console.log(`[WebRTC] Successfully signaled peer with ${signal.type}`);
                     } catch (e) {
-                        console.error('[WebRTC] Error signaling peer:', e);
+                        console.error('[WebRTC] Error applying signal to peer:', e);
                     }
                 }
             }

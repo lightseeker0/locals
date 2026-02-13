@@ -243,9 +243,9 @@ export const ChatArea: React.FC = () => {
                 {typingUsers.length > 0 && (
                     <div className="flex items-center gap-2 mb-2 ml-4 animate-in fade-in slide-in-from-left-2 duration-300">
                         <div className="flex gap-1">
-                            <div className="w-1h-1 bg-matrix-green rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-                            <div className="w-1h-1 bg-matrix-green rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                            <div className="w-1h-1 bg-matrix-green rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                            <div className="w-1 h-1 bg-matrix-green rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+                            <div className="w-1 h-1 bg-matrix-green rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                            <div className="w-1 h-1 bg-matrix-green rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
                         </div>
                         <span className="text-[10px] font-bold text-matrix-muted uppercase tracking-widest">
                             {typingUsers.length === 1
