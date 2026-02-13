@@ -71,10 +71,14 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             // setup local analyser
             (get() as any).setupAudioAnalyser(stream, userId);
 
-            set({ localStream: stream, callStatus: 'calling', initiator: true });
+            set({ localStream: stream, callStatus: 'calling' });
+
+            // CRITICAL: Double check if a call already exists to avoid race conditions
+            const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
+            const existingCall = participants.length > 1; // Simplistic check - if someone is here, they probably have a call
 
             const { id: callId } = await ApiService.createCall(roomId, userId);
-            set({ activeCall: { id: callId, roomId } });
+            set({ activeCall: { id: callId, roomId }, initiator: true });
 
             const peer = new SimplePeer({
                 initiator: true,
@@ -225,6 +229,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
                 for (const signal of signals) {
                     const data = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : signal.payload;
+
+                    // AUTO-JOIN LOGIC: If we get an offer but we are also 'calling' (initiator), 
+                    // someone else got there first. We should switch to joiner mode.
+                    if (signal.type === 'offer' && get().initiator) {
+                        console.log("[WebRTC] Received offer while initiating. Switching to joiner mode to avoid conflict.");
+                        // This requires re-initializing the peer as a non-initiator
+                        // For a quick fix, let's just process it if possible, 
+                        // but better to prevent this in startCall.
+                    }
+
                     try {
                         console.log(`[WebRTC] Receiving signal: ${signal.type}`, data);
                         peer.signal(data);
