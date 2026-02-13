@@ -40,7 +40,9 @@ function createWindow() {
         },
         icon: path.join(__dirname, '../public/logo.png'),
         title: 'Locals',
-        backgroundColor: '#000000',
+        backgroundColor: '#00000000', // Transparent
+        transparent: true,
+        frame: false, // Often needed for full transparency effects
         show: false
     });
 

@@ -42,7 +42,8 @@
 /* BetterDiscord Compatibility Aliases & Shim */
 #app-mount,
 .appMount-3stXN7 {
-  background-color: var(--bg-primary);
+  background-color: transparent;
+  /* Allow window transparency */
   color: var(--text-normal);
   height: 100vh;
   width: 100vw;
@@ -50,31 +51,33 @@
 
 .app-323596,
 .da-app {
-  background-color: var(--bg-primary);
+  background-color: transparent;
 }
 
 .sidebar-1tnWFu,
 .da-sidebar {
-  background-color: var(--bg-secondary) !important;
-  width: var(--channel-list-width) !important;
+  background-color: var(--bg-secondary);
+  /* Remove !important */
 }
 
 /* Local Sidebar overrides */
 .sidebar {
-  background-color: var(--bg-secondary) !important;
+  background-color: var(--bg-secondary);
+  /* Remove !important */
 }
 
 .chat-2Z9I9e,
 .da-chat,
 .chat-content {
-  background-color: var(--bg-primary) !important;
+  background-color: var(--bg-primary);
+  /* Remove !important */
 }
 
 .members-3WRCEx,
 .da-members,
 .member-list {
-  background-color: var(--bg-secondary) !important;
-  width: var(--member-list-width) !important;
+  background-color: var(--bg-secondary);
+  /* Remove !important */
 }
 
 .container-1NXEAG,
@@ -131,7 +134,8 @@
 }
 
 body {
-  background-color: var(--color-matrix-darker);
+  background-color: transparent;
+  /* Changed from var(--color-matrix-darker) for transparency */
   color: var(--color-matrix-text);
   overflow: hidden;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
