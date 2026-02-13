@@ -10,6 +10,7 @@ interface VoiceState {
     remoteStreams: Record<string, MediaStream>; // userId -> stream
     isMuted: boolean;
     peers: Record<string, any>; // userId -> SimplePeer
+    pendingPeers: Set<string>; // IDs we are currently connecting to
     lastSignalId: number;
     roomParticipants: Record<string, any[]>;
     speakingUsers: Record<string, boolean>;
@@ -21,6 +22,7 @@ interface VoiceState {
     toggleMute: () => void;
     pollSignals: (userId: string) => Promise<void>;
     fetchParticipants: (roomId: string, userId: string) => Promise<void>;
+    removePeer: (targetId: string) => void;
     setAudioInputDevice: (deviceId: string) => void;
     setAudioOutputDevice: (deviceId: string) => void;
     playJoinSound: () => void;
@@ -36,6 +38,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     isMuted: false,
     isDeafened: false,
     peers: {},
+    pendingPeers: new Set(),
     lastSignalId: 0,
     roomParticipants: {},
     speakingUsers: {},
@@ -44,6 +47,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     startCall: async (roomId: string, user: any) => {
         const userId = user.id;
+        const { activeCall } = get();
+        if (activeCall?.roomId === roomId) return;
+        if (activeCall) await get().endCall(userId);
+
         (get() as any).playJoinSound();
 
         try {
@@ -113,55 +120,17 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     initiatePeerConnection: (callId: string, userId: string, targetId: string, stream: MediaStream) => {
+        const { peers, pendingPeers } = get();
+        if (peers[targetId] || pendingPeers.has(targetId)) return;
+
         console.log(`[WebRTC] Initiating P2P with ${targetId}`);
-        const peer = new SimplePeer({
-            initiator: true,
-            trickle: true,
-            stream: stream,
-            config: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' }
-                ]
-            }
-        });
+        const newPending = new Set(pendingPeers);
+        newPending.add(targetId);
+        set({ pendingPeers: newPending });
 
-        peer.on('signal', async (data: any) => {
-            // Signal payload includes target info
-            await ApiService.sendSignal(callId, userId, data.type || 'signal', {
-                signal: data,
-                to: targetId,
-                from: userId
-            });
-        });
-
-        peer.on('connect', () => {
-            console.log(`[WebRTC] Connected with ${targetId}`);
-            set({ callStatus: 'connected' });
-        });
-
-        peer.on('stream', (remoteStream: MediaStream) => {
-            console.log(`[WebRTC] Stream from ${targetId} received`);
-            set(state => ({
-                remoteStreams: { ...state.remoteStreams, [targetId]: remoteStream }
-            }));
-            (get() as any).setupAudioAnalyser(remoteStream, targetId);
-        });
-
-        set(state => ({
-            peers: { ...state.peers, [targetId]: peer }
-        }));
-    },
-
-    handleIncomingSignal: async (callId: string, userId: string, signalData: any, stream: MediaStream) => {
-        const fromId = signalData.from;
-        const payload = signalData.signal;
-        let peer = get().peers[fromId];
-
-        if (!peer) {
-            console.log(`[WebRTC] Creating peer for incoming signal from ${fromId}`);
-            peer = new SimplePeer({
-                initiator: false,
+        try {
+            const peer = new SimplePeer({
+                initiator: true,
                 trickle: true,
                 stream: stream,
                 config: {
@@ -175,24 +144,149 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             peer.on('signal', async (data: any) => {
                 await ApiService.sendSignal(callId, userId, data.type || 'signal', {
                     signal: data,
-                    to: fromId,
+                    to: targetId,
                     from: userId
                 });
             });
 
+            peer.on('connect', () => {
+                console.log(`[WebRTC] Connected with ${targetId}`);
+                set(state => {
+                    const nextPending = new Set(state.pendingPeers);
+                    nextPending.delete(targetId);
+                    return { callStatus: 'connected', pendingPeers: nextPending };
+                });
+                const roomId = get().activeCall?.roomId;
+                if (roomId) get().fetchParticipants(roomId, userId);
+            });
+
             peer.on('stream', (remoteStream: MediaStream) => {
+                console.log(`[WebRTC] Stream from ${targetId} received`);
                 set(state => ({
-                    remoteStreams: { ...state.remoteStreams, [fromId]: remoteStream }
+                    remoteStreams: { ...state.remoteStreams, [targetId]: remoteStream }
                 }));
-                (get() as any).setupAudioAnalyser(remoteStream, fromId);
+                (get() as any).setupAudioAnalyser(remoteStream, targetId);
+            });
+
+            peer.on('error', (err: any) => {
+                console.error(`[WebRTC] Peer error with ${targetId}:`, err);
+                get().removePeer(targetId);
+            });
+
+            peer.on('close', () => {
+                console.log(`[WebRTC] Peer closed with ${targetId}`);
+                get().removePeer(targetId);
             });
 
             set(state => ({
-                peers: { ...state.peers, [fromId]: peer }
+                peers: { ...state.peers, [targetId]: peer }
             }));
+        } catch (e) {
+            console.error(`[WebRTC] Failed to create peer for ${targetId}:`, e);
+            set(state => {
+                const nextPending = new Set(state.pendingPeers);
+                nextPending.delete(targetId);
+                return { pendingPeers: nextPending };
+            });
+        }
+    },
+
+    removePeer: (targetId: string) => {
+        set(state => {
+            const newPeers = { ...state.peers };
+            const newStreams = { ...state.remoteStreams };
+            if (newPeers[targetId]) {
+                try { newPeers[targetId].destroy(); } catch (e) { }
+                delete newPeers[targetId];
+            }
+            delete newStreams[targetId];
+
+            const pending = new Set(state.pendingPeers);
+            pending.delete(targetId);
+
+            return {
+                peers: newPeers,
+                remoteStreams: newStreams,
+                pendingPeers: pending
+            };
+        });
+    },
+
+    handleIncomingSignal: async (callId: string, userId: string, signalData: any, stream: MediaStream) => {
+        const fromId = signalData.from;
+        const payload = signalData.signal;
+        const { peers, pendingPeers } = get();
+
+        let peer = peers[fromId];
+
+        if (!peer && !pendingPeers.has(fromId)) {
+            console.log(`[WebRTC] Creating peer for incoming signal from ${fromId}`);
+            const nextPending = new Set(pendingPeers);
+            nextPending.add(fromId);
+            set({ pendingPeers: nextPending });
+
+            try {
+                peer = new SimplePeer({
+                    initiator: false,
+                    trickle: true,
+                    stream: stream,
+                    config: {
+                        iceServers: [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:global.stun.twilio.com:3478' }
+                        ]
+                    }
+                });
+
+                peer.on('signal', async (data: any) => {
+                    await ApiService.sendSignal(callId, userId, data.type || 'signal', {
+                        signal: data,
+                        to: fromId,
+                        from: userId
+                    });
+                });
+
+                peer.on('connect', () => {
+                    set(state => {
+                        const nextP = new Set(state.pendingPeers);
+                        nextP.delete(fromId);
+                        return { pendingPeers: nextP };
+                    });
+                    const roomId = get().activeCall?.roomId;
+                    if (roomId) get().fetchParticipants(roomId, userId);
+                });
+
+                peer.on('stream', (remoteStream: MediaStream) => {
+                    set(state => ({
+                        remoteStreams: { ...state.remoteStreams, [fromId]: remoteStream }
+                    }));
+                    (get() as any).setupAudioAnalyser(remoteStream, fromId);
+                });
+
+                peer.on('error', (err: any) => get().removePeer(fromId));
+                peer.on('close', () => get().removePeer(fromId));
+
+                set(state => ({
+                    peers: { ...state.peers, [fromId]: peer }
+                }));
+            } catch (e) {
+                console.error(`[WebRTC] Failed to create joiner peer for ${fromId}:`, e);
+                set(state => {
+                    const nextP = new Set(state.pendingPeers);
+                    nextP.delete(fromId);
+                    return { pendingPeers: nextP };
+                });
+                return;
+            }
         }
 
-        peer.signal(payload);
+        if (peer) {
+            try {
+                peer.signal(payload);
+            } catch (e) {
+                console.error(`[WebRTC] Error signaling peer ${fromId}:`, e);
+            }
+        }
     },
 
     pollSignals: async (userId: string) => {
