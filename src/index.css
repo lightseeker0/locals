@@ -10,9 +10,9 @@
 }
 
 :root {
-  --sidebar-width: 72px;
-  --channel-list-width: 232px;
-  --member-list-width: 232px;
+  --sidebar-width: 64px;
+  --channel-list-width: 210px;
+  --member-list-width: 210px;
 
   /* Theme Variables - Matrix Dark (Default) */
   --matrix-green: #0dbd8b;

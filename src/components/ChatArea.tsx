@@ -415,35 +415,38 @@ const MessageItem = ({ message, onReply, onImageClick }: { message: ChatMessage,
     };
 
     return (
-        <div className={clsx(
-            "group flex flex-col mb-2 animate-in slide-in-from-bottom-2 duration-300",
-            isMe ? "items-end" : "items-start"
-        )}>
-            <div className={clsx(
-                "flex max-w-[85%] md:max-w-[70%] gap-2 md:gap-3",
-                isMe ? "flex-row-reverse" : "flex-row"
-            )}>
+        <div className="group flex flex-col mb-2 animate-in slide-in-from-bottom-2 duration-300 items-start">
+            <div className="flex max-w-[85%] md:max-w-[85%] gap-2 md:gap-3 flex-row">
                 {/* Avatar */}
-                {!isMe && (
-                    <div className="w-9 h-9 rounded-xl bg-matrix-green/20 flex items-center justify-center shrink-0 border border-matrix-green/10 shadow-lg font-black text-matrix-green text-sm">
-                        {message.avatar_url ? <img src={message.avatar_url} className="w-full h-full rounded-xl object-cover" /> : (message.display_name || message.username || '?')[0].toUpperCase()}
-                    </div>
-                )}
+                <div className={clsx(
+                    "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-lg font-black text-sm",
+                    isMe ? "bg-matrix-green text-matrix-darker border-matrix-green/20" : "bg-matrix-green/20 text-matrix-green border-matrix-green/10"
+                )}>
+                    {message.avatar_url ? (
+                        <img src={message.avatar_url} className="w-full h-full rounded-xl object-cover" />
+                    ) : (
+                        (message.display_name || message.username || '?')[0].toUpperCase()
+                    )}
+                </div>
 
-                <div className={clsx("flex flex-col", isMe ? "items-end" : "items-start")}>
+                <div className="flex flex-col items-start">
                     {/* Username & Time */}
-                    <div className={clsx("flex items-baseline gap-2 mb-1 px-1", isMe ? "flex-row-reverse" : "flex-row")}>
-                        <span className="text-[11px] font-black text-white tracking-tight">{message.display_name || message.username}</span>
-                        <span className="text-[9px] font-bold text-matrix-muted opacity-40 uppercase tracking-widest">{format(new Date(message.created_at || Date.now()), 'HH:mm')}</span>
+                    <div className="flex items-baseline gap-2 mb-1 px-1 flex-row">
+                        <span className={clsx("text-[11px] font-black tracking-tight", isMe ? "text-matrix-green" : "text-white")}>
+                            {message.display_name || message.username}
+                        </span>
+                        <span className="text-[9px] font-bold text-matrix-muted opacity-40 uppercase tracking-widest">
+                            {format(new Date(message.created_at || Date.now()), 'HH:mm')}
+                        </span>
                     </div>
 
                     {/* Bubble */}
                     <div className="relative group/bubble">
                         <div className={clsx(
-                            "px-4 py-2.5 shadow-xl relative transition-all duration-200",
+                            "px-4 py-2.5 shadow-xl relative transition-all duration-200 font-medium rounded-[1.25rem] rounded-tl-none",
                             isMe
-                                ? "bg-matrix-green text-matrix-darker rounded-[1.25rem] rounded-tr-none hover:shadow-matrix-green/10 font-medium"
-                                : "bg-matrix-dark border border-white/5 text-white/90 rounded-[1.25rem] rounded-tl-none hover:bg-matrix-dark/80 font-medium"
+                                ? "bg-matrix-green/20 border border-matrix-green/30 text-white hover:bg-matrix-green/30"
+                                : "bg-matrix-dark border border-white/5 text-white/90 hover:bg-matrix-dark/80"
                         )}>
                             {renderContent(message.content)}
                         </div>

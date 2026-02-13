@@ -113,7 +113,7 @@ export const MemberList: React.FC = () => {
     );
 
     return (
-        <div className="w-60 bg-matrix-darker flex flex-col shrink-0 border-l border-white/5 member-list">
+        <div className="w-[var(--member-list-width)] bg-matrix-darker flex flex-col shrink-0 border-l border-white/5 member-list">
             <div className="p-4 flex-1 overflow-y-auto no-scrollbar">
 
                 {/* Online */}

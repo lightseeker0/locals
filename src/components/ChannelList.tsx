@@ -201,7 +201,7 @@ export const ChannelList: React.FC = () => {
     );
 
     const renderHomeView = () => (
-        <div className="w-60 bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 sidebar">
+        <div className="w-[var(--channel-list-width)] bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 sidebar">
             <div className="h-12 flex items-center justify-center p-4 border-b border-white/5">
                 <button
                     onClick={() => setIsDMOpen(true)}
@@ -270,7 +270,7 @@ export const ChannelList: React.FC = () => {
     if (!selectedServerId) return renderHomeView();
 
     return (
-        <div className="w-60 bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 sidebar">
+        <div className="w-[var(--channel-list-width)] bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 sidebar">
             {/* Space Header */}
             <div className="h-12 flex items-center justify-between p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors group">
                 <h1 className="font-bold text-white truncate max-w-[140px] group-hover:text-matrix-green">{currentServer?.title || 'Space'}</h1>
