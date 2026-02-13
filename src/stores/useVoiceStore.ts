@@ -17,8 +17,8 @@ interface VoiceState {
     speakingUsers: Record<string, boolean>;
     audioInputDeviceId: string | null;
     audioOutputDeviceId: string | null;
-    startCall: (roomId: string, userId: string) => Promise<void>;
-    joinCall: (callId: string, userId: string) => Promise<void>;
+    startCall: (roomId: string, user: any) => Promise<void>;
+    joinCall: (callId: string, user: any) => Promise<void>;
     endCall: (userId?: string) => Promise<void>;
     toggleMute: () => void;
     pollSignals: (userId: string) => Promise<void>;
@@ -43,7 +43,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     audioInputDeviceId: localStorage.getItem('audioInputDeviceId'),
     audioOutputDeviceId: localStorage.getItem('audioOutputDeviceId'),
 
-    startCall: async (roomId: string, userId: string) => {
+    startCall: async (roomId: string, user: any) => {
+        const userId = user.id;
+        // Optimistic update
+        set(state => ({
+            roomParticipants: {
+                ...state.roomParticipants,
+                [roomId]: [...(state.roomParticipants[roomId] || []), user]
+            }
+        }));
+
         try {
             const { audioInputDeviceId } = get();
             const constraints = {
@@ -86,11 +95,25 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
         } catch (err) {
             console.error('Failed to start call:', err);
+            // Rollback optimistic update
+            set(state => ({
+                roomParticipants: {
+                    ...state.roomParticipants,
+                    [roomId]: (state.roomParticipants[roomId] || []).filter(p => p.id !== userId)
+                }
+            }));
             get().endCall(userId);
         }
     },
 
-    joinCall: async (callId: string, userId: string) => {
+    joinCall: async (callId: string, user: any) => {
+        const userId = user.id;
+        // Logic to find roomId for optimistic update
+        // We might not have roomId directly here, so we'll have to rely on the next fetch
+        // BUT wait, in joinCall usually we know which room we clicked.
+        // Let's check how joinCall is invoked.
+        // In the current codebase, it seems joinCall is used when you click on an existing call.
+
         try {
             const { audioInputDeviceId } = get();
             const constraints = {
@@ -118,11 +141,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 set({ remoteStream, callStatus: 'connected' });
 
                 // Try to find the initiator ID
-                // We don't have roomId easily here yet unless we fetched call details
-                // But we can fetch participants of this specific call if roomParticipants provides them
                 try {
                     const roomParticipants = get().roomParticipants;
-                    // Find which room this call belongs to
                     const roomId = Object.keys(roomParticipants).find(rid =>
                         roomParticipants[rid].some(p => p.id === userId)
                     );

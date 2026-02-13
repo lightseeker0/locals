@@ -328,7 +328,7 @@ export const ChannelList: React.FC = () => {
                                     if (channel.type === 'voice') {
                                         if (activeCall?.roomId !== channel.id) {
                                             if (activeCall) endCall();
-                                            startCall(channel.id, user!.id);
+                                            startCall(channel.id, user);
                                         }
                                     }
                                 }}
@@ -339,7 +339,7 @@ export const ChannelList: React.FC = () => {
                                     if (channel.type === 'voice') {
                                         if (activeCall?.roomId !== channel.id) {
                                             if (activeCall) endCall();
-                                            startCall(channel.id, user!.id);
+                                            startCall(channel.id, user);
                                         }
                                     }
                                 }}
