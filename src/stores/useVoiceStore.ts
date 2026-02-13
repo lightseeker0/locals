@@ -211,23 +211,24 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const signals: any[] = await ApiService.pollSignals(activeCall.id, userId, lastSignalId);
 
             if (signals.length > 0) {
-                console.log(`[WebRTC] Found ${signals.length} new signals`);
+                console.log(`[WebRTC] Polled ${signals.length} new signals from server`);
                 set({ lastSignalId: signals[signals.length - 1].id });
 
                 for (const signal of signals) {
                     const data = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : signal.payload;
+                    console.log(`[WebRTC] Processing incoming signal: type=${signal.type}`, data);
 
                     // AUTO-JOIN LOGIC: If we get an offer but we are also 'calling' (initiator), 
                     // someone else got there first. We should switch to joiner mode.
                     if (signal.type === 'offer' && (get() as any).initiator) {
-                        console.log("[WebRTC] Received offer while initiating. Switching to joiner mode to avoid conflict.");
+                        console.log("[WebRTC] Received offer while initiating. Possible conflict.");
                     }
 
                     try {
-                        console.log(`[WebRTC] Receiving signal: ${signal.type}`, data);
                         peer.signal(data);
+                        console.log(`[WebRTC] Successfully signaled peer with ${signal.type}`);
                     } catch (e) {
-                        console.error('[WebRTC] Error signaling peer:', e);
+                        console.error('[WebRTC] Error applying signal to peer:', e);
                     }
                 }
             }
