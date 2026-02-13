@@ -75,8 +75,8 @@ function App() {
       ) : !user ? (
         <Login />
       ) : (
-        <div id="app-mount" className="da-app appMount-3stXN7 app-mount layer-container">
-          <div className="flex h-screen bg-black text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app pt-8 layer__960e4 baseLayer__960e4">
+        <div id="app-mount" className="da-app appMount-3stXN7 app-mount layer-container h-full">
+          <div className="flex h-screen bg-transparent text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app pt-8 layer__960e4 baseLayer__960e4">
             <TitleBar />
             <Sidebar />
             <ChannelList />

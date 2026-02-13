@@ -127,7 +127,7 @@ export const ChatArea: React.FC = () => {
 
     if (!selectedChannelId) {
         return (
-            <div className="flex-1 flex flex-col bg-matrix-darker text-matrix-muted relative overflow-hidden">
+            <div className="flex-1 flex flex-col bg-transparent text-matrix-muted relative overflow-hidden">
                 {/* Mobile Header for Landing */}
                 <div className="md:hidden h-12 border-b border-white/5 flex items-center px-4 shrink-0 bg-matrix-dark/30 backdrop-blur-xl z-20">
                     <button

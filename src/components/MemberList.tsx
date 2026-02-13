@@ -19,8 +19,16 @@ export const MemberList: React.FC = () => {
 
         const fetchUsers = async () => {
             try {
+                // If no server selected (Home), maybe fetch friends or hide list?
+                // For now, attempting to fetch list even if global (might need backend support)
                 const data = await ApiService.fetchUserList(user.id, selectedServerId);
-                setMembers(data);
+                // Ensure data is array
+                if (Array.isArray(data)) {
+                    setMembers(data);
+                } else {
+                    console.error("User list is not an array:", data);
+                    setMembers([]);
+                }
             } catch (err) {
                 console.error('Failed to fetch users:', err);
             }

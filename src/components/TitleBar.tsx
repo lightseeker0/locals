@@ -7,9 +7,10 @@ export const TitleBar: React.FC = () => {
     const handleClose = () => window.electron?.close();
 
     return (
-        <div className="h-8 bg-black/40 backdrop-blur-md flex items-center justify-between select-none fixed top-0 left-0 right-0 z-50 drag-region border-b border-white/5">
+
+        <div className="h-8 bg-transparent flex items-center justify-between select-none fixed top-0 left-0 right-0 z-50 drag-region">
             <div className="px-3 flex items-center gap-2">
-                <span className="text-xs font-bold text-matrix-muted opacity-50 tracking-widest uppercase">Locals v0.0.9</span>
+                {/* Version text removed */}
             </div>
             <div className="flex bg-black/20 h-full no-drag">
                 <button

@@ -43,8 +43,8 @@ export const Login: React.FC = () => {
                 <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 blur-[120px] rounded-full animate-pulse delay-700" />
             </div>
 
-            <div className="bg-matrix-dark p-1 rounded-[2.5rem] shadow-2xl w-full max-w-sm border border-white/5 relative z-10">
-                <div className="bg-matrix-dark p-6 rounded-[2.3rem] border border-white/10">
+            <div className="login-container bg-matrix-dark p-1 rounded-[2.5rem] shadow-2xl w-full max-w-sm border border-white/5 relative z-10 transition-colors">
+                <div className="bg-transparent p-6 rounded-[2.3rem] border border-white/10">
                     <div className="flex justify-center mb-6">
                         <div className="w-12 h-12 bg-matrix-green/10 rounded-2xl border border-matrix-green/20 flex items-center justify-center">
                             <LogIn size={24} className="text-matrix-green" />

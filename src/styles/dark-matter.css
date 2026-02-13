@@ -1,0 +1,83 @@
+/* Dark Matter Theme Adaptation */
+:root {
+    /* Dark Matter Variables */
+    --dm-bg-image: url('https://files.catbox.moe/76f6fd.png');
+    --dm-black: 0, 0, 0;
+    --dm-white: 255, 255, 255;
+    --dm-accent: 242, 234, 68;
+    --dm-overlay: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme='dark-matter'] body {
+    background: var(--dm-bg-image) center/cover no-repeat fixed !important;
+}
+
+[data-theme='dark-matter'] #app-mount,
+[data-theme='dark-matter'] .da-app {
+    background: transparent !important;
+    backdrop-filter: brightness(0.7);
+}
+
+/* Sidebar & Panels */
+[data-theme='dark-matter'] .da-sidebar,
+[data-theme='dark-matter'] .sidebar {
+    background-color: rgba(0, 0, 0, 0.4) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark-matter'] .da-channels {
+    background-color: transparent !important;
+}
+
+[data-theme='dark-matter'] .da-members {
+    background-color: rgba(0, 0, 0, 0.4) !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Chat Area */
+[data-theme='dark-matter'] .da-chat,
+[data-theme='dark-matter'] .chat-content {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+[data-theme='dark-matter'] .header {
+    background-color: rgba(0, 0, 0, 0.6) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Messages */
+[data-theme='dark-matter'] .message-content {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: #eee;
+}
+
+/* Login Screen Override */
+[data-theme='dark-matter'] .login-container {
+    background-color: rgba(0, 0, 0, 0.7) !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(242, 234, 68, 0.2);
+}
+
+/* Buttons */
+[data-theme='dark-matter'] button.bg-matrix-green {
+    background-color: rgb(var(--dm-accent)) !important;
+    color: black !important;
+    box-shadow: 0 0 10px rgba(var(--dm-accent), 0.3);
+}
+
+/* Inputs */
+[data-theme='dark-matter'] input,
+[data-theme='dark-matter'] textarea {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+}
+
+/* Text Overrides */
+[data-theme='dark-matter'] {
+    --text-normal: #ffffff;
+    --text-muted: #aaaaaa;
+    --matrix-green: rgb(242, 234, 68);
+    /* Yellow Accent */
+}
