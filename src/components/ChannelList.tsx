@@ -192,12 +192,12 @@ export const ChannelList: React.FC = () => {
             {/* Popups */}
             {showNotifications && <NotificationList onClose={() => setShowNotifications(false)} />}
 
-            <div className="h-[56px] bg-matrix-darker/50 backdrop-blur-md border-t border-white/5 flex items-center px-3 justify-between">
+            <div className="h-[56px] bg-matrix-darker/50 backdrop-blur-md border-t border-white/5 flex items-center px-2 justify-between">
                 <div
-                    className="flex items-center gap-3 hover:bg-white/5 p-1.5 pr-3 rounded-xl cursor-pointer transition-colors flex-1 min-w-0"
+                    className="flex items-center gap-2 hover:bg-white/5 p-1.5 rounded-xl cursor-pointer transition-colors flex-1 min-w-0"
                     onClick={() => setSettingsOpen(true)}
                 >
-                    <div className="relative">
+                    <div className="relative shrink-0">
                         {user?.avatar_url ? (
                             <img src={user.avatar_url} className="w-8 h-8 rounded-xl border border-white/10" alt="" />
                         ) : (
@@ -207,41 +207,40 @@ export const ChannelList: React.FC = () => {
                         )}
                         <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-matrix-green rounded-full border-2 border-matrix-darker"></div>
                     </div>
-                    <div className="text-xs truncate">
-                        <div className="font-black text-white truncate text-[13px]">{user?.display_name || user?.username}</div>
-                        <div className="text-matrix-muted truncate text-[10px] font-bold opacity-40 uppercase tracking-widest">
+                    <div className="text-xs flex-1 min-w-0">
+                        <div className="font-black text-white truncate text-[12px] leading-tight">{user?.display_name || user?.username}</div>
+                        <div className="text-matrix-muted truncate text-[9px] font-bold opacity-40 uppercase tracking-widest leading-none">
                             {t('online')}
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-1 text-matrix-muted">
+                <div className="flex items-center gap-0.5 text-matrix-muted shrink-0">
                     {/* Admin Panel Trigger */}
                     {(user as any)?.is_admin && (
                         <button
                             onClick={() => setIsAdminPanelOpen(true)}
-                            className="p-1.5 hover:bg-white/5 rounded-lg hover:text-white transition-all"
+                            className="p-1 px-1.5 hover:bg-white/5 rounded-lg hover:text-white transition-all"
                             title={t('admin_panel')}
                         >
-                            <ShieldAlert size={18} />
+                            <ShieldAlert size={16} />
                         </button>
                     )}
 
                     {/* Notification Trigger */}
                     <button
                         onClick={() => setShowNotifications(!showNotifications)}
-                        className="p-1.5 hover:bg-white/5 rounded-lg hover:text-white transition-all relative"
+                        className="p-1 px-1.5 hover:bg-white/5 rounded-lg hover:text-white transition-all relative"
                         title={t('notifications')}
                     >
-                        <Bell size={18} />
-                        {/* Red Dot (mock logic, ideally check unread count) */}
-                        <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-matrix-dark hidden"></div>
+                        <Bell size={16} />
+                        <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-matrix-dark hidden"></div>
                     </button>
 
                     <button
                         onClick={() => setSettingsOpen(true)}
-                        className="p-1.5 hover:bg-white/5 rounded-lg hover:text-white transition-all"
+                        className="p-1 px-1.5 hover:bg-white/5 rounded-lg hover:text-white transition-all"
                     >
-                        <Settings size={18} />
+                        <Settings size={16} />
                     </button>
                 </div>
             </div>
@@ -249,7 +248,7 @@ export const ChannelList: React.FC = () => {
     );
 
     const renderHomeView = () => (
-        <div className="w-[var(--channel-list-width)] bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 sidebar sidebar_ded4b5 privateChannels_e6b769 bg-transparent">
+        <div className="w-[var(--channel-list-width)] bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 sidebar da-channels sidebar_ded4b5 privateChannels_e6b769">
             <div className="h-12 flex items-center justify-center p-4 border-b border-white/5">
                 <button
                     onClick={() => setIsDMOpen(true)}

@@ -30,11 +30,19 @@ export const useAppData = () => {
             if (selectedServerId) {
                 // Fetch rooms for space
                 const rooms = await ApiService.fetchRooms(selectedServerId, user.id);
-                setChannels(rooms.map((r: any) => ({
+                const mappedChannels = rooms.map((r: any) => ({
                     id: r.id,
                     title: r.name,
                     type: r.type || 'text'
-                })));
+                }));
+                setChannels(mappedChannels);
+
+                // Auto-select first channel if none selected for this space
+                const { selectedChannelId, setSelectedChannel } = useAppStore.getState();
+                if (mappedChannels.length > 0 && !selectedChannelId) {
+                    const firstTextChannel = mappedChannels.find((c: any) => c.type === 'text') || mappedChannels[0];
+                    setSelectedChannel(firstTextChannel.id);
+                }
             } else {
                 // Fetch DMs (Home view)
                 const dms = await ApiService.fetchDMs(user.id);

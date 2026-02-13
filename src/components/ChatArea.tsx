@@ -141,18 +141,21 @@ export const ChatArea: React.FC = () => {
 
                 <div className="flex-1 flex items-center justify-center relative">
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-matrix-green/5 blur-[100px] rounded-full pointer-events-none" />
-                    <div className="text-center bg-matrix-dark/40 backdrop-blur-xl p-12 md:p-16 rounded-[2.5rem] md:rounded-[3rem] border border-white/5 shadow-2xl relative z-10 max-w-sm m-4">
-                        <div className="w-32 h-32 md:w-40 md:h-40 bg-matrix-green/10 rounded-full flex items-center justify-center mx-auto mb-6 md:mb-10 border border-matrix-green/20">
-                            <Hash size={64} className="text-matrix-green opacity-50" />
+                    <div className="max-w-md w-full bg-[#101317]/60 backdrop-blur-2xl border border-white/5 p-12 rounded-[3.5rem] text-center shadow-2xl relative overflow-hidden group z-10 m-4">
+                        <div className="absolute inset-0 bg-matrix-green/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                        <div className="relative z-10">
+                            <div className="w-24 h-24 bg-matrix-green/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-matrix-green/20 group-hover:scale-110 transition-transform duration-500">
+                                <Hash size={48} className="text-matrix-green" />
+                            </div>
+                            <h1 className="text-4xl font-black text-white mb-8 tracking-tighter leading-tight">{t('welcome_hub')}</h1>
+                            <p className="text-matrix-muted font-bold text-lg leading-relaxed opacity-40 uppercase tracking-widest">
+                                {t('welcome_desc')}
+                            </p>
                         </div>
-                        <h2 className="text-3xl md:text-4xl font-black text-white mb-2 tracking-tight">{t('welcome_hub')}</h2>
-                        <p className="text-xs md:text-sm font-medium leading-relaxed opacity-60">
-                            {t('welcome_desc')}
-                        </p>
                     </div>
                 </div>
             </div>
-        )
+        );
     }
 
     const isDM = currentChannel?.type === 'dm';
