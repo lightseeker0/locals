@@ -12,6 +12,7 @@ export interface Theme {
 
 interface ThemeState {
     themes: Theme[];
+    localThemes: string[];
     currentBuiltInTheme: 'dark' | 'light-mode';
     fetchThemes: (userId: string) => Promise<void>;
     saveTheme: (userId: string, theme: Omit<Theme, 'id'> & { id?: string }) => Promise<void>;
@@ -19,12 +20,14 @@ interface ThemeState {
     toggleTheme: (userId: string, id: string) => Promise<void>;
     setBuiltInTheme: (theme: 'dark' | 'light-mode') => void;
     applyThemes: () => void;
+    initElectronListener: () => void;
 }
 
 export const useThemeStore = create<ThemeState>()(
     persist(
         (set, get) => ({
             themes: [],
+            localThemes: [],
             currentBuiltInTheme: 'dark',
             fetchThemes: async (userId: string) => {
                 const themes = await ApiService.fetchThemes(userId);
@@ -50,12 +53,12 @@ export const useThemeStore = create<ThemeState>()(
                 get().applyThemes();
             },
             applyThemes: () => {
-                const { themes, currentBuiltInTheme } = get();
+                const { themes, localThemes, currentBuiltInTheme } = get();
 
                 // Clear existing custom themes
                 document.querySelectorAll('link[data-custom-theme], style[data-custom-theme]').forEach(el => el.remove());
 
-                // Apply active custom themes
+                // Apply active custom themes from DB
                 themes.forEach(theme => {
                     if (theme.is_active) {
                         if (theme.is_url) {
@@ -73,9 +76,26 @@ export const useThemeStore = create<ThemeState>()(
                     }
                 });
 
+                // Apply local themes from Electron
+                localThemes.forEach((css, index) => {
+                    const style = document.createElement('style');
+                    style.textContent = css;
+                    style.setAttribute('data-custom-theme', 'true');
+                    style.setAttribute('data-local-theme', index.toString());
+                    document.head.appendChild(style);
+                });
+
                 // Apply built-in theme
                 document.documentElement.classList.remove('dark', 'light-mode');
                 document.documentElement.classList.add(currentBuiltInTheme);
+            },
+            initElectronListener: () => {
+                if (typeof window !== 'undefined' && (window as any).electron?.onThemeUpdate) {
+                    (window as any).electron.onThemeUpdate((themes: string[]) => {
+                        set({ localThemes: themes });
+                        get().applyThemes();
+                    });
+                }
             }
         }),
         {

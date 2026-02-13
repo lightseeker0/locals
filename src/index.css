@@ -39,28 +39,82 @@
   --text-muted: #747f8d;
 }
 
-/* BetterDiscord Compatibility Aliases */
-.app-mount,
-.app-inner {
+/* BetterDiscord Compatibility Aliases & Shim */
+#app-mount,
+.appMount-3stXN7 {
   background-color: var(--bg-primary);
   color: var(--text-normal);
+  height: 100vh;
+  width: 100vw;
 }
 
-.sidebar {
-  background-color: var(--bg-secondary);
-}
-
-.chat-content {
+.app-323596,
+.da-app {
   background-color: var(--bg-primary);
 }
 
+.sidebar-1tnWFu,
+.da-sidebar,
+.sidebar {
+  background-color: var(--bg-secondary) !important;
+  width: var(--channel-list-width) !important;
+}
+
+.chat-2Z9I9e,
+.da-chat,
+.chat-content {
+  background-color: var(--bg-primary) !important;
+}
+
+.members-3WRCEx,
+.da-members,
 .member-list {
+  background-color: var(--bg-secondary) !important;
+  width: var(--member-list-width) !important;
+}
+
+.container-1NXEAG,
+.da-channels,
+.channel-list {
   background-color: var(--bg-secondary);
 }
 
-.header {
+/* User Popout & Modals Shim */
+.userPopout-2j1QC_,
+.da-userPopout {
   background-color: var(--bg-secondary);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* Scrollbar Compatibility */
+.scrollerBase-18p36i,
+.da-scrollerBase {
+  scrollbar-width: thin;
+  scrollbar-color: var(--matrix-dark) transparent;
+}
+
+.scrollerBase-18p36i::-webkit-scrollbar,
+.da-scrollerBase::-webkit-scrollbar {
+  width: 8px;
+}
+
+/* BetterDiscord Theme Variable Fallbacks */
+:root {
+  --background-primary: var(--bg-primary);
+  --background-secondary: var(--bg-secondary);
+  --background-secondary-alt: var(--matrix-darker);
+  --background-tertiary: var(--matrix-darker);
+  --background-accent: var(--matrix-dark);
+  --background-floating: var(--matrix-darker);
+  --header-primary: var(--text-normal);
+  --header-secondary: var(--text-muted);
+  --text-normal: var(--matrix-text);
+  --text-muted: var(--matrix-muted);
+  --interactive-normal: var(--matrix-muted);
+  --interactive-hover: var(--text-normal);
+  --interactive-active: #ffffff;
+  --interactive-muted: #4f545c;
 }
 
 @theme {

@@ -17,9 +17,11 @@ function App() {
   const { isSettingsOpen, setSettingsOpen, isUserListOpen } = useAppStore();
   const [debugStatus, setDebugStatus] = useState('Initializing...');
 
+  const { initElectronListener } = useThemeStore();
   useAppData();
 
   useEffect(() => {
+    initElectronListener();
     const init = async () => {
       try {
         setDebugStatus('Starting session validation...');
@@ -51,23 +53,25 @@ function App() {
       ) : !user ? (
         <Login />
       ) : (
-        <div className="flex h-screen bg-black text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black">
-          <Sidebar />
-          <ChannelList />
-          <div className="flex-1 flex flex-col min-w-0 bg-matrix-darker relative z-10">
-            <Routes>
-              <Route path="/" element={<ChatArea />} />
-              <Route path="/channels/:spaceId/:roomId" element={<ChatArea />} />
-              <Route path="/dm/:roomId" element={<ChatArea />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </div>
-          {isUserListOpen && (
-            <div className="hidden lg:flex shrink-0">
-              <MemberList />
+        <div id="app-mount" className="da-app appMount-3stXN7">
+          <div className="flex h-screen bg-black text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app">
+            <Sidebar />
+            <ChannelList />
+            <div className="flex-1 flex flex-col min-w-0 bg-matrix-darker relative z-10 box-399657 da-chat">
+              <Routes>
+                <Route path="/" element={<ChatArea />} />
+                <Route path="/channels/:spaceId/:roomId" element={<ChatArea />} />
+                <Route path="/dm/:roomId" element={<ChatArea />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
             </div>
-          )}
-          <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
+            {isUserListOpen && (
+              <div className="hidden lg:flex shrink-0 da-membersGroup">
+                <MemberList />
+              </div>
+            )}
+            <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
+          </div>
         </div>
       )}
     </Router>
