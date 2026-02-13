@@ -249,7 +249,7 @@ export const ChannelList: React.FC = () => {
     );
 
     const renderHomeView = () => (
-        <div className="w-[var(--channel-list-width)] bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 sidebar">
+        <div className="w-[var(--channel-list-width)] bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 sidebar sidebar_ded4b5 privateChannels_e6b769 bg-transparent">
             <div className="h-12 flex items-center justify-center p-4 border-b border-white/5">
                 <button
                     onClick={() => setIsDMOpen(true)}

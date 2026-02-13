@@ -113,7 +113,10 @@ export const MemberList: React.FC = () => {
     );
 
     return (
-        <div className="w-[var(--member-list-width)] bg-matrix-darker flex flex-col shrink-0 border-l border-white/5 member-list da-members">
+        <div className="w-[var(--member-list-width)] bg-matrix-dark flex flex-col shrink-0 border-l border-white/5 members members-3WRCEx members_c8ffbb container_c8ffbb bg-transparent">
+            <div className="p-4 border-b border-white/5 font-black text-xs text-matrix-muted uppercase tracking-widest flex items-center gap-2">
+                Members
+            </div>
             <div className="p-4 flex-1 overflow-y-auto no-scrollbar">
 
                 {/* Online */}
