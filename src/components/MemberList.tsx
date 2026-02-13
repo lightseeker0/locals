@@ -3,11 +3,13 @@ import { ApiService } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { UserMinus, Ban } from 'lucide-react';
+import { useChatMessages } from '../hooks/useChatMessages';
 
 export const MemberList: React.FC = () => {
     const [members, setMembers] = useState<any[]>([]);
     const { user } = useAuthStore();
-    const { selectedServerId, servers } = useAppStore(); // Added
+    const { selectedServerId, servers, selectedChannelId } = useAppStore();
+    const { messages } = useChatMessages(selectedChannelId || '');
 
     const currentServer = servers.find(s => s.id === selectedServerId);
     const adminUsername = import.meta.env.VITE_ADMIN_USERNAME || 'ds4d';
@@ -70,9 +72,28 @@ export const MemberList: React.FC = () => {
         return (now - utcDate.getTime()) < 60000 * 5; // Increased to 5 minutes for stability
     };
 
-    const onlineMembers = members.filter(m => isOnline(m.last_seen) && !m.is_banned);
-    const offlineMembers = members.filter(m => !isOnline(m.last_seen) && !m.is_banned);
-    const bannedMembers = members.filter(m => m.is_banned);
+    // Merge space members with people who chatted in this room
+    const allUniqueMembers = React.useMemo(() => {
+        const messageUsers = messages.map(msg => ({
+            id: msg.user_id,
+            username: msg.username || 'Unknown',
+            display_name: msg.display_name,
+            avatar_url: msg.avatar_url,
+            last_seen: msg.created_at, // Use message time as last seen if not in members
+        }));
+
+        const merged = [...members];
+        messageUsers.forEach(mu => {
+            if (!merged.find(m => m.id === mu.id)) {
+                merged.push(mu);
+            }
+        });
+        return merged;
+    }, [members, messages]);
+
+    const onlineMembers = allUniqueMembers.filter(m => isOnline(m.last_seen) && !m.is_banned);
+    const offlineMembers = allUniqueMembers.filter(m => !isOnline(m.last_seen) && !m.is_banned);
+    const bannedMembers = allUniqueMembers.filter(m => m.is_banned);
 
     const renderMemberParams = (m: any, status: string) => (
         <div key={m.id} className="group flex items-center gap-3 p-1.5 hover:bg-white/5 rounded-lg cursor-pointer transition-colors relative">
@@ -86,9 +107,7 @@ export const MemberList: React.FC = () => {
                         </span>
                     </div>
                 )}
-                {status === 'online' && (
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-matrix-green rounded-full border-2 border-matrix-darker"></div>
-                )}
+                {/* Status Dot Removed (Mavi nokta kaldırıldı) */}
                 {m.is_banned && (
                     <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-matrix-darker"></div>
                 )}
@@ -129,7 +148,7 @@ export const MemberList: React.FC = () => {
 
                 {/* Online */}
                 <h3 className="text-[11px] font-bold text-matrix-muted uppercase mb-4 tracking-wider flex items-center gap-2">
-                    Online <span className="text-matrix-green">— {onlineMembers.length}</span>
+                    Online
                 </h3>
                 <div className="space-y-1 mb-6">
                     {onlineMembers.map(m => renderMemberParams(m, 'online'))}
@@ -137,7 +156,7 @@ export const MemberList: React.FC = () => {
 
                 {/* Offline */}
                 <h3 className="text-[11px] font-bold text-matrix-muted uppercase mb-4 tracking-wider flex items-center gap-2">
-                    Offline <span className="opacity-50">— {offlineMembers.length}</span>
+                    Offline
                 </h3>
                 <div className="space-y-1 mb-6">
                     {offlineMembers.map(m => renderMemberParams(m, 'offline'))}
@@ -151,7 +170,7 @@ export const MemberList: React.FC = () => {
                 {bannedMembers.length > 0 && (
                     <>
                         <h3 className="text-[11px] font-bold text-red-500/50 uppercase mb-4 tracking-wider flex items-center gap-2">
-                            Banned <span className="opacity-50">— {bannedMembers.length}</span>
+                            Banned
                         </h3>
                         <div className="space-y-1 mb-6">
                             {bannedMembers.map(m => renderMemberParams(m, 'banned'))}
@@ -159,7 +178,7 @@ export const MemberList: React.FC = () => {
                     </>
                 )}
 
-                {members.length === 0 && (
+                {allUniqueMembers.length === 0 && (
                     <div className="text-xs text-matrix-muted text-center py-4 opacity-30 italic">No ones here...</div>
                 )}
             </div>
