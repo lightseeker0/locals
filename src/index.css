@@ -54,10 +54,14 @@
 }
 
 .sidebar-1tnWFu,
-.da-sidebar,
-.sidebar {
+.da-sidebar {
   background-color: var(--bg-secondary) !important;
   width: var(--channel-list-width) !important;
+}
+
+/* Local Sidebar overrides */
+.sidebar {
+  background-color: var(--bg-secondary) !important;
 }
 
 .chat-2Z9I9e,
