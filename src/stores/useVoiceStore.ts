@@ -78,28 +78,25 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
             const peer = new SimplePeer({
                 initiator: true,
-                trickle: true,
+                trickle: false,
                 stream: stream,
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' },
-                        { urls: 'stun:stun2.l.google.com:19302' },
                         { urls: 'stun:global.stun.twilio.com:3478' }
                     ]
                 }
             });
 
             peer.on('signal', async (data: any) => {
-                // If the signal is an offer, we label it as such, otherwise it's a candidate
-                const type = data.type || 'candidate';
-                await ApiService.sendSignal(callId, userId, type, data);
+                await ApiService.sendSignal(callId, userId, 'offer', data);
             });
 
             peer.on('stream', async (remoteStream: MediaStream) => {
                 set({ remoteStream, callStatus: 'connected' });
 
                 // Identify peer to setup their analyser
+                // In a 1:1, we find the other guy in the room
                 const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
                 const other = participants.find((p: any) => p.id !== userId);
                 if (other) {
@@ -107,12 +104,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 }
             });
 
-            peer.on('error', (err: any) => {
-                console.error('Peer error:', err);
-                get().endCall(userId);
-            });
-
-            set({ peer });
+            (get() as any).peer = peer;
 
         } catch (err) {
             console.error('Failed to start call:', err);
@@ -153,21 +145,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
             const peer = new SimplePeer({
                 initiator: false,
-                trickle: true,
+                trickle: false,
                 stream: stream,
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' },
-                        { urls: 'stun:stun2.l.google.com:19302' },
                         { urls: 'stun:global.stun.twilio.com:3478' }
                     ]
                 }
             });
 
             peer.on('signal', async (data: any) => {
-                const type = data.type || 'candidate';
-                await ApiService.sendSignal(callId, userId, type, data);
+                await ApiService.sendSignal(callId, userId, 'answer', data);
             });
 
             peer.on('stream', async (remoteStream: MediaStream) => {
@@ -188,12 +177,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 } catch (e) { }
             });
 
-            peer.on('error', (err: any) => {
-                console.error('Peer error in joinCall:', err);
-                get().endCall(userId);
-            });
-
-            set({ peer });
+            (get() as any).peer = peer;
 
         } catch (err) {
             console.error('Failed to join call:', err);
@@ -202,7 +186,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     pollSignals: async (userId: string) => {
-        const { activeCall, peer } = get() as any;
+        const { activeCall, initiator, peer } = get() as any;
         if (!activeCall || !peer) return;
 
         try {
@@ -214,10 +198,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
                 for (const signal of signals) {
                     const data = JSON.parse(signal.payload);
-                    try {
+                    if (signal.type === 'offer' && !initiator) {
                         peer.signal(data);
-                    } catch (e) {
-                        console.error('Error signaling peer:', e);
+                    } else if (signal.type === 'answer' && initiator) {
+                        peer.signal(data);
                     }
                 }
             }

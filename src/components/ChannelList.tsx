@@ -475,6 +475,35 @@ export const ChannelList: React.FC = () => {
             <CreateRoomModal isOpen={isCreateRoomOpen} onClose={() => setIsCreateRoomOpen(false)} spaceId={selectedServerId!} onSuccess={() => refreshRooms()} />
             <InviteModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} spaceId={selectedServerId!} />
             <AdminPanel isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
+
+            {/* Hidden audio element for voice chat */}
+            <VoiceAudioPlayer />
         </div>
+    );
+};
+
+const VoiceAudioPlayer = () => {
+    const { remoteStream, audioOutputDeviceId, isDeafened } = useVoiceStore();
+    const audioRef = React.useRef<HTMLAudioElement>(null);
+
+    React.useEffect(() => {
+        if (audioRef.current && remoteStream) {
+            audioRef.current.srcObject = remoteStream;
+
+            // Set output device if supported (Chromium/Electron)
+            if (audioOutputDeviceId && (audioRef.current as any).setSinkId) {
+                (audioRef.current as any).setSinkId(audioOutputDeviceId)
+                    .catch((err: any) => console.error("Failed to set output device:", err));
+            }
+        }
+    }, [remoteStream, audioOutputDeviceId]);
+
+    return (
+        <audio
+            ref={audioRef}
+            autoPlay
+            muted={isDeafened}
+            style={{ display: 'none' }}
+        />
     );
 };
