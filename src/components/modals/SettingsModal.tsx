@@ -111,7 +111,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             activeTab === 'profile' ? "bg-matrix-green/10 text-matrix-green" : "text-matrix-muted hover:bg-white/5"
                         )}
                     >
-                        <User size={18} /> Profile
+                        <User size={18} /> {t('profile')}
                     </button>
 
                     <button
@@ -121,7 +121,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             activeTab === 'appearance' ? "bg-matrix-green/10 text-matrix-green" : "text-matrix-muted hover:bg-white/5"
                         )}
                     >
-                        <Palette size={18} /> Appearance
+                        <Palette size={18} /> {t('appearance')}
                     </button>
 
                     <button
@@ -131,7 +131,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             activeTab === 'themes' ? "bg-matrix-green/10 text-matrix-green" : "text-matrix-muted hover:bg-white/5"
                         )}
                     >
-                        <Sparkles size={18} /> Themes
+                        <Sparkles size={18} /> {t('themes')}
                     </button>
 
                     <button
@@ -141,7 +141,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             activeTab === 'voice' ? "bg-matrix-green/10 text-matrix-green" : "text-matrix-muted hover:bg-white/5"
                         )}
                     >
-                        <Mic size={18} /> Voice & Video
+                        <Mic size={18} /> {t('voice_video')}
                     </button>
 
                     <div className="mt-auto pt-6 border-t border-white/5 text-center">
@@ -172,7 +172,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                                     {/* Hover Overlay */}
                                                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-1 transition-opacity">
                                                         <Upload size={20} className="text-white" />
-                                                        <span className="text-[10px] font-bold text-white uppercase tracking-wider">Change</span>
+                                                        <span className="text-[10px] font-bold text-white uppercase tracking-wider">{t('change')}</span>
                                                     </div>
                                                 </div>
                                                 <input type="file" accept="image/*" onChange={(e) => {
@@ -212,7 +212,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         </div>
                                         <div className="flex-1 space-y-4">
                                             <div>
-                                                <label className="block text-[11px] font-black text-matrix-muted uppercase tracking-widest mb-1.5 ml-1">Display Name</label>
+                                                <label className="block text-[11px] font-black text-matrix-muted uppercase tracking-widest mb-1.5 ml-1">{t('display_name')}</label>
                                                 <input
                                                     value={displayName}
                                                     onChange={e => setDisplayName(e.target.value)}
@@ -258,7 +258,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                             {activeTab === 'appearance' && (
                                 <div className="space-y-8">
-                                    <h3 className="text-lg font-bold text-white mb-2">Built-in Themes</h3>
+                                    <h3 className="text-lg font-bold text-white mb-2">{t('built_in_themes')}</h3>
                                     <div className="grid grid-cols-2 gap-4">
                                         {themes.filter(t => !t.is_active).length === 0 && (
                                             // Fallback if no themes loaded yet, though we are using builtInThemes from store now
@@ -296,12 +296,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 <div className="space-y-6">
                                     {/* (Theme content kept as is) */}
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-lg font-bold text-white">Custom Themes</h3>
+                                        <h3 className="text-lg font-bold text-white">{t('custom_themes')}</h3>
                                         <button
                                             onClick={() => setShowImport(true)}
                                             className="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all"
                                         >
-                                            <Plus size={16} /> Import Theme
+                                            <Plus size={16} /> {t('import_theme')}
                                         </button>
                                     </div>
 
@@ -390,7 +390,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                                             theme.is_active ? "bg-matrix-green text-matrix-darker shadow-lg shadow-matrix-green/20" : "bg-white/5 text-matrix-muted hover:bg-white/10"
                                                         )}
                                                     >
-                                                        {theme.is_active ? 'Enabled' : 'Enable'}
+                                                        {theme.is_active ? t('enabled') : t('enable')}
                                                     </button>
                                                     <button
                                                         onClick={() => deleteTheme(user!.id, theme.id)}
@@ -411,17 +411,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             {activeTab === 'voice' && (
                                 <div className="space-y-8">
                                     <div className="bg-white/5 border border-white/5 p-6 rounded-2xl space-y-4">
-                                        <h3 className="text-lg font-bold text-white mb-4">Input & Output</h3>
+                                        <h3 className="text-lg font-bold text-white mb-4">{t('input_output')}</h3>
 
                                         {/* Input Device */}
                                         <div>
-                                            <label className="block text-[11px] font-black text-matrix-muted uppercase tracking-widest mb-1.5 ml-1">Input Device</label>
+                                            <label className="block text-[11px] font-black text-matrix-muted uppercase tracking-widest mb-1.5 ml-1">{t('input_device')}</label>
                                             <select
                                                 onChange={(e) => setAudioInputDevice(e.target.value)}
                                                 value={audioInputDeviceId || ''}
                                                 className="w-full bg-[#101317] border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-matrix-green/30 transition-all font-medium appearance-none"
                                             >
-                                                <option value="">Default</option>
+                                                <option value="">{t('default')}</option>
                                                 {inputDevices.map(device => (
                                                     <option key={device.deviceId} value={device.deviceId}>
                                                         {device.label || `Microphone ${device.deviceId.slice(0, 5)}...`}
@@ -432,13 +432,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                                         {/* Output Device */}
                                         <div>
-                                            <label className="block text-[11px] font-black text-matrix-muted uppercase tracking-widest mb-1.5 ml-1">Output Device</label>
+                                            <label className="block text-[11px] font-black text-matrix-muted uppercase tracking-widest mb-1.5 ml-1">{t('output_device')}</label>
                                             <select
                                                 onChange={(e) => setAudioOutputDevice(e.target.value)}
                                                 value={audioOutputDeviceId || ''}
                                                 className="w-full bg-[#101317] border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-matrix-green/30 transition-all font-medium appearance-none"
                                             >
-                                                <option value="">Default</option>
+                                                <option value="">{t('default')}</option>
                                                 {outputDevices.map(device => (
                                                     <option key={device.deviceId} value={device.deviceId}>
                                                         {device.label || `Speaker ${device.deviceId.slice(0, 5)}...`}

@@ -6,6 +6,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChannelList } from './components/ChannelList';
 import { ChatArea } from './components/ChatArea';
 import { SettingsModal } from './components/modals/SettingsModal';
+import { ThemeAnnouncementModal } from './components/modals/ThemeAnnouncementModal';
 import { MemberList } from './components/MemberList';
 import { useAuthStore } from './stores/authStore';
 import { useAppData } from './hooks/useAppData';
@@ -18,9 +19,19 @@ function App() {
   const { isSettingsOpen, setSettingsOpen, isUserListOpen } = useAppStore();
   const [debugStatus, setDebugStatus] = useState('Initializing...');
   const [updateInfo, setUpdateInfo] = useState<{ status: 'available' | 'downloading' | 'ready', progress?: number } | null>(null);
+  const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   const { initElectronListener } = useThemeStore();
   useAppData();
+
+  useEffect(() => {
+    // Show theme announcement once
+    const hasSeen = localStorage.getItem('hasSeenThemeAnnouncement_v2');
+    if (user && !hasSeen) {
+      setTimeout(() => setShowAnnouncement(true), 2000);
+      localStorage.setItem('hasSeenThemeAnnouncement_v2', 'true');
+    }
+  }, [user]);
 
   useEffect(() => {
     initElectronListener();
@@ -96,6 +107,7 @@ function App() {
               </div>
             )}
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
+            <ThemeAnnouncementModal isOpen={showAnnouncement} onClose={() => setShowAnnouncement(false)} />
           </div>
 
           {/* Update Notification - Forced Overlay */}

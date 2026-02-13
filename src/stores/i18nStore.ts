@@ -52,6 +52,7 @@ export const translations: Translations = {
     'update_profile': { en: 'Update Profile', tr: 'Profili Güncelle' },
     'built_in_themes': { en: 'Built-in Themes', tr: 'Yerleşik Temalar' },
     'featured_themes': { en: 'Featured Themes', tr: 'Öne Çıkan Temalar' },
+    'custom_themes': { en: 'Custom Themes', tr: 'Özel Temalar' },
     'import_theme': { en: 'Import Theme', tr: 'Tema İçe Aktar' },
     'theme_name': { en: 'Theme Name', tr: 'Tema Adı' },
     'css_url_or_raw': { en: 'CSS URL or Raw CSS', tr: 'CSS Linki veya Ham CSS' },
@@ -59,6 +60,19 @@ export const translations: Translations = {
     'install_apply': { en: 'Install & Apply', tr: 'Kur ve Uygula' },
     'dark_mode': { en: 'Dark', tr: 'Koyu' },
     'light_mode': { en: 'Light', tr: 'Aydınlık' },
+    'voice_video': { en: 'Voice & Video', tr: 'Ses ve Görüntü' },
+    'input_output': { en: 'Input & Output', tr: 'Giriş ve Çıkış' },
+    'input_device': { en: 'Input Device', tr: 'Giriş Cihazı' },
+    'output_device': { en: 'Output Device', tr: 'Çıkış Cihazı' },
+    'default': { en: 'Default', tr: 'Varsayılan' },
+    'change': { en: 'Change', tr: 'Değiştir' },
+    'enable': { en: 'Enable', tr: 'Etkinleştir' },
+    'enabled': { en: 'Enabled', tr: 'Etkin' },
+
+    // --- Announcement ---
+    'new_themes_title': { en: 'New Themes Available!', tr: 'Yeni Temalar Geldi!' },
+    'new_themes_desc': { en: 'We have added new built-in themes like "Dark Matter" and improved compatibility for BetterDiscord themes. Check them out in settings!', tr: 'Dark Matter gibi yeni yerleşik temalar ekledik ve BetterDiscord temaları için uyumluluğu artırdık. Ayarlardan göz atabilirsin!' },
+    'got_it': { en: 'Got it!', tr: 'Anladım!' },
 
     // --- Auth ---
     'login': { en: 'Login', tr: 'Giriş Yap' },
