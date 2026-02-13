@@ -154,7 +154,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
             const peer = new SimplePeer({
                 initiator: false,
-                trickle: false,
+                trickle: true,
                 stream: stream,
                 config: {
                     iceServers: [
