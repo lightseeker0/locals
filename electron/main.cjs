@@ -132,6 +132,10 @@ ipcMain.on('install-update', () => {
     autoUpdater.quitAndInstall();
 });
 
+ipcMain.handle('get-app-version', () => {
+    return app.getVersion();
+});
+
 function createTray() {
     let iconPath = path.join(__dirname, '../public/logo.png');
     if (!fs.existsSync(iconPath)) {

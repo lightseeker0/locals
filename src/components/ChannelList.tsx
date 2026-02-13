@@ -25,6 +25,13 @@ export const ChannelList: React.FC = () => {
     const [isInviteOpen, setIsInviteOpen] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+    const [appVersion, setAppVersion] = useState<string>('');
+
+    useEffect(() => {
+        if (window.electron?.getAppVersion) {
+            window.electron.getAppVersion().then(v => setAppVersion(v));
+        }
+    }, []);
 
     const currentServer = servers.find(s => s.id === selectedServerId);
 
@@ -140,6 +147,11 @@ export const ChannelList: React.FC = () => {
 
     const renderUserControls = () => (
         <div className="flex flex-col shrink-0 relative">
+            {appVersion && (
+                <div className="absolute -top-3 right-2 text-[9px] text-matrix-muted opacity-20 font-mono pointer-events-none z-10">
+                    v{appVersion}
+                </div>
+            )}
             {renderVoiceControlBar()}
             {/* Popups */}
             {showNotifications && <NotificationList onClose={() => setShowNotifications(false)} />}
