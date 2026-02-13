@@ -76,11 +76,14 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             // CRITICAL: Double check if a call already exists to avoid race conditions
             await ApiService.fetchVoiceParticipants(roomId, userId);
 
-            const { id: callId } = await ApiService.createCall(roomId, userId);
-            set({ activeCall: { id: callId, roomId }, initiator: true });
+            const response = await ApiService.createCall(roomId, userId);
+            const callId = response.id;
+            const isJoiner = response.status === 'joined';
+
+            set({ activeCall: { id: callId, roomId }, initiator: !isJoiner });
 
             const peer = new SimplePeer({
-                initiator: true,
+                initiator: !isJoiner,
                 trickle: true,
                 stream: stream,
                 config: {
