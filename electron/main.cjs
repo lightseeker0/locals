@@ -158,6 +158,23 @@ ipcMain.on('check-for-updates', () => {
     }
 });
 
+// Window Control IPC
+ipcMain.on('window-minimize', () => win?.minimize());
+ipcMain.on('window-maximize', () => {
+    if (win?.isMaximized()) {
+        win.unmaximize();
+    } else {
+        win?.maximize();
+    }
+});
+ipcMain.on('window-close', () => win?.close());
+
+autoUpdater.on('error', (err) => {
+    console.error('Updater error:', err);
+    if (win) win.webContents.send('update-error', err.message);
+});
+
+
 function createTray() {
     let iconPath = path.join(__dirname, '../public/logo.png');
     if (!fs.existsSync(iconPath)) {

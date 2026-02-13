@@ -9,5 +9,11 @@ contextBridge.exposeInMainWorld('electron', {
     onUpdateNotAvailable: (callback) => ipcRenderer.on('update-not-available', (_event, info) => callback(info)),
     installUpdate: () => ipcRenderer.send('install-update'),
     checkForUpdates: () => ipcRenderer.send('check-for-updates'),
-    getAppVersion: () => ipcRenderer.invoke('get-app-version')
+    getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+    // Window Controls
+    minimize: () => ipcRenderer.send('window-minimize'),
+    maximize: () => ipcRenderer.send('window-maximize'),
+    close: () => ipcRenderer.send('window-close'),
+    // Error Handling
+    onUpdateError: (callback) => ipcRenderer.on('update-error', (_event, message) => callback(message))
 });

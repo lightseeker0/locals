@@ -8,6 +8,12 @@ export interface ElectronAPI {
     installUpdate: () => void;
     checkForUpdates: () => void;
     getAppVersion: () => Promise<string>;
+    // Window Controls
+    minimize: () => void;
+    maximize: () => void;
+    close: () => void;
+    // Error Handling
+    onUpdateError: (callback: (message: string) => void) => void;
 }
 
 declare global {

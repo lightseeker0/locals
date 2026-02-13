@@ -41,6 +41,11 @@ export const ChannelList: React.FC = () => {
         });
         window.electron.onUpdateProgress(() => setUpdateStatus('downloading'));
         window.electron.onUpdateDownloaded(() => setUpdateStatus('ready'));
+        window.electron.onUpdateError?.((err: string) => {
+            console.error('Update failed:', err);
+            setUpdateStatus('idle');
+            alert('Update check failed: ' + err);
+        });
     }, []);
 
     const checkForUpdates = () => {

@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import { ApiService } from '../services/api';
 import { useI18nStore } from '../stores/i18nStore';
 import { X, Check } from 'lucide-react';
+import { clsx } from 'clsx';
 
 interface Notification {
     id: string;
@@ -61,37 +62,42 @@ export const NotificationList: React.FC<NotificationListProps> = ({ onClose }) =
     };
 
     return (
-        <div className="absolute left-72 top-12 w-80 bg-[#2b2d31] dark:bg-[#2b2d31] shadow-lg rounded-lg border border-[#1e1f22] z-50 flex flex-col max-h-[500px]">
-            <div className="p-4 border-b border-[#1e1f22] flex justify-between items-center text-[#dbdee1]">
-                <h3 className="font-semibold">{t('notifications')}</h3>
+        <div className="fixed left-[280px] bottom-16 w-80 bg-matrix-darker/95 backdrop-blur-xl shadow-2xl rounded-2xl border border-white/10 z-[100] flex flex-col max-h-[500px] animate-in slide-in-from-left-4 duration-200">
+            <div className="p-4 border-b border-white/5 flex justify-between items-center text-white">
+                <h3 className="font-black text-sm uppercase tracking-wider">{t('notifications')}</h3>
                 <div className="flex gap-2">
-                    <button onClick={markAllAsRead} className="p-1 hover:bg-[#3f4147] rounded text-xs" title="Mark all as read">
+                    <button onClick={markAllAsRead} className="p-1.5 hover:bg-white/5 rounded-lg text-matrix-muted hover:text-white transition-colors" title="Mark all as read">
                         <Check size={16} />
                     </button>
-                    <button onClick={onClose} className="p-1 hover:bg-[#3f4147] rounded">
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/5 rounded-lg text-matrix-muted hover:text-white transition-colors">
                         <X size={16} />
                     </button>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
                 {loading ? (
-                    <div className="text-center p-4 text-[#949ba4]">Loading...</div>
+                    <div className="text-center p-8 text-matrix-muted text-xs animate-pulse">Loading...</div>
                 ) : notifications.length === 0 ? (
-                    <div className="text-center p-4 text-[#949ba4]">No notifications</div>
+                    <div className="text-center p-8 text-matrix-muted opacity-50 text-xs font-bold uppercase tracking-widest">
+                        No notifications
+                    </div>
                 ) : (
                     notifications.map(notif => (
                         <div key={notif.id}
-                            className={`p-3 rounded-md flex gap-3 ${notif.is_read ? 'opacity-50' : 'bg-[#313338]'}`}
+                            className={clsx(
+                                "p-3 rounded-xl flex gap-3 transition-all cursor-pointer border border-transparent",
+                                notif.is_read ? "opacity-50 hover:opacity-100 hover:bg-white/5" : "bg-white/5 border-white/5 hover:border-matrix-green/30"
+                            )}
                             onClick={() => !notif.is_read && markAsRead(notif.id)}
                         >
                             <img src={notif.actor_avatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                                alt="Avatar" className="w-8 h-8 rounded-full" />
+                                alt="Avatar" className="w-8 h-8 rounded-full border border-white/10" />
                             <div>
-                                <p className="text-sm text-[#dbdee1]">
-                                    <span className="font-semibold">{notif.actor_display_name || notif.actor_username}</span> mentioned you.
+                                <p className="text-xs text-white leading-relaxed">
+                                    <span className="font-bold text-matrix-green">{notif.actor_display_name || notif.actor_username}</span> mentioned you.
                                 </p>
-                                <span className="text-xs text-[#949ba4]">
+                                <span className="text-[10px] text-matrix-muted font-mono mt-1 block">
                                     {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                             </div>

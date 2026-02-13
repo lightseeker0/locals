@@ -32,6 +32,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose }) => {
 
     useEffect(() => {
         if (isOpen) {
+            console.log('AdminPanel opened. Fetching users...');
             fetchUsers();
         }
     }, [isOpen, activeTab]);

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { TitleBar } from './components/TitleBar';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import { Sidebar } from './components/Sidebar';
@@ -75,7 +76,8 @@ function App() {
         <Login />
       ) : (
         <div id="app-mount" className="da-app appMount-3stXN7">
-          <div className="flex h-screen bg-black text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app">
+          <div className="flex h-screen bg-black text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app pt-8">
+            <TitleBar />
             <Sidebar />
             <ChannelList />
             <div className="flex-1 flex flex-col min-w-0 bg-matrix-darker relative z-10 box-399657 da-chat">
