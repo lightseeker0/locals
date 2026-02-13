@@ -29,20 +29,34 @@ export const ChannelList: React.FC = () => {
 
     const currentServer = servers.find(s => s.id === selectedServerId);
 
-    const { participants, fetchParticipants } = useVoiceStore();
+    const { roomParticipants, speakingUsers, fetchParticipants } = useVoiceStore();
 
     useEffect(() => {
-        if (!activeCall || !user) return;
+        if (!user || !selectedServerId) return;
 
-        const poll = () => fetchParticipants(activeCall.roomId, user.id);
+        // Poll participants for all voice channels in the current server
+        const voiceChannels = channels.filter(c => c.type === 'voice');
+
+        const poll = () => {
+            voiceChannels.forEach(channel => {
+                // If we are in the call, we might already have data, but good to refresh
+                // Especially updates "roomParticipants"
+                fetchParticipants(channel.id, user.id);
+            });
+        };
+
         poll();
-        const interval = setInterval(poll, 3000);
+        const interval = setInterval(poll, 5000); // Check every 5 seconds
         return () => clearInterval(interval);
-    }, [activeCall?.roomId, user?.id]);
+    }, [selectedServerId, channels, user?.id]);
+
+    // ... (rest of the file) ...
+
+
 
     const renderVoiceControlBar = () => {
         if (!activeCall) return null;
-        const channel = channels.find(c => c.id === activeCall.roomId);
+        const activeChannel = channels.find(c => c.id === activeCall.roomId);
 
         return (
             <div className="bg-matrix-darker/80 backdrop-blur-md border-t border-white/5 px-3 py-2 animate-in slide-in-from-bottom-2 duration-300">
@@ -52,7 +66,7 @@ export const ChannelList: React.FC = () => {
                             <div className="w-2 h-2 bg-matrix-green rounded-full animate-pulse" />
                             <span className="text-[10px] font-black uppercase tracking-widest">Voice Connected</span>
                         </div>
-                        <span className="text-xs text-matrix-muted truncate font-bold">{channel?.title || 'General'}</span>
+                        <span className="text-xs text-matrix-muted truncate font-bold">{activeChannel?.title || 'Voice Channel'}</span>
                     </div>
                 </div>
                 <div className="flex items-center justify-between gap-1">
@@ -79,7 +93,7 @@ export const ChannelList: React.FC = () => {
                         <PhoneOff size={16} />
                     </button>
                 </div>
-            </div>
+            </div >
         );
     };
 
@@ -324,23 +338,34 @@ export const ChannelList: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Participants List */}
-                            {channel.type === 'voice' && activeCall?.roomId === channel.id && (
+                            {/* Participants List - Visible to everyone */}
+                            {channel.type === 'voice' && (roomParticipants[channel.id]?.length > 0 || activeCall?.roomId === channel.id) && (
                                 <div className="ml-8 mt-1 space-y-1 mb-2">
-                                    {participants.map((p) => (
+                                    {(roomParticipants[channel.id] || []).map((p: any) => (
                                         <div key={p.id} className="flex items-center gap-2 group/user px-2 py-1 rounded-lg hover:bg-white/5 transition-all cursor-pointer">
                                             <div className="relative">
                                                 {p.avatar_url ? (
-                                                    <img src={p.avatar_url} className="w-6 h-6 rounded-lg object-cover" />
+                                                    <img
+                                                        src={p.avatar_url}
+                                                        className={clsx(
+                                                            "w-6 h-6 rounded-lg object-cover transition-all duration-150",
+                                                            speakingUsers[p.id] ? "ring-2 ring-matrix-green shadow-[0_0_8px_rgba(0,255,100,0.6)]" : ""
+                                                        )}
+                                                    />
                                                 ) : (
-                                                    <div className="w-6 h-6 rounded-lg bg-matrix-green/20 flex items-center justify-center text-[10px] font-black text-matrix-green">
+                                                    <div className={clsx(
+                                                        "w-6 h-6 rounded-lg bg-matrix-green/20 flex items-center justify-center text-[10px] font-black text-matrix-green transition-all duration-150",
+                                                        speakingUsers[p.id] ? "ring-2 ring-matrix-green shadow-[0_0_8px_rgba(0,255,100,0.6)]" : ""
+                                                    )}>
                                                         {(p.display_name || p.username || '?')[0].toUpperCase()}
                                                     </div>
                                                 )}
-                                                {/* In a real app, we'd check if specific user is muted via metadata, for now just show if local is muted or logic for remote */}
                                                 <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-matrix-green rounded-full border border-matrix-dark" />
                                             </div>
-                                            <span className="text-[13px] font-bold text-matrix-muted group-hover/user:text-white truncate transition-colors">
+                                            <span className={clsx(
+                                                "text-[13px] font-bold truncate transition-colors",
+                                                speakingUsers[p.id] ? "text-matrix-green" : "text-matrix-muted group-hover/user:text-white"
+                                            )}>
                                                 {p.display_name || p.username}
                                             </span>
                                         </div>
