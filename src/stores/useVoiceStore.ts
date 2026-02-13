@@ -52,7 +52,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-            // setup analyser
+            // setup local analyser
             (get() as any).setupAudioAnalyser(stream, userId);
 
             set({ localStream: stream, callStatus: 'calling', initiator: true });
@@ -70,14 +70,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 await ApiService.sendSignal(callId, userId, 'offer', data);
             });
 
-            peer.on('stream', (remoteStream: MediaStream) => {
+            peer.on('stream', async (remoteStream: MediaStream) => {
                 set({ remoteStream, callStatus: 'connected' });
-                // Setup remote analyser if we want to detect remote speaking locally (optional, usually we trust server or peer metadata, but for now purely client side volume check is eaisest)
-                // Note: detecting *who* is speaking from a mixed remote stream in a mesh/SFU is hard without separate streams. 
-                // If SimplePeer is 1:1, we know it's the other person. If mesh, we need separate peers.
-                // Assuming 1:1 for now or handled via separate peers (current logic seems 1:1ish or simple mesh).
-                // For now, we'll just visualise "someone is speaking" or if we have multiple peers we'd attach to each.
-                // Current implementation seems to assume single peer connection for now?
+
+                // Identify peer to setup their analyser
+                // In a 1:1, we find the other guy in the room
+                const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
+                const other = participants.find((p: any) => p.id !== userId);
+                if (other) {
+                    (get() as any).setupAudioAnalyser(remoteStream, other.id);
+                }
             });
 
             (get() as any).peer = peer;
@@ -97,7 +99,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-            // setup analyser
+            // setup local analyser
             (get() as any).setupAudioAnalyser(stream, userId);
 
             set({ localStream: stream, callStatus: 'calling', activeCall: { id: callId, roomId: '' }, initiator: false });
@@ -112,8 +114,25 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 await ApiService.sendSignal(callId, userId, 'answer', data);
             });
 
-            peer.on('stream', (remoteStream: MediaStream) => {
+            peer.on('stream', async (remoteStream: MediaStream) => {
                 set({ remoteStream, callStatus: 'connected' });
+
+                // Try to find the initiator ID
+                // We don't have roomId easily here yet unless we fetched call details
+                // But we can fetch participants of this specific call if roomParticipants provides them
+                try {
+                    const roomParticipants = get().roomParticipants;
+                    // Find which room this call belongs to
+                    const roomId = Object.keys(roomParticipants).find(rid =>
+                        roomParticipants[rid].some(p => p.id === userId)
+                    );
+                    if (roomId) {
+                        const other = roomParticipants[roomId].find(p => p.id !== userId);
+                        if (other) {
+                            (get() as any).setupAudioAnalyser(remoteStream, other.id);
+                        }
+                    }
+                } catch (e) { }
             });
 
             (get() as any).peer = peer;
@@ -152,9 +171,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     endCall: async (userId?: string) => {
         const { localStream, peer } = get() as any;
 
-        // Stop analyser
-        const analyserInterval = (get() as any).analyserInterval;
-        if (analyserInterval) clearInterval(analyserInterval);
+        // Stop all analysers
+        const intervals = (get() as any).analyserIntervals || {};
+        Object.values(intervals).forEach((int: any) => clearInterval(int));
 
         if (userId) {
             try {
@@ -183,19 +202,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             lastSignalId: 0,
             initiator: false,
             isMuted: false,
-            participants: [], // clear
-            speakingUsers: {}
-        });
+            participants: [],
+            speakingUsers: {},
+            analyserIntervals: {}
+        } as any);
     },
 
     fetchParticipants: async (roomId: string, userId: string) => {
         try {
-            // We want to fetch participants for a specific room and UPDATE the roomParticipants map
-            // BUT, the original API might just return a list.
             const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
 
             set(state => ({
-                participants: roomId === state.activeCall?.roomId ? participants : state.participants, // generic fallback
+                participants: roomId === state.activeCall?.roomId ? participants : state.participants,
                 roomParticipants: {
                     ...state.roomParticipants,
                     [roomId]: participants
@@ -222,19 +240,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     setAudioOutputDevice: (deviceId: string) => {
-        // Note: setSinkId is not supported in all browsers/elements, mainly for HTMLMediaElement
         localStorage.setItem('audioOutputDeviceId', deviceId);
         set({ audioOutputDeviceId: deviceId });
     },
 
     // Internal helper to setup analyser
-    setupAudioAnalyser: (stream: MediaStream, userId: string) => {
+    setupAudioAnalyser: (stream: MediaStream, targetUserId: string) => {
         try {
             const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
             const analyser = audioContext.createAnalyser();
-            const microphone = audioContext.createMediaStreamSource(stream);
-            microphone.connect(analyser);
-            analyser.fftSize = 256;
+            const source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            analyser.fftSize = 512; // Increased for better resolution
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
 
@@ -246,15 +263,15 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 }
                 const average = sum / bufferLength;
 
-                // Threshold for speaking
-                const isSpeaking = average > 10;
+                // Threshold for speaking - increased for background noise
+                const isSpeaking = average > 25;
 
                 set(state => {
-                    if (state.speakingUsers[userId] !== isSpeaking) {
+                    if (state.speakingUsers[targetUserId] !== isSpeaking) {
                         return {
                             speakingUsers: {
                                 ...state.speakingUsers,
-                                [userId]: isSpeaking
+                                [targetUserId]: isSpeaking
                             }
                         };
                     }
@@ -263,7 +280,14 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             };
 
             const interval = setInterval(checkVolume, 100);
-            set({ analyserInterval: interval } as any);
+
+            set(state => ({
+                analyserIntervals: {
+                    ...((state as any).analyserIntervals || {}),
+                    [targetUserId]: interval
+                }
+            } as any));
+
         } catch (e) {
             console.error("Audio analyser setup failed", e);
         }
