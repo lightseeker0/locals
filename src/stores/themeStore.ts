@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import '../index.css';
 import '../styles/frosted-glass.css'; // Native integration
 import '../styles/dark-matter.css'; // Native integration
+import '../styles/roundmoled.css'; // Native integration
 import { persist } from 'zustand/middleware';
 import { ApiService } from '../services/api';
 
@@ -16,13 +17,13 @@ export interface Theme {
 interface ThemeState {
     themes: Theme[];
     localThemes: string[];
-    currentBuiltInTheme: 'dark' | 'light-mode' | 'frosted-glass' | 'dark-matter';
+    currentBuiltInTheme: 'dark' | 'light-mode' | 'frosted-glass' | 'dark-matter' | 'roundmoled';
     builtInThemes: { id: string; name: string; class: string }[];
     fetchThemes: (userId: string) => Promise<void>;
     saveTheme: (userId: string, theme: Omit<Theme, 'id'> & { id?: string }) => Promise<void>;
     deleteTheme: (userId: string, id: string) => Promise<void>;
     toggleTheme: (userId: string, id: string) => Promise<void>;
-    setBuiltInTheme: (theme: 'dark' | 'light-mode' | 'frosted-glass' | 'dark-matter') => void;
+    setBuiltInTheme: (theme: 'dark' | 'light-mode' | 'frosted-glass' | 'dark-matter' | 'roundmoled') => void;
     applyThemes: () => void;
     initElectronListener: () => void;
 }
@@ -37,7 +38,8 @@ export const useThemeStore = create<ThemeState>()(
                 { id: 'matrix-dark', name: 'Matrix Dark', class: 'matrix-dark' },
                 { id: 'light-mode', name: 'Light Mode', class: 'light-mode' },
                 { id: 'frosted-glass', name: 'Frosted Glass', class: 'frosted-glass' },
-                { id: 'dark-matter', name: 'Dark Matter', class: 'dark-matter' }
+                { id: 'dark-matter', name: 'Dark Matter', class: 'dark-matter' },
+                { id: 'roundmoled', name: 'Roundmoled V2', class: 'roundmoled' }
             ],
             fetchThemes: async (userId: string) => {
                 const themes = await ApiService.fetchThemes(userId);

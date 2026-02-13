@@ -1,0 +1,120 @@
+/* Roundmoled V2 Adaptation for Locals */
+:root {
+    --rm-dark-primary: #000000;
+    --rm-dark-secondary: #050505;
+    --rm-dark-secondary-alt: #080808;
+    --rm-dark-bright: #0b0b0b;
+    --rm-background: #142339;
+    --rm-border: #1f1f1f;
+    --rm-accent: #5865f2;
+    --rm-chat-bar: #070b10;
+}
+
+[data-theme='roundmoled'] {
+    --matrix-dark: var(--rm-dark-secondary-alt);
+    --matrix-darker: var(--rm-dark-primary);
+    --bg-primary: var(--rm-dark-primary);
+    --bg-secondary: var(--rm-dark-secondary-alt);
+    --matrix-green: var(--rm-accent);
+    --text-normal: #ffffff;
+    --text-muted: #b9bbbe;
+}
+
+[data-theme='roundmoled'] body {
+    background-color: var(--rm-background) !important;
+}
+
+[data-theme='roundmoled'] #app-mount {
+    background-color: var(--rm-background) !important;
+}
+
+[data-theme='roundmoled'] .login-container {
+    background-color: var(--rm-dark-primary) !important;
+    border: 1px solid var(--rm-border) !important;
+    border-radius: 20px !important;
+}
+
+/* Sidebar & Main Container Rounding */
+[data-theme='roundmoled'] .flex.h-screen {
+    padding: 10px 15px 15px 15px;
+    gap: 15px;
+}
+
+[data-theme='roundmoled'] .sidebar,
+[data-theme='roundmoled'] .channel-list,
+[data-theme='roundmoled'] .chat-content,
+[data-theme='roundmoled'] .member-list {
+    border-radius: 20px !important;
+    background-color: var(--rm-dark-primary) !important;
+    border: none !important;
+}
+
+/* Separation and Individual Backgrounds */
+[data-theme='roundmoled'] .sidebar {
+    background-color: var(--rm-dark-secondary-alt) !important;
+}
+
+[data-theme='roundmoled'] .channel-list {
+    background-color: var(--rm-dark-secondary-alt) !important;
+}
+
+[data-theme='roundmoled'] .chat-content {
+    background-color: var(--rm-dark-primary) !important;
+}
+
+[data-theme='roundmoled'] .member-list {
+    background-color: var(--rm-dark-primary) !important;
+}
+
+/* Header/TitleBar */
+[data-theme='roundmoled'] .header,
+[data-theme='roundmoled'] .title-bar {
+    background-color: var(--rm-dark-primary) !important;
+    border-bottom: 1px solid var(--rm-border) !important;
+}
+
+/* Messages */
+[data-theme='roundmoled'] .message-content {
+    background-color: var(--rm-dark-bright) !important;
+    border-radius: 12px !important;
+    border: 1px solid var(--rm-border) !important;
+}
+
+/* Chat Input Bar */
+[data-theme='roundmoled'] .bg-matrix-darker.p-4.rounded-2xl {
+    background-color: var(--rm-chat-bar) !important;
+    border: 1px solid var(--rm-border) !important;
+    border-radius: 20px !important;
+}
+
+/* Buttons */
+[data-theme='roundmoled'] button.bg-matrix-green {
+    background-color: var(--rm-accent) !important;
+    color: white !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 15px rgba(88, 101, 242, 0.2) !important;
+}
+
+[data-theme='roundmoled'] .bg-matrix-green\/10 {
+    background-color: rgba(88, 101, 242, 0.1) !important;
+}
+
+[data-theme='roundmoled'] .text-matrix-green {
+    color: var(--rm-accent) !important;
+}
+
+/* Scrollbars */
+[data-theme='roundmoled'] ::-webkit-scrollbar-thumb {
+    background: var(--rm-accent) !important;
+    border-radius: 10px !important;
+}
+
+[data-theme='roundmoled'] ::-webkit-scrollbar-track {
+    background: var(--rm-dark-primary) !important;
+}
+
+/* Selected Items */
+[data-theme='roundmoled'] .bg-matrix-green\/10.text-matrix-green {
+    background: linear-gradient(90deg, #1f2d4d 0%, rgba(31, 45, 77, 0.5) 100%) !important;
+    border-radius: 10px !important;
+}

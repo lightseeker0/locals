@@ -5,7 +5,7 @@ import { useI18nStore } from '../../stores/i18nStore';
 import {
     X, User, Palette, Sparkles, Plus,
     Trash2, Moon, Sun,
-    Save, Globe, Code, Upload, Download, Mic
+    Save, Globe, Code, Upload, Download, Mic, Circle
 } from 'lucide-react';
 import { useVoiceStore } from '../../stores/useVoiceStore';
 import { clsx } from 'clsx';
@@ -275,12 +275,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                             >
                                                 {theme.id === 'light-mode' ? <Sun size={32} className={currentBuiltInTheme === theme.id ? "text-blue-500" : "text-white"} /> :
                                                     theme.id === 'frosted-glass' ? <Sparkles size={32} className={currentBuiltInTheme === theme.id ? "text-purple-400" : "text-white"} /> :
-                                                        <Moon size={32} className={currentBuiltInTheme === theme.id ? "text-matrix-green" : "text-white"} />}
+                                                        theme.id === 'roundmoled' ? <Circle size={32} className={currentBuiltInTheme === theme.id ? "text-blue-400" : "text-white"} /> :
+                                                            <Moon size={32} className={currentBuiltInTheme === theme.id ? "text-matrix-green" : "text-white"} />}
 
                                                 <span className={clsx("font-black",
                                                     currentBuiltInTheme === theme.id && theme.id === 'light-mode' ? "text-blue-500" :
                                                         currentBuiltInTheme === theme.id && theme.id === 'frosted-glass' ? "text-purple-400" :
-                                                            currentBuiltInTheme === theme.id ? "text-matrix-green" : "text-white"
+                                                            currentBuiltInTheme === theme.id && theme.id === 'roundmoled' ? "text-blue-400" :
+                                                                currentBuiltInTheme === theme.id ? "text-matrix-green" : "text-white"
                                                 )}>
                                                     {theme.name}
                                                 </span>
