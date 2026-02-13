@@ -94,7 +94,7 @@ export const CreateSpaceModal: React.FC<CreateSpaceModalProps> = ({ isOpen, onCl
                     </div>
 
                     <div className="flex items-center gap-3 p-4 bg-white/[0.02] border border-white/5 rounded-xl">
-                        <Lock size={16} className="text-yellow-500/50" />
+                        <Lock size={16} className="text-blue-400/50" />
                         <p className="text-[10px] text-matrix-muted leading-tight">
                             By creating a space, you agree to follow the community guidelines.
                         </p>
