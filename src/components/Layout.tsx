@@ -10,8 +10,44 @@ import { clsx } from 'clsx';
 export const Layout: React.FC = () => {
     const { isUserListOpen, isSettingsOpen, setSettingsOpen, isMobileMenuOpen, setMobileMenuOpen } = useAppStore();
 
+    // Swipe Logic
+    const [touchStart, setTouchStart] = React.useState<number | null>(null);
+    const [touchEnd, setTouchEnd] = React.useState<number | null>(null);
+
+    const minSwipeDistance = 50;
+
+    const onTouchStart = (e: React.TouchEvent) => {
+        setTouchEnd(null);
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (e: React.TouchEvent) => {
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+
+        if (isRightSwipe) {
+            // Swipe Right -> Open Menu (if not already open)
+            if (!isMobileMenuOpen) setMobileMenuOpen(true);
+        }
+        if (isLeftSwipe) {
+            // Swipe Left -> Close Menu
+            if (isMobileMenuOpen) setMobileMenuOpen(false);
+        }
+    };
+
     return (
-        <div className="flex h-screen w-full overflow-hidden bg-matrix-darker text-matrix-text font-sans relative app-mount app-inner">
+        <div
+            className="flex h-screen w-full overflow-hidden bg-matrix-darker text-matrix-text font-sans relative app-mount app-inner"
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+        >
             {/* Mobile Sidebar & ChannelList Wrapper */}
             <div className={clsx(
                 "fixed inset-0 z-[100] transition-all duration-300 md:relative md:flex md:z-auto",

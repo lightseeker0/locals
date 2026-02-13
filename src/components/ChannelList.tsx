@@ -296,6 +296,17 @@ export const ChannelList: React.FC = () => {
                                         }
                                     }
                                 }}
+                                onTouchEnd={(e) => {
+                                    // Prevent ghost clicks if necessary, but mainly ensure touch triggers join
+                                    e.preventDefault();
+                                    setSelectedChannel(channel.id);
+                                    if (channel.type === 'voice') {
+                                        if (activeCall?.roomId !== channel.id) {
+                                            if (activeCall) endCall();
+                                            startCall(channel.id, user!.id);
+                                        }
+                                    }
+                                }}
                             >
                                 {channel.type === 'voice' ? (
                                     <Volume2 size={18} className={clsx("mr-2 shrink-0 transition-colors", activeCall?.roomId === channel.id ? "text-matrix-green" : "text-matrix-muted group-hover:text-gray-300")} />

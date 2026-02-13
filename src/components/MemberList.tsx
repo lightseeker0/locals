@@ -19,7 +19,7 @@ export const MemberList: React.FC = () => {
 
         const fetchUsers = async () => {
             try {
-                const data = await ApiService.fetchUserList(user.id);
+                const data = await ApiService.fetchUserList(user.id, selectedServerId);
                 setMembers(data);
             } catch (err) {
                 console.error('Failed to fetch users:', err);
@@ -29,7 +29,7 @@ export const MemberList: React.FC = () => {
         fetchUsers();
         const interval = setInterval(fetchUsers, 10000);
         return () => clearInterval(interval);
-    }, [user]);
+    }, [user, selectedServerId]);
 
     const handleKick = async (targetId: string) => {
         if (!selectedServerId || !user || !confirm('Kick this user?')) return;

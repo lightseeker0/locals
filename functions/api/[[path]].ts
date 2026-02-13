@@ -194,14 +194,37 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
             if (path === '/users/list') {
                 if (!userIdHeader) return new Response('Unauthorized', { status: 401 });
-                const { results } = await env.DB.prepare(`
-                    SELECT id, username, display_name, avatar_url, last_seen, is_banned, custom_status 
-                    FROM users 
-                    ORDER BY 
-                        CASE WHEN last_seen IS NOT NULL THEN 1 ELSE 2 END,
-                        last_seen DESC 
-                    LIMIT 200
-                `).all();
+                const spaceId = url.searchParams.get('space_id');
+
+                let results;
+                if (spaceId) {
+                    // Fetch members of the specific space (server)
+                    const data = await env.DB.prepare(`
+                        SELECT DISTINCT u.id, u.username, u.display_name, u.avatar_url, u.last_seen, u.is_banned, u.custom_status 
+                        FROM users u
+                        JOIN participants p ON u.id = p.user_id
+                        JOIN rooms r ON p.room_id = r.id
+                        WHERE r.space_id = ?
+                        ORDER BY 
+                            CASE WHEN u.last_seen IS NOT NULL THEN 1 ELSE 2 END,
+                            u.last_seen DESC
+                        LIMIT 200
+                    `).bind(spaceId).all();
+                    results = data.results;
+                } else {
+                    // Fallback to global list (or maybe just friends later)
+                    // limit to 200 to avoid overload
+                    const data = await env.DB.prepare(`
+                        SELECT id, username, display_name, avatar_url, last_seen, is_banned, custom_status 
+                        FROM users 
+                        ORDER BY 
+                            CASE WHEN last_seen IS NOT NULL THEN 1 ELSE 2 END,
+                            last_seen DESC 
+                        LIMIT 200
+                    `).all();
+                    results = data.results;
+                }
+
                 return Response.json(results, { headers: corsHeaders });
             }
 

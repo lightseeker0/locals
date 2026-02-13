@@ -56,8 +56,9 @@ export class ApiService {
         return this.post('/user/profile', { id: userId, ...data }, userId);
     }
 
-    static async fetchUserList(userId: string) {
-        return this.get('/users/list', userId);
+    static async fetchUserList(userId: string, spaceId?: string | null) {
+        const query = spaceId ? `?space_id=${spaceId}` : '';
+        return this.get(`/users/list${query}`, userId);
     }
 
     static async searchUsers(query: string, userId: string) {
