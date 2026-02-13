@@ -57,7 +57,9 @@ export const MemberList: React.FC = () => {
     const now = Date.now();
     const isOnline = (lastSeen: string) => {
         if (!lastSeen) return false;
-        return (now - new Date(lastSeen).getTime()) < 60000 * 2; // 2 minutes threshold
+        // DB stores UTC "YYYY-MM-DD HH:MM:SS", append Z to treat as UTC (or replace space with T and append Z)
+        const utcDate = new Date(lastSeen.replace(' ', 'T') + 'Z');
+        return (now - utcDate.getTime()) < 60000 * 5; // Increased to 5 minutes for stability
     };
 
     const onlineMembers = members.filter(m => isOnline(m.last_seen) && !m.is_banned);
@@ -123,16 +125,15 @@ export const MemberList: React.FC = () => {
                 </div>
 
                 {/* Offline */}
-                {offlineMembers.length > 0 && (
-                    <>
-                        <h3 className="text-[11px] font-bold text-matrix-muted uppercase mb-4 tracking-wider flex items-center gap-2">
-                            Offline <span className="opacity-50">— {offlineMembers.length}</span>
-                        </h3>
-                        <div className="space-y-1 mb-6">
-                            {offlineMembers.map(m => renderMemberParams(m, 'offline'))}
-                        </div>
-                    </>
-                )}
+                <h3 className="text-[11px] font-bold text-matrix-muted uppercase mb-4 tracking-wider flex items-center gap-2">
+                    Offline <span className="opacity-50">— {offlineMembers.length}</span>
+                </h3>
+                <div className="space-y-1 mb-6">
+                    {offlineMembers.map(m => renderMemberParams(m, 'offline'))}
+                    {offlineMembers.length === 0 && (
+                        <div className="text-[10px] text-matrix-muted opacity-30 italic px-2">No offline members</div>
+                    )}
+                </div>
 
                 {/* Banned (Admin Only?) - Or just list them */}
                 {/* For now let's list them if they are still returned (which they are) */}
