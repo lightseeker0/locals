@@ -226,8 +226,8 @@ export const ChannelList: React.FC = () => {
             {isStatusPickerOpen && (
                 <>
                     <div className="fixed inset-0 z-40" onClick={() => setIsStatusPickerOpen(false)} />
-                    <div className="absolute bottom-[70px] left-4 w-60 bg-matrix-darker/95 border border-white/10 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] p-2 z-50 animate-in fade-in slide-in-from-bottom-3 duration-300 backdrop-blur-2xl">
-                        <div className="text-[10px] font-black text-matrix-muted uppercase tracking-[0.25em] p-3 pb-2 opacity-60 select-none whitespace-nowrap">{t('set_status')}</div>
+                    <div className="absolute bottom-[60px] left-2 right-2 bg-matrix-darker/95 border border-white/10 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] p-1.5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-300 backdrop-blur-2xl">
+                        <div className="text-[10px] font-black text-matrix-muted uppercase tracking-[0.25em] p-3 pb-2 opacity-60 select-none">{t('set_status')}</div>
 
                         {[
                             { id: 'online', label: t('online'), color: 'text-matrix-green', icon: <Circle size={12} fill="currentColor" /> },
