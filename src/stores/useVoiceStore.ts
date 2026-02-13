@@ -135,12 +135,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     joinCall: async (callId: string, user: any) => {
         const userId = user.id;
-        // Logic to find roomId for optimistic update
-        // We might not have roomId directly here, so we'll have to rely on the next fetch
-        // BUT wait, in joinCall usually we know which room we clicked.
-        // Let's check how joinCall is invoked.
-        // In the current codebase, it seems joinCall is used when you click on an existing call.
-
+        console.log(`[WebRTC] Attempting to join call: ${callId} as user: ${userId}`);
         try {
             const { audioInputDeviceId } = get();
             const constraints = {
@@ -223,7 +218,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const signals: any[] = await ApiService.pollSignals(activeCall.id, userId, lastSignalId);
 
             if (signals.length > 0) {
-                set({ lastSignalId: signals[signals.length - 1].id });
+                if (signals.length > 0) {
+                    console.log(`[WebRTC] Found ${signals.length} new signals`);
+                    set({ lastSignalId: signals[signals.length - 1].id });
+                }
 
                 for (const signal of signals) {
                     const data = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : signal.payload;
