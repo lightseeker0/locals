@@ -74,8 +74,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             set({ localStream: stream, callStatus: 'calling' });
 
             // CRITICAL: Double check if a call already exists to avoid race conditions
-            const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
-            const existingCall = participants.length > 1; // Simplistic check - if someone is here, they probably have a call
+            await ApiService.fetchVoiceParticipants(roomId, userId);
 
             const { id: callId } = await ApiService.createCall(roomId, userId);
             set({ activeCall: { id: callId, roomId }, initiator: true });
