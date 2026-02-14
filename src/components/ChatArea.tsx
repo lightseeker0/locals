@@ -433,14 +433,8 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
     };
 
     return (
-        <div className={clsx(
-            "group flex flex-col mb-4 animate-in slide-in-from-bottom-2 duration-300",
-            isMe ? "items-end" : "items-start"
-        )}>
-            <div className={clsx(
-                "flex max-w-[85%] md:max-w-[70%] gap-2 md:gap-3",
-                isMe ? "flex-row-reverse" : "flex-row"
-            )}>
+        <div className="group flex flex-col mb-4 animate-in slide-in-from-bottom-2 duration-300 items-start">
+            <div className="flex max-w-[85%] md:max-w-[70%] gap-2 md:gap-3 flex-row">
                 {/* Avatar */}
                 <div className={clsx(
                     "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-lg font-black text-sm",
@@ -453,9 +447,9 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                     )}
                 </div>
 
-                <div className={clsx("flex flex-col", isMe ? "items-end" : "items-start")}>
+                <div className="flex flex-col items-start">
                     {/* Username & Time */}
-                    <div className={clsx("flex items-baseline gap-2 mb-1 px-1", isMe ? "flex-row-reverse" : "flex-row")}>
+                    <div className="flex items-baseline gap-2 mb-1 px-1 flex-row">
                         <span className={clsx("text-[11px] font-black tracking-tight", isMe ? "text-gray-900" : "text-white")}>
                             {message.display_name || message.username}
                         </span>
@@ -469,17 +463,14 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                         <div className={clsx(
                             "px-4 py-2.5 shadow-xl relative transition-all duration-200 font-medium rounded-[1.25rem] border",
                             isMe
-                                ? "bg-[#F8F2EF] border-[#F8F2EF] rounded-tr-none"
+                                ? "bg-[#F8F2EF] border-[#F8F2EF] rounded-tl-none"
                                 : "bg-matrix-dark border-white/5 text-white/90 hover:bg-matrix-dark/80 rounded-tl-none"
                         )}>
                             {renderContent(message.content)}
                         </div>
 
-                        {/* Actions Overlay */}
-                        <div className={clsx(
-                            "absolute transition-all duration-200 flex items-center gap-1 z-10 -top-10",
-                            isMe ? "opacity-100 right-0" : "opacity-0 group-hover/bubble:opacity-100 left-0"
-                        )}>
+                        {/* Actions Overlay - Always hidden until hover */}
+                        <div className="absolute transition-all duration-200 flex items-center gap-1 z-10 -top-10 opacity-0 group-hover/bubble:opacity-100 left-0">
                             <div className="flex bg-matrix-dark border border-white/20 rounded-xl p-0.5 shadow-2xl backdrop-blur-md">
                                 <button onClick={onReply} className="p-1.5 hover:bg-white/5 rounded-lg text-matrix-muted hover:text-white transition-all"><Reply size={14} /></button>
                                 <button onClick={() => toggleReaction('❤️')} className="p-1.5 hover:bg-white/5 rounded-lg text-matrix-muted hover:text-white transition-all"><Smile size={14} /></button>
@@ -498,7 +489,7 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
 
                     {/* Reactions Display */}
                     {reactions.length > 0 && (
-                        <div className={clsx("flex flex-wrap gap-1 mt-2", isMe ? "justify-end" : "justify-start")}>
+                        <div className="flex flex-wrap gap-1 mt-2 justify-start">
                             {reactions.map(r => (
                                 <div key={r.emoji} className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/5 border border-white/5 text-[10px] font-bold text-matrix-muted">
                                     <span>{r.emoji}</span>
