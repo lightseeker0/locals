@@ -447,10 +447,10 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                     {/* Bubble */}
                     <div className="relative group/bubble">
                         <div className={clsx(
-                            "px-4 py-2.5 shadow-xl relative transition-all duration-200 font-medium rounded-[1.25rem] rounded-tl-none",
+                            "px-4 py-2.5 shadow-xl relative transition-all duration-200 font-medium rounded-[1.25rem] rounded-tl-none border",
                             isMe
-                                ? "bg-matrix-green/20 border border-matrix-green/30 text-white hover:bg-matrix-green/30"
-                                : "bg-matrix-dark border border-white/5 text-white/90 hover:bg-matrix-dark/80"
+                                ? "bg-[#F8F2EF]/20 border-[#F8F2EF]/40 text-white hover:bg-[#F8F2EF]/30"
+                                : "bg-matrix-dark border-white/5 text-white/90 hover:bg-matrix-dark/80"
                         )}>
                             {renderContent(message.content)}
                         </div>
@@ -474,7 +474,7 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                             </button>
                             <button
                                 onClick={() => ApiService.pinMessage(message.id, true).then(() => alert('Message pinned!'))}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-matrix-green/10 transition-all"
+                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-white/10 transition-all"
                                 title="Pin Message"
                             >
                                 <Pin size={16} />
@@ -482,7 +482,7 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                             {(isMe || (user as any)?.is_admin) && (
                                 <button
                                     onClick={handleDelete}
-                                    className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-red-500 hover:bg-red-500/10 transition-all"
+                                    className="p-2 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-lg"
                                     title="Delete Message"
                                 >
                                     <Trash2 size={16} />
