@@ -18,7 +18,7 @@ export const ChatArea: React.FC = () => {
     const { selectedChannelId, channels, setMobileMenuOpen } = useAppStore();
     const { user } = useAuthStore();
     const { t } = useI18nStore();
-    const { startCall } = useVoiceStore();
+    const { startCall, activeCall } = useVoiceStore();
     const currentChannel = channels.find(c => c.id === selectedChannelId);
     const { messages, sendMessage, deleteMessage } = useChatMessages(selectedChannelId || '');
     const { typingUsers, setTyping } = useTypingIndicator(selectedChannelId || '');
@@ -237,6 +237,25 @@ export const ChatArea: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Voice Join Prompt */}
+            {currentChannel?.type === 'voice' && activeCall?.roomId !== selectedChannelId && (
+                <div className="mx-4 md:mx-8 mb-4 p-6 bg-matrix-green/10 border border-matrix-green/20 rounded-3xl flex flex-col items-center gap-4 animate-in slide-in-from-bottom-4 duration-500">
+                    <div className="w-16 h-16 bg-matrix-green/20 rounded-2xl flex items-center justify-center">
+                        <Phone size={32} className="text-matrix-green" />
+                    </div>
+                    <div className="text-center">
+                        <h4 className="text-lg font-black text-white mb-1">Voice Channel Selected</h4>
+                        <p className="text-sm text-matrix-muted font-bold uppercase tracking-widest opacity-60">You are viewing the chat for this channel.</p>
+                    </div>
+                    <button
+                        onClick={() => user && startCall(selectedChannelId || '', user)}
+                        className="bg-matrix-green text-matrix-darker px-8 py-3 rounded-2xl font-black hover:shadow-[0_0_20px_rgba(0,255,102,0.4)] transition-all active:scale-95"
+                    >
+                        Join Voice Call
+                    </button>
+                </div>
+            )}
 
             {/* Input Area */}
             <div className="px-4 md:px-8 pb-4 md:pb-8 pb-safe-lg shrink-0 relative z-20">

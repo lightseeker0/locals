@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import crypto from 'node:crypto';
 
 const app = new Hono();
 const dbPath = path.join(process.cwd(), 'data', 'locals.db');
@@ -15,7 +16,7 @@ if (!fs.existsSync(path.dirname(dbPath))) {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 }
 
-const db = new Database(dbPath);
+const db = new Database(dbPath, { verbose: (sql) => console.log(`[SQL] ${sql}`) });
 
 // Initialize database schema if not exists
 const schemaPath = fs.existsSync('/app_root/schema.sql')
@@ -31,6 +32,11 @@ app.use('*', cors({
     allowHeaders: ['Content-Type', 'Authorization', 'X-User-ID'],
     exposeHeaders: ['Content-Type'],
 }));
+
+app.onError((err, c) => {
+    console.error(`[HONO ERROR] ${c.req.method} ${c.req.path}:`, err);
+    return c.json({ error: 'Internal Server Error', message: err.message }, 500);
+});
 
 // Serve static files from the 'dist' folder
 const distPath = fs.existsSync('/app_root/dist')
@@ -54,30 +60,32 @@ app.get('*', async (c, next) => {
 // Utility for hashing passwords (replication of Cloudflare logic)
 // ... (rest of the file remains same, but I'll update the whole block below for consistency)
 const hashPassword = async (password: string, salt: Uint8Array) => {
-    const encoder = new TextEncoder();
-    const passwordKey = await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(password),
-        { name: 'PBKDF2' },
-        false,
-        ['deriveBits', 'deriveKey']
-    );
+    try {
+        const encoder = new TextEncoder();
+        const passwordKey = await crypto.subtle.importKey(
+            'raw',
+            encoder.encode(password),
+            { name: 'PBKDF2' },
+            false,
+            ['deriveBits']
+        );
 
-    const key = await crypto.subtle.deriveKey(
-        {
-            name: 'PBKDF2',
-            salt: salt,
-            iterations: 100000,
-            hash: 'SHA-256'
-        } as any,
-        passwordKey,
-        { name: 'AES-GCM', length: 256 },
-        true,
-        ['encrypt', 'decrypt']
-    );
+        const derivedBits = await crypto.subtle.deriveBits(
+            {
+                name: 'PBKDF2',
+                salt: salt as any,
+                iterations: 100000,
+                hash: 'SHA-256'
+            },
+            passwordKey,
+            256
+        );
 
-    const exportedKey = await crypto.subtle.exportKey('raw', key);
-    return Buffer.from(exportedKey).toString('base64');
+        return Buffer.from(derivedBits).toString('base64');
+    } catch (err) {
+        console.error('[HASH] Error hashing password:', err);
+        throw err;
+    }
 };
 
 const updateLastSeen = (userId: string) => {
@@ -175,36 +183,69 @@ app.get('/api/messages/:roomId', async (c: Context) => {
 });
 
 app.post('/api/auth/register', async (c: Context) => {
-    const { username, password } = await c.req.json();
-    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
-    if (existing) return c.json({ error: 'User exists' }, 400);
+    try {
+        const { username, password } = await c.req.json();
+        console.log(`[AUTH] Registering user: ${username}`);
 
-    const id = uuidv4();
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const passwordHash = await hashPassword(password, salt);
-    const saltStr = Buffer.from(salt).toString('base64');
+        const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+        if (existing) {
+            console.log(`[AUTH] Registration failed: User ${username} already exists`);
+            return c.json({ error: 'User exists' }, 400);
+        }
 
-    db.prepare('INSERT INTO users (id, username, display_name, password_hash) VALUES (?, ?, ?, ?)')
-        .run(id, username, username, `${saltStr}:${passwordHash}`);
+        const id = uuidv4();
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const passwordHash = await hashPassword(password, new Uint8Array(salt));
+        const saltStr = Buffer.from(salt).toString('base64');
 
-    return c.json({ id, username, status: 'registered' });
+        db.prepare('INSERT INTO users (id, username, display_name, password_hash) VALUES (?, ?, ?, ?)')
+            .run(id, username, username, `${saltStr}:${passwordHash}`);
+
+        console.log(`[AUTH] User registered successfully: ${username} (${id})`);
+        return c.json({ id, username, status: 'registered' });
+    } catch (err: any) {
+        console.error(`[AUTH] Registration error:`, err);
+        return c.json({ error: 'Internal server error', details: err.message }, 500);
+    }
 });
 
 app.post('/api/auth/login', async (c: Context) => {
-    const { username, password } = await c.req.json();
-    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as any;
-    if (!user || !user.password_hash) return c.json({ error: 'Invalid credentials' }, 401);
+    try {
+        const { username, password } = await c.req.json();
+        console.log(`[AUTH] Login attempt for: ${username}`);
 
-    const [saltStr, hash] = user.password_hash.split(':');
-    const salt = Buffer.from(saltStr, 'base64');
-    const calculatedHash = await hashPassword(password, new Uint8Array(salt));
+        const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as any;
+        if (!user || !user.password_hash) {
+            console.log(`[AUTH] Login failed: User ${username} not found`);
+            return c.json({ error: 'Invalid credentials' }, 401);
+        }
 
-    if (calculatedHash !== hash) return c.json({ error: 'Invalid credentials' }, 401);
-    if (user.is_banned) return c.json({ error: 'This account has been banned' }, 403);
+        const [saltStr, hash] = user.password_hash.split(':');
+        const salt = Buffer.from(saltStr, 'base64');
+        const calculatedHash = await hashPassword(password, new Uint8Array(salt));
 
-    updateLastSeen(user.id);
-    const { password_hash, ...safeUser } = user;
-    return c.json(safeUser);
+        console.log(`[AUTH] Comparing hashes for ${username}:`);
+        console.log(`[AUTH] Stored: ${hash}`);
+        console.log(`[AUTH] Calc'd: ${calculatedHash}`);
+
+        if (calculatedHash !== hash) {
+            console.log(`[AUTH] Login failed: Incorrect password for ${username}`);
+            return c.json({ error: 'Invalid credentials' }, 401);
+        }
+
+        if (user.is_banned) {
+            console.log(`[AUTH] Login failed: User ${username} is banned`);
+            return c.json({ error: 'This account has been banned' }, 403);
+        }
+
+        updateLastSeen(user.id);
+        const { password_hash, ...safeUser } = user;
+        console.log(`[AUTH] Login successful: ${username}`);
+        return c.json(safeUser);
+    } catch (err: any) {
+        console.error(`[AUTH] Login error:`, err);
+        return c.json({ error: 'Internal server error', details: err.message }, 500);
+    }
 });
 
 app.post('/api/messages/send', async (c: Context) => {
@@ -217,31 +258,50 @@ app.post('/api/messages/send', async (c: Context) => {
     return c.json({ id, status: 'sent' });
 });
 
+app.get('/api/voice/participants/:roomId', async (c: Context) => {
+    const roomId = c.req.param('roomId');
+    const call = db.prepare('SELECT id FROM calls WHERE room_id = ? AND status = \'active\' ORDER BY created_at DESC LIMIT 1').get(roomId) as any;
+
+    if (!call) return c.json([]);
+
+    const participants = db.prepare(`
+        SELECT u.id, u.username, u.display_name, u.avatar_url 
+        FROM call_participants cp
+        JOIN users u ON cp.user_id = u.id
+        WHERE cp.call_id = ?
+    `).all(call.id);
+
+    return c.json(participants);
+});
+
 app.post('/api/voice/call', async (c: Context) => {
     const { room_id } = await c.req.json();
     const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
 
-    const existingCall = db.prepare('SELECT id FROM calls WHERE room_id = ? AND status = \'active\' ORDER BY created_at DESC LIMIT 1')
-        .get(room_id) as any;
+    let call = db.prepare('SELECT id FROM calls WHERE room_id = ? AND status = \'active\' ORDER BY created_at DESC LIMIT 1').get(room_id) as any;
 
-    if (existingCall) {
-        return c.json({ id: existingCall.id, status: 'joined' });
+    if (!call) {
+        const id = uuidv4();
+        db.prepare('INSERT INTO calls (id, room_id, caller_id) VALUES (?, ?, ?)')
+            .run(id, room_id, userId);
+        call = { id };
     }
 
-    if (userId) {
-        db.prepare('UPDATE calls SET status = \'ended\' WHERE caller_id = ? AND status = \'active\'')
-            .run(userId);
-    }
+    // Add user to participants
+    db.prepare('INSERT OR IGNORE INTO call_participants (call_id, user_id) VALUES (?, ?)')
+        .run(call.id, userId);
 
-    const id = uuidv4();
-    db.prepare('INSERT INTO calls (id, room_id, caller_id) VALUES (?, ?, ?)')
-        .run(id, room_id, userId);
-    return c.json({ id, status: 'initiated' });
+    return c.json({ id: call.id, status: 'joined' });
 });
 
 app.post('/api/voice/signal', async (c: Context) => {
     const { call_id, type, payload } = await c.req.json();
     const userId = c.req.header('X-User-ID');
+
+    const parsedPayload = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    console.log(`[SIGNAL] From: ${userId}, To: ${parsedPayload.to}, Type: ${type}`);
+
     db.prepare('INSERT INTO call_signals (call_id, sender_id, type, payload) VALUES (?, ?, ?, ?)')
         .run(call_id, userId, type, JSON.stringify(payload));
     return c.json({ status: 'sent' });
@@ -252,14 +312,24 @@ app.post('/api/voice/poll', async (c: Context) => {
     const userId = c.req.header('X-User-ID');
     const results = db.prepare('SELECT * FROM call_signals WHERE call_id = ? AND id > ? AND sender_id != ? ORDER BY id ASC')
         .all(call_id, last_signal_id || 0, userId);
+
+    if (results.length > 0) {
+        console.log(`[POLL] User ${userId} found ${results.length} new signals for call ${call_id}`);
+    }
     return c.json(results);
 });
 
 app.post('/api/voice/end', async (c: Context) => {
     const userId = c.req.header('X-User-ID');
     if (userId) {
-        db.prepare('UPDATE calls SET status = \'ended\' WHERE caller_id = ? AND status = \'active\'')
-            .run(userId);
+        // Remove from participants
+        db.prepare('DELETE FROM call_participants WHERE user_id = ?').run(userId);
+
+        // Mark call as ended if no participants left
+        const remaining = db.prepare('SELECT COUNT(*) as count FROM call_participants cp JOIN calls c ON cp.call_id = c.id WHERE c.status = \'active\' AND cp.user_id != ?').get(userId) as any;
+        if (remaining && remaining.count === 0) {
+            db.prepare('UPDATE calls SET status = \'ended\' WHERE status = \'active\'').run();
+        }
     }
     return c.json({ status: 'ended' });
 });

@@ -140,7 +140,46 @@ body {
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: auto;
   /* Allow native pull-to-refresh */
-  touch-action: manipulation;
+  touch-action: pan-y;
+  /* Changed from manipulation to allow smooth vertical scrolling but detect horizontal swipes */
+}
+
+/* Sidebar Drawer for Mobile */
+@media (max-width: 768px) {
+  .sidebar-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+  }
+
+  .sidebar-container.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .sidebar-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .chat-content {
+    width: 100vw;
+  }
 }
 
 /* Safe Area Utilities with fallback */
@@ -181,6 +220,11 @@ body {
   border-radius: 4px;
 }
 
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
+  /* Dynamic viewport height for modern browsers */
+}
 
 /* Window Drag Regions */
 .drag-region {

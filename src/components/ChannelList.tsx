@@ -16,7 +16,7 @@ import { NotificationList } from './NotificationList';
 import { AdminPanel } from './modals/AdminPanel';
 
 export const ChannelList: React.FC = () => {
-    const { selectedServerId, servers, channels, selectedChannelId, setSelectedChannel, setSettingsOpen, setSelectedServer } = useAppStore();
+    const { selectedServerId, servers, channels, selectedChannelId, setSelectedChannel, setSettingsOpen, setSelectedServer, setMobileMenuOpen } = useAppStore();
     const { user, userStatus, setUserStatus, logout } = useAuthStore();
     const { refreshRooms, refreshSpaces } = useAppData();
     const { t } = useI18nStore();
@@ -158,7 +158,7 @@ export const ChannelList: React.FC = () => {
 
         poll();
         poll();
-        const interval = setInterval(poll, 5000); // Check every 5 seconds (Optimized for quota)
+        const interval = setInterval(poll, 2000); // Check every 2 seconds for mesh health
         return () => clearInterval(interval);
     }, [selectedServerId, channels, user?.id]);
 
@@ -492,10 +492,17 @@ export const ChannelList: React.FC = () => {
                                     activeCall?.roomId === channel.id && "bg-matrix-green/5"
                                 )}
                                 onClick={() => {
-                                    setSelectedChannel(channel.id);
-                                    if (channel.type === 'voice' && user) {
-                                        startCall(channel.id, user);
+                                    if (channel.type === 'voice') {
+                                        if (activeCall?.roomId !== channel.id) {
+                                            console.log(`[UI] Joining voice channel: ${channel.title}`);
+                                            if (user) startCall(channel.id, user);
+                                        }
+                                        // Still select it to show the "chat" area if it exists, or just to focus it
+                                        setSelectedChannel(channel.id);
+                                    } else {
+                                        setSelectedChannel(channel.id);
                                     }
+                                    setMobileMenuOpen(false);
                                 }}
                             >
                                 {channel.type === 'voice' ? (

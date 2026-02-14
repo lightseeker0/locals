@@ -13,11 +13,13 @@ import { useAppData } from './hooks/useAppData';
 import { useThemeStore } from './stores/themeStore';
 import { useAppStore } from './stores/appStore';
 import { VoiceCallOverlay } from './components/VoiceCallOverlay';
+import { useSwipe } from './hooks/useSwipe';
+import { clsx } from 'clsx';
 
 function App() {
   const { user, isLoading, validateSession } = useAuthStore();
   const { currentBuiltInTheme } = useThemeStore();
-  const { isSettingsOpen, setSettingsOpen, isUserListOpen } = useAppStore();
+  const { isSettingsOpen, setSettingsOpen, isUserListOpen, isMobileMenuOpen, setMobileMenuOpen } = useAppStore();
   const [debugStatus, setDebugStatus] = useState('Initializing...');
   const [updateInfo, setUpdateInfo] = useState<{ status: 'available' | 'downloading' | 'ready', progress?: number } | null>(null);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
@@ -80,6 +82,11 @@ function App() {
     }
   }, [currentBuiltInTheme]);
 
+  useSwipe({
+    onSwipeRight: () => setMobileMenuOpen(true),
+    onSwipeLeft: () => setMobileMenuOpen(false)
+  });
+
   const isElectron = !!(window as any).electron;
 
   return (
@@ -99,8 +106,19 @@ function App() {
         <div id="app-mount" className="da-app appMount-3stXN7 app-mount layer-container h-full">
           <div className={`flex h-screen bg-transparent text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app layer__960e4 baseLayer__960e4 ${isElectron ? 'pt-8' : ''}`}>
             {isElectron && <TitleBar />}
-            <Sidebar />
-            <ChannelList />
+
+            {/* Sidebar Overlay for Mobile */}
+            <div
+              className={clsx("sidebar-overlay", isMobileMenuOpen && "open")}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+
+            {/* Combined Sidebar Container for Mobile Drawer */}
+            <div className={clsx("sidebar-container", isMobileMenuOpen && "open")}>
+              <Sidebar />
+              <ChannelList />
+            </div>
+
             <div className="flex-1 flex flex-col min-w-0 bg-matrix-darker relative z-10 box-399657 da-chat">
               <Routes>
                 <Route path="/" element={<ChatArea />} />

@@ -70,6 +70,13 @@ CREATE TABLE IF NOT EXISTS call_signals (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS call_participants (
+    call_id TEXT REFERENCES calls(id),
+    user_id TEXT REFERENCES users(id),
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (call_id, user_id)
+);
+
 -- User Themes (BetterDiscord Style)
 CREATE TABLE IF NOT EXISTS user_themes (
     id TEXT PRIMARY KEY,
