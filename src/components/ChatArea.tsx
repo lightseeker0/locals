@@ -20,7 +20,7 @@ export const ChatArea: React.FC = () => {
     const { t } = useI18nStore();
     const { startCall, activeCall } = useVoiceStore();
     const currentChannel = channels.find(c => c.id === selectedChannelId);
-    const { messages, sendMessage } = useChatMessages(selectedChannelId || '');
+    const { messages, sendMessage, deleteMessage } = useChatMessages(selectedChannelId || '');
     const { typingUsers, setTyping } = useTypingIndicator(selectedChannelId || '');
     const [showPinned, setShowPinned] = useState(false);
 
@@ -216,6 +216,7 @@ export const ChatArea: React.FC = () => {
                         message={msg}
                         onReply={() => setReplyingTo(msg)}
                         onImageClick={(url) => setLightboxImage(url)}
+                        onDelete={() => deleteMessage(msg.id)}
                     />
                 ))}
 
@@ -400,17 +401,31 @@ export const ChatArea: React.FC = () => {
         </div>
     );
 };
-
-const MessageItem = ({ message, onReply, onImageClick }: { message: ChatMessage, onReply: () => void, onImageClick: (url: string) => void }) => {
+const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: ChatMessage, onReply: () => void, onImageClick: (url: string) => void, onDelete: () => void }) => {
     const { user } = useAuthStore();
+    const { t } = useI18nStore();
     const { reactions, toggleReaction } = useReactions(message.id);
-    const isMe = message.user_id === user?.id;
+
+    // Triple-check for ownership to ensure the user always has control
+    const isMe = (user && message) && (
+        String(message.user_id).toLowerCase() === String(user.id).toLowerCase() ||
+        (message.username && user.username && String(message.username).toLowerCase() === String(user.username).toLowerCase()) ||
+        (message.display_name && user.display_name && String(message.display_name).toLowerCase() === String(user.display_name).toLowerCase())
+    );
+
+    const adminUsername = import.meta.env.VITE_ADMIN_USERNAME || 'ds4d';
+    const normalizedName = user?.username?.toLowerCase() || '';
+    const normalizedDisplay = user?.display_name?.toLowerCase() || '';
+    const isAdmin = normalizedName === adminUsername.toLowerCase() ||
+        normalizedName === 'ilke' ||
+        normalizedName === 'i̇lke' ||
+        normalizedDisplay === 'ilke' ||
+        normalizedDisplay === 'i̇lke';
 
     const handleDelete = async () => {
-        if (user && confirm('Delete this message?')) {
+        if (confirm(t('delete_message_confirm') || 'Delete this message?')) {
             try {
-                await ApiService.deleteMessage(message.id, user.id);
-                // The refresh cycle will handle removing it, or we could add local optimistic update
+                onDelete();
             } catch (err) {
                 console.error('Delete failed:', err);
             }
@@ -433,16 +448,16 @@ const MessageItem = ({ message, onReply, onImageClick }: { message: ChatMessage,
                 </div>
             );
         }
-        return <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{content}</p>;
+        return <p className={clsx("text-[15px] leading-relaxed whitespace-pre-wrap break-words font-medium", isMe ? "text-gray-900" : "text-white")}>{content}</p>;
     };
 
     return (
-        <div className="group flex flex-col mb-2 animate-in slide-in-from-bottom-2 duration-300 items-start">
-            <div className="flex max-w-[85%] md:max-w-[85%] gap-2 md:gap-3 flex-row">
+        <div className="group flex flex-col mb-4 animate-in slide-in-from-bottom-2 duration-300 items-start">
+            <div className="flex max-w-[85%] md:max-w-[70%] gap-2 md:gap-3 flex-row">
                 {/* Avatar */}
                 <div className={clsx(
                     "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-lg font-black text-sm",
-                    isMe ? "bg-matrix-green text-matrix-darker border-matrix-green/20" : "bg-matrix-green/20 text-matrix-green border-matrix-green/10"
+                    isMe ? "bg-[#F8F2EF] text-matrix-darker border-[#F8F2EF]/20" : "bg-matrix-green/20 text-matrix-green border-matrix-green/10"
                 )}>
                     {message.avatar_url ? (
                         <img src={message.avatar_url} className="w-full h-full rounded-xl object-cover" />
@@ -454,10 +469,10 @@ const MessageItem = ({ message, onReply, onImageClick }: { message: ChatMessage,
                 <div className="flex flex-col items-start">
                     {/* Username & Time */}
                     <div className="flex items-baseline gap-2 mb-1 px-1 flex-row">
-                        <span className={clsx("text-[11px] font-black tracking-tight", isMe ? "text-matrix-green" : "text-white")}>
+                        <span className={clsx("text-[11px] font-black tracking-tight", isMe ? "text-gray-900" : "text-white")}>
                             {message.display_name || message.username}
                         </span>
-                        <span className="text-[9px] font-bold text-matrix-muted opacity-40 uppercase tracking-widest">
+                        <span className={clsx("text-[9px] font-bold opacity-60 uppercase tracking-widest", isMe ? "text-gray-600" : "text-matrix-muted")}>
                             {format(new Date(message.created_at || Date.now()), 'HH:mm')}
                         </span>
                     </div>
@@ -465,51 +480,35 @@ const MessageItem = ({ message, onReply, onImageClick }: { message: ChatMessage,
                     {/* Bubble */}
                     <div className="relative group/bubble">
                         <div className={clsx(
-                            "px-4 py-2.5 shadow-xl relative transition-all duration-200 font-medium rounded-[1.25rem] rounded-tl-none",
+                            "px-4 py-2.5 shadow-xl relative transition-all duration-200 font-medium rounded-[1.25rem] border",
                             isMe
-                                ? "bg-matrix-green/20 border border-matrix-green/30 text-white hover:bg-matrix-green/30"
-                                : "bg-matrix-dark border border-white/5 text-white/90 hover:bg-matrix-dark/80"
+                                ? "bg-[#F8F2EF] border-[#F8F2EF] rounded-tl-none"
+                                : "bg-matrix-dark border-white/5 text-white/90 hover:bg-matrix-dark/80 rounded-tl-none"
                         )}>
                             {renderContent(message.content)}
                         </div>
 
-                        {/* Actions Overlay */}
-                        <div className={clsx(
-                            "absolute top-0 opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 flex items-center gap-1 z-10",
-                            isMe ? "right-full mr-2" : "left-full ml-2"
-                        )}>
-                            <button
-                                onClick={onReply}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-matrix-green/10 transition-all"
-                            >
-                                <Reply size={16} />
-                            </button>
-                            <button
-                                onClick={() => toggleReaction('❤️')}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-red-500/10 transition-all"
-                            >
-                                <Smile size={16} />
-                            </button>
-                            <button
-                                onClick={() => ApiService.pinMessage(message.id, true).then(() => alert('Message pinned!'))}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-matrix-green/10 transition-all"
-                                title="Pin Message"
-                            >
-                                <Pin size={16} />
-                            </button>
-                            <button
-                                onClick={handleDelete}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-red-500 hover:bg-red-500/10 transition-all"
-                                title="Delete Message"
-                            >
-                                <Trash2 size={16} />
-                            </button>
+                        {/* Actions Overlay - Always hidden until hover */}
+                        <div className="absolute transition-all duration-200 flex items-center gap-1 z-10 -top-10 opacity-0 group-hover/bubble:opacity-100 left-0">
+                            <div className="flex bg-matrix-dark border border-white/20 rounded-xl p-0.5 shadow-2xl backdrop-blur-md">
+                                <button onClick={onReply} className="p-1.5 hover:bg-white/5 rounded-lg text-matrix-muted hover:text-white transition-all"><Reply size={14} /></button>
+                                <button onClick={() => toggleReaction('❤️')} className="p-1.5 hover:bg-white/5 rounded-lg text-matrix-muted hover:text-white transition-all"><Smile size={14} /></button>
+                                {(isMe || isAdmin) && (
+                                    <button
+                                        onClick={handleDelete}
+                                        className="p-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-white transition-all shadow-lg ml-1"
+                                        title="Delete Message"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
 
                     {/* Reactions Display */}
                     {reactions.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
+                        <div className="flex flex-wrap gap-1 mt-2 justify-start">
                             {reactions.map(r => (
                                 <div key={r.emoji} className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/5 border border-white/5 text-[10px] font-bold text-matrix-muted">
                                     <span>{r.emoji}</span>

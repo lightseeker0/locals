@@ -46,5 +46,19 @@ export const useChatMessages = (roomId: string) => {
         }
     }, [roomId, user, fetchMessages]);
 
-    return { messages, sendMessage };
+    const deleteMessage = useCallback(async (messageId: string) => {
+        if (!user) return;
+        try {
+            // Optimistic update
+            setMessages(prev => prev.filter(msg => msg.id !== messageId));
+            await ApiService.deleteMessage(messageId, user.id);
+        } catch (error) {
+            console.error("Failed to delete message", error);
+            // On failure, re-fetch to restore state
+            fetchMessages();
+            throw error;
+        }
+    }, [user, fetchMessages]);
+
+    return { messages, sendMessage, deleteMessage };
 };
