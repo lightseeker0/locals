@@ -20,7 +20,7 @@ export const ChatArea: React.FC = () => {
     const { t } = useI18nStore();
     const { startCall } = useVoiceStore();
     const currentChannel = channels.find(c => c.id === selectedChannelId);
-    const { messages, sendMessage } = useChatMessages(selectedChannelId || '');
+    const { messages, sendMessage, deleteMessage } = useChatMessages(selectedChannelId || '');
     const { typingUsers, setTyping } = useTypingIndicator(selectedChannelId || '');
     const [showPinned, setShowPinned] = useState(false);
 
@@ -216,6 +216,7 @@ export const ChatArea: React.FC = () => {
                         message={msg}
                         onReply={() => setReplyingTo(msg)}
                         onImageClick={(url) => setLightboxImage(url)}
+                        onDelete={() => deleteMessage(msg.id)}
                     />
                 ))}
 
@@ -382,16 +383,16 @@ export const ChatArea: React.FC = () => {
     );
 };
 
-const MessageItem = ({ message, onReply, onImageClick }: { message: ChatMessage, onReply: () => void, onImageClick: (url: string) => void }) => {
+const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: ChatMessage, onReply: () => void, onImageClick: (url: string) => void, onDelete: () => void }) => {
     const { user } = useAuthStore();
+    const { t } = useI18nStore();
     const { reactions, toggleReaction } = useReactions(message.id);
     const isMe = message.user_id === user?.id;
 
     const handleDelete = async () => {
-        if (user && confirm('Delete this message?')) {
+        if (confirm(t('delete_message_confirm') || 'Delete this message?')) {
             try {
-                await ApiService.deleteMessage(message.id, user.id);
-                // The refresh cycle will handle removing it, or we could add local optimistic update
+                onDelete();
             } catch (err) {
                 console.error('Delete failed:', err);
             }
@@ -478,13 +479,15 @@ const MessageItem = ({ message, onReply, onImageClick }: { message: ChatMessage,
                             >
                                 <Pin size={16} />
                             </button>
-                            <button
-                                onClick={handleDelete}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-red-500 hover:bg-red-500/10 transition-all"
-                                title="Delete Message"
-                            >
-                                <Trash2 size={16} />
-                            </button>
+                            {(isMe || (user as any)?.is_admin) && (
+                                <button
+                                    onClick={handleDelete}
+                                    className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-red-500 hover:bg-red-500/10 transition-all"
+                                    title="Delete Message"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            )}
                         </div>
                     </div>
 
