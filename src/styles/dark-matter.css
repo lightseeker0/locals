@@ -29,80 +29,76 @@
     backdrop-filter: brightness(0.7);
 }
 
-/* Sidebar & Panels */
+/* Sidebar & Panels - Classic Discord Layout */
 [data-theme='dark-matter'] .flex.h-screen {
-    padding: 12px;
-    gap: 12px;
+    padding: 0 !important;
+    gap: 0 !important;
 }
 
+/* Base adjustment for Electron to handle the drag region without vertical gap */
 .electron [data-theme='dark-matter'] .flex.h-screen {
-    padding-top: 40px;
+    padding-top: 32px !important;
+    /* Titlebar height */
 }
 
 [data-theme='dark-matter'] .da-sidebar,
 [data-theme='dark-matter'] .sidebar {
     background-color: rgba(0, 0, 0, 0.4) !important;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 16px;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0 !important;
+    height: 100%;
 }
 
 [data-theme='dark-matter'] .da-channels,
 [data-theme='dark-matter'] .channel-list {
-    background-color: rgba(0, 0, 0, 0.4) !important;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 16px;
-    overflow: hidden;
+    background-color: rgba(0, 0, 0, 0.3) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0 !important;
+    height: 100%;
 }
 
-[data-theme='dark-matter'] .da-members {
+[data-theme='dark-matter'] .da-members,
+[data-theme='dark-matter'] .member-list {
     background-color: rgba(0, 0, 0, 0.4) !important;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 16px;
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0 !important;
+    height: 100%;
 }
 
 /* Chat Area */
 [data-theme='dark-matter'] .da-chat,
 [data-theme='dark-matter'] .chat-content {
     background-color: rgba(0, 0, 0, 0.2) !important;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 16px;
-    overflow: hidden;
+    border-radius: 0 !important;
+    border: none !important;
+    height: 100%;
 }
 
 [data-theme='dark-matter'] .header {
     background-color: rgba(0, 0, 0, 0.4) !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    height: 48px !important;
+}
+
+/* User Controls Section at the bottom */
+[data-theme='dark-matter'] .channel-list>div:last-child {
+    background-color: rgba(0, 0, 0, 0.4) !important;
 }
 
 /* Messages */
 [data-theme='dark-matter'] .message-content {
-    background-color: rgba(0, 0, 0, 0.3) !important;
-    border: 1px solid rgba(255, 255, 255, 0.03);
+    background-color: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.02);
     color: #eee;
-    border-radius: 12px;
-}
-
-/* Login Screen Override */
-[data-theme='dark-matter'] .login-container {
-    background-color: rgba(0, 0, 0, 0.7) !important;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(248, 242, 239, 0.2);
-}
-
-/* Buttons */
-[data-theme='dark-matter'] button.bg-matrix-green {
-    background-color: rgb(var(--dm-accent)) !important;
-    color: black !important;
-    box-shadow: 0 0 10px rgba(var(--dm-accent), 0.3);
+    border-radius: 4px;
 }
 
 /* Inputs */
 [data-theme='dark-matter'] input,
 [data-theme='dark-matter'] textarea {
-    background-color: rgba(0, 0, 0, 0.5) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    color: white !important;
-    border-radius: 10px;
+    background-color: rgba(0, 0, 0, 0.3) !important;
+    border-color: rgba(255, 255, 255, 0.05) !important;
+    border-radius: 8px;
 }
 
 /* Text Overrides */
