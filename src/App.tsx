@@ -71,6 +71,13 @@ function App() {
     // Apply theme
     document.documentElement.className = currentBuiltInTheme;
     document.documentElement.setAttribute('data-theme', currentBuiltInTheme);
+
+    // Add electron class for CSS targeting
+    if (!!(window as any).electron) {
+      document.documentElement.classList.add('electron');
+    } else {
+      document.documentElement.classList.remove('electron');
+    }
   }, [currentBuiltInTheme]);
 
   const isElectron = !!(window as any).electron;
