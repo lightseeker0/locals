@@ -1,5 +1,5 @@
 export class ApiService {
-    private static baseUrl = (import.meta.env.VITE_API_URL as string) || 'https://locals-1ni.pages.dev/api';
+    private static baseUrl = '/api';
 
     private static getHeaders(userId?: string) {
         const headers: any = { 'Content-Type': 'application/json' };

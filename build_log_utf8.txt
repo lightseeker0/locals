@@ -1,0 +1,7 @@
+﻿
+> locals@0.0.27 build
+> tsc -b && vite build
+
+src/components/ChannelList_1edddc5.tsx(32,13): error TS2339: Property 'participants' does not exist on type 'VoiceState'.
+src/components/ChannelList_1edddc5.tsx(313,56): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/components/ChannelList_other.tsx(564,13): error TS2339: Property 'remoteStream' does not exist on type 'VoiceState'.

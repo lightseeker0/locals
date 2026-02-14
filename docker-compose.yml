@@ -1,0 +1,21 @@
+services:
+  api:
+    build: ./server
+    # We don't strictly need to expose ports to the host if using a tunnel
+    # but keeping 3000 exposed for local testing is helpful.
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./server/data:/app/data
+      - ./:/app_root
+    environment:
+      - NODE_ENV=production
+    restart: always
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    restart: always
+

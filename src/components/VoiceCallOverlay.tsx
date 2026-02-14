@@ -12,7 +12,7 @@ export const VoiceCallOverlay: React.FC = () => {
         let interval: any;
         if (activeCall && user) {
             interval = setInterval(() => {
-                pollSignals(user.id);
+                if (user?.id) pollSignals(user.id);
             }, 1000); // Poll every 1 second (Faster signaling)
         }
         return () => clearInterval(interval);
@@ -59,7 +59,7 @@ export const VoiceCallOverlay: React.FC = () => {
                     {isDeafened ? <HeadphoneOff size={20} /> : <Headphones size={20} />}
                 </button>
                 <button
-                    onClick={() => endCall(user?.id)}
+                    onClick={() => { if (user?.id) endCall(user.id); }}
                     className="p-3 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all shadow-lg hover:shadow-red-500/20"
                 >
                     <PhoneOff size={20} />

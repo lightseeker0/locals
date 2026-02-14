@@ -263,7 +263,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                     (get() as any).setupAudioAnalyser(remoteStream, fromId);
                 });
 
-                peer.on('error', (err: any) => get().removePeer(fromId));
+                peer.on('error', () => get().removePeer(fromId));
                 peer.on('close', () => get().removePeer(fromId));
 
                 set(state => ({

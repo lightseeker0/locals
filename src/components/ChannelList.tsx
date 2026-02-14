@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
-import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Settings, Trash2, Bell, Circle, Clock, MinusCircle } from 'lucide-react';
+import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Settings, Trash2, Bell, Circle, Clock, MinusCircle, LogOut } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DirectMessageModal } from './modals/DirectMessageModal';
 import { useVoiceStore } from '../stores/useVoiceStore';
@@ -17,7 +17,7 @@ import { AdminPanel } from './modals/AdminPanel';
 
 export const ChannelList: React.FC = () => {
     const { selectedServerId, servers, channels, selectedChannelId, setSelectedChannel, setSettingsOpen, setSelectedServer } = useAppStore();
-    const { user, userStatus, setUserStatus } = useAuthStore();
+    const { user, userStatus, setUserStatus, logout } = useAuthStore();
     const { refreshRooms, refreshSpaces } = useAppData();
     const { t } = useI18nStore();
     const [isDMOpen, setIsDMOpen] = useState(false);
@@ -96,7 +96,9 @@ export const ChannelList: React.FC = () => {
         toggleMute,
         toggleDeafen,
         endCall,
-        fetchParticipants
+        fetchParticipants,
+        remoteStreams,
+        audioOutputDeviceId
     } = useVoiceStore();
     const prevParticipants = React.useRef<Record<string, any[]>>({});
 
@@ -107,7 +109,7 @@ export const ChannelList: React.FC = () => {
         const poll = async () => {
             const voiceRooms = channels.filter(c => c.type === 'voice');
             for (const room of voiceRooms) {
-                await fetchParticipants(room.id, user.id);
+                if (user?.id) await fetchParticipants(room.id, user.id);
             }
         };
 
@@ -150,7 +152,7 @@ export const ChannelList: React.FC = () => {
 
         const poll = () => {
             voiceChannels.forEach(channel => {
-                fetchParticipants(channel.id, user.id);
+                if (user?.id) fetchParticipants(channel.id, user.id);
             });
         };
 
@@ -203,7 +205,7 @@ export const ChannelList: React.FC = () => {
                         </button>
                     </div>
                     <button
-                        onClick={() => endCall(user?.id)}
+                        onClick={() => { if (user?.id) endCall(user.id); }}
                         className="p-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center gap-2"
                         title="Disconnect"
                     >
@@ -330,6 +332,17 @@ export const ChannelList: React.FC = () => {
                         className="p-1 px-1.5 hover:bg-white/5 rounded-lg hover:text-white transition-all"
                     >
                         <Settings size={16} />
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (confirm(t('logout_confirm') || 'Are you sure you want to log out?')) {
+                                logout();
+                            }
+                        }}
+                        className="p-1 px-1.5 hover:bg-red-500/10 rounded-lg text-matrix-muted hover:text-red-500 transition-all"
+                        title={t('logout') || 'Log Out'}
+                    >
+                        <LogOut size={16} />
                     </button>
                 </div>
             </div>
@@ -480,7 +493,7 @@ export const ChannelList: React.FC = () => {
                                 )}
                                 onClick={() => {
                                     setSelectedChannel(channel.id);
-                                    if (channel.type === 'voice') {
+                                    if (channel.type === 'voice' && user) {
                                         startCall(channel.id, user);
                                     }
                                 }}
@@ -552,47 +565,25 @@ export const ChannelList: React.FC = () => {
             <AdminPanel isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
 
             {/* Hidden audio element for voice chat */}
-            <VoiceAudioPlayer />
+            <div style={{ display: 'none' }}>
+                {Object.entries(remoteStreams).map(([userId, stream]) => (
+                    <audio
+                        key={userId}
+                        ref={(el) => {
+                            if (el && stream) {
+                                el.srcObject = stream;
+                                if (audioOutputDeviceId && (el as any).setSinkId) {
+                                    (el as any).setSinkId(audioOutputDeviceId)
+                                        .catch((err: any) => console.error("Failed to set output device:", err));
+                                }
+                            }
+                        }}
+                        autoPlay
+                        muted={isDeafened}
+                    />
+                ))}
+            </div>
         </div>
     );
 };
 
-const VoiceAudioPlayer = () => {
-    const { remoteStreams, audioOutputDeviceId, isDeafened } = useVoiceStore();
-
-    return (
-        <>
-            {Object.entries(remoteStreams).map(([userId, stream]) => (
-                <RemoteAudioItem
-                    key={userId}
-                    stream={stream}
-                    outputDeviceId={audioOutputDeviceId}
-                    isDeafened={isDeafened}
-                />
-            ))}
-        </>
-    );
-};
-
-const RemoteAudioItem = ({ stream, outputDeviceId, isDeafened }: { stream: MediaStream, outputDeviceId: string | null, isDeafened: boolean }) => {
-    const audioRef = React.useRef<HTMLAudioElement>(null);
-
-    React.useEffect(() => {
-        if (audioRef.current && stream) {
-            audioRef.current.srcObject = stream;
-            if (outputDeviceId && (audioRef.current as any).setSinkId) {
-                (audioRef.current as any).setSinkId(outputDeviceId)
-                    .catch((err: any) => console.error("Failed to set output device:", err));
-            }
-        }
-    }, [stream, outputDeviceId]);
-
-    return (
-        <audio
-            ref={audioRef}
-            autoPlay
-            muted={isDeafened}
-            style={{ display: 'none' }}
-        />
-    );
-};
