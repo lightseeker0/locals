@@ -349,14 +349,27 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     fetchParticipants: async (roomId: string, userId: string) => {
+        const { peers, pendingPeers, localStream, activeCall } = get();
         try {
             const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
             set(state => ({
-                roomParticipants: {
-                    ...state.roomParticipants,
-                    [roomId]: participants
-                }
+                roomParticipants: { ...state.roomParticipants, [roomId]: participants ?? [] }
             }));
+
+            // MESH FIX: If in call, check for missing peers deterministically
+            if (activeCall && localStream) {
+                for (const p of participants) {
+                    if (p.id !== userId && !peers[p.id] && !pendingPeers.has(p.id)) {
+                        // Deterministic rule: smaller ID initiates connection
+                        // This ensures that even if two users join simultaneously and don't see each other initially,
+                        // one will eventually initiate a connection to the other via this poll.
+                        if (userId < p.id) {
+                            console.log(`[WebRTC] Mesh: Discovered ${p.id}, I am the initiator (${userId} < ${p.id})`);
+                            (get() as any).initiatePeerConnection(activeCall.id, userId, p.id, localStream);
+                        }
+                    }
+                }
+            }
         } catch (err) { }
     },
 
