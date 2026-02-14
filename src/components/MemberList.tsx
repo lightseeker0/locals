@@ -4,12 +4,14 @@ import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { UserMinus, Ban } from 'lucide-react';
 import { useI18nStore } from '../stores/i18nStore';
+import { useChatMessages } from '../hooks/useChatMessages';
 
 export const MemberList: React.FC = () => {
     const [members, setMembers] = useState<any[]>([]);
     const { user, userStatus } = useAuthStore();
     const { t } = useI18nStore();
-    const { selectedServerId, servers } = useAppStore();
+    const { selectedServerId, servers, selectedChannelId } = useAppStore();
+    const { messages } = useChatMessages(selectedChannelId || '');
 
     const currentServer = servers.find(s => s.id === selectedServerId);
     const adminUsername = import.meta.env.VITE_ADMIN_USERNAME || 'ds4d';
@@ -72,9 +74,25 @@ export const MemberList: React.FC = () => {
         return (now - utcDate.getTime()) < 60000 * 5; // Increased to 5 minutes for stability
     };
 
-    const onlineMembers = members.filter(m => isOnline(m.last_seen) && !m.is_banned);
-    const offlineMembers = members.filter(m => !isOnline(m.last_seen) && !m.is_banned);
-    const bannedMembers = members.filter(m => m.is_banned);
+    const allMembers = React.useMemo(() => {
+        const merged = [...members];
+        messages.forEach(msg => {
+            if (!merged.find(m => m.id === msg.user_id)) {
+                merged.push({
+                    id: msg.user_id,
+                    username: msg.username || 'Unknown',
+                    display_name: msg.display_name,
+                    avatar_url: msg.avatar_url,
+                    last_seen: msg.created_at, // Use message date as fallback
+                });
+            }
+        });
+        return merged;
+    }, [members, messages]);
+
+    const onlineMembers = allMembers.filter(m => isOnline(m.last_seen) && !m.is_banned);
+    const offlineMembers = allMembers.filter(m => !isOnline(m.last_seen) && !m.is_banned);
+    const bannedMembers = allMembers.filter(m => m.is_banned);
 
     const renderMemberParams = (m: any, status: string) => (
         <div key={m.id} className="group flex items-center gap-3 p-1.5 hover:bg-white/5 rounded-lg cursor-pointer transition-colors relative">
@@ -159,7 +177,7 @@ export const MemberList: React.FC = () => {
                     </>
                 )}
 
-                {members.length === 0 && (
+                {allMembers.length === 0 && (
                     <div className="text-xs text-matrix-muted text-center py-4 opacity-30 italic">No ones here...</div>
                 )}
             </div>
