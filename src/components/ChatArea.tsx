@@ -386,7 +386,8 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
     const { user } = useAuthStore();
     const { t } = useI18nStore();
     const { reactions, toggleReaction } = useReactions(message.id);
-    const isMe = String(message.user_id).toLowerCase() === String(user?.id).toLowerCase();
+    const isMe = String(message.user_id).toLowerCase() === String(user?.id).toLowerCase() ||
+        (message.username && user?.username && String(message.username).toLowerCase() === String(user?.username).toLowerCase());
     const adminUsername = import.meta.env.VITE_ADMIN_USERNAME || 'ds4d';
     const isAdmin = user?.username?.toLowerCase() === adminUsername.toLowerCase();
 
@@ -456,7 +457,7 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                         <div className={clsx(
                             "px-4 py-2.5 shadow-xl relative transition-all duration-200 font-medium rounded-[1.25rem] border",
                             isMe
-                                ? "bg-[#F8F2EF]/20 border-[#F8F2EF]/40 text-white hover:bg-[#F8F2EF]/30 rounded-tr-none"
+                                ? "bg-[#F8F2EF]/30 border-[#F8F2EF]/50 text-white hover:bg-[#F8F2EF]/40 rounded-tr-none"
                                 : "bg-matrix-dark border-white/5 text-white/90 hover:bg-matrix-dark/80 rounded-tl-none"
                         )}>
                             {renderContent(message.content)}
@@ -464,8 +465,8 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
 
                         {/* Actions Overlay */}
                         <div className={clsx(
-                            "absolute opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 flex items-center gap-1 z-10 -top-10",
-                            isMe ? "right-0" : "left-0"
+                            "absolute transition-all duration-200 flex items-center gap-1 z-10 -top-10",
+                            isMe ? "opacity-100 right-0" : "opacity-0 group-hover/bubble:opacity-100 left-0"
                         )}>
                             <div className="flex bg-matrix-dark border border-white/20 rounded-xl p-0.5 shadow-2xl backdrop-blur-md">
                                 <button
@@ -483,7 +484,7 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                                 {(isMe || isAdmin) && (
                                     <button
                                         onClick={handleDelete}
-                                        className="p-1.5 bg-red-500 hover:bg-red-400 rounded-lg text-white transition-all shadow-lg ml-1"
+                                        className="p-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-white transition-all shadow-[0_0_15px_rgba(239,68,68,0.5)] ml-1"
                                         title="Delete Message"
                                     >
                                         <Trash2 size={14} />
