@@ -457,7 +457,7 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                         <div className={clsx(
                             "px-4 py-2.5 shadow-xl relative transition-all duration-200 font-medium rounded-[1.25rem] border",
                             isMe
-                                ? "bg-[#F8F2EF]/30 border-[#F8F2EF]/50 text-white hover:bg-[#F8F2EF]/40 rounded-tr-none"
+                                ? "bg-[#F8F2EF] border-[#F8F2EF] text-[#101317] hover:bg-[#F8F2EF]/90 rounded-tr-none"
                                 : "bg-matrix-dark border-white/5 text-white/90 hover:bg-matrix-dark/80 rounded-tl-none"
                         )}>
                             {renderContent(message.content)}
@@ -496,7 +496,7 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
 
                     {/* Reactions Display */}
                     {reactions.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
+                        <div className={clsx("flex flex-wrap gap-1 mt-2", isMe ? "justify-end" : "justify-start")}>
                             {reactions.map(r => (
                                 <div key={r.emoji} className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/5 border border-white/5 text-[10px] font-bold text-matrix-muted">
                                     <span>{r.emoji}</span>
