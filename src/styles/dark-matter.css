@@ -4,7 +4,7 @@
     --dm-bg-image: url('https://files.catbox.moe/76f6fd.png');
     --dm-black: 0, 0, 0;
     --dm-white: 255, 255, 255;
-    --dm-accent: 170, 0, 0;
+    --dm-accent: 248, 242, 239;
     --dm-overlay: rgba(0, 0, 0, 0.6);
 }
 
@@ -14,7 +14,7 @@
     --matrix-darker: rgba(0, 0, 0, 0.2);
     --bg-primary: var(--matrix-darker);
     --bg-secondary: var(--matrix-dark);
-    --matrix-green: rgb(170, 0, 0);
+    --matrix-green: rgb(248, 242, 239);
     --text-normal: #ffffff;
     --text-muted: #cdcdcd;
 }
@@ -67,7 +67,7 @@
 [data-theme='dark-matter'] .login-container {
     background-color: rgba(0, 0, 0, 0.7) !important;
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(170, 0, 0, 0.2);
+    border: 1px solid rgba(248, 242, 239, 0.2);
 }
 
 /* Buttons */
