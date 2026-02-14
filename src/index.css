@@ -6,7 +6,11 @@
   --color-matrix-darker: #0d1217;
   --color-matrix-text: #e1e1e1;
   --color-matrix-muted: #8e9297;
-  --color-discord-blurple: #5865f2;
+  --color-discord-blurple: #AA0000;
+  --color-blue-400: #AA0000;
+  --color-blue-500: #AA0000;
+  --color-blue-600: #990000;
+  --color-blue-700: #880000;
 }
 
 :root {
@@ -20,7 +24,7 @@
   --matrix-darker: #0d1217;
   --matrix-text: #e1e1e1;
   --matrix-muted: #8e9297;
-  --discord-blurple: #5865f2;
+  --discord-blurple: #AA0000;
   --bg-primary: var(--matrix-darker);
   --bg-secondary: var(--matrix-dark);
   --text-normal: var(--matrix-text);
