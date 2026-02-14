@@ -17,13 +17,13 @@ export interface Theme {
 interface ThemeState {
     themes: Theme[];
     localThemes: string[];
-    currentBuiltInTheme: 'dark' | 'light-mode' | 'frosted-glass' | 'dark-matter' | 'roundmoled';
+    currentBuiltInTheme: 'roundmoled';
     builtInThemes: { id: string; name: string; class: string }[];
     fetchThemes: (userId: string) => Promise<void>;
     saveTheme: (userId: string, theme: Omit<Theme, 'id'> & { id?: string }) => Promise<void>;
     deleteTheme: (userId: string, id: string) => Promise<void>;
     toggleTheme: (userId: string, id: string) => Promise<void>;
-    setBuiltInTheme: (theme: 'dark' | 'light-mode' | 'frosted-glass' | 'dark-matter' | 'roundmoled') => void;
+    setBuiltInTheme: (theme: 'roundmoled') => void;
     applyThemes: () => void;
     initElectronListener: () => void;
 }
@@ -33,12 +33,8 @@ export const useThemeStore = create<ThemeState>()(
         (set, get) => ({
             themes: [],
             localThemes: [],
-            currentBuiltInTheme: 'dark',
+            currentBuiltInTheme: 'roundmoled',
             builtInThemes: [
-                { id: 'matrix-dark', name: 'Matrix Dark', class: 'matrix-dark' },
-                { id: 'light-mode', name: 'Light Mode', class: 'light-mode' },
-                { id: 'frosted-glass', name: 'Frosted Glass', class: 'frosted-glass' },
-                { id: 'dark-matter', name: 'Dark Matter', class: 'dark-matter' },
                 { id: 'roundmoled', name: 'Roundmoled V2', class: 'roundmoled' }
             ],
             fetchThemes: async (userId: string) => {

@@ -4,7 +4,7 @@ import { useThemeStore } from '../../stores/themeStore';
 import { useI18nStore } from '../../stores/i18nStore';
 import {
     X, User, Palette, Sparkles, Plus,
-    Trash2, Moon, Sun,
+    Trash2,
     Save, Globe, Code, Upload, Download, Mic, Circle
 } from 'lucide-react';
 import { useVoiceStore } from '../../stores/useVoiceStore';
@@ -17,7 +17,7 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const { user, updateProfile } = useAuthStore();
-    const { themes, fetchThemes, saveTheme, deleteTheme, toggleTheme, currentBuiltInTheme, setBuiltInTheme } = useThemeStore();
+    const { themes, fetchThemes, saveTheme, deleteTheme, toggleTheme } = useThemeStore();
     const { t, lang, setLanguage } = useI18nStore();
 
     const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'themes' | 'voice'>('profile');
@@ -259,38 +259,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             {activeTab === 'appearance' && (
                                 <div className="space-y-8">
                                     <h3 className="text-lg font-bold text-white mb-2">{t('built_in_themes')}</h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {themes.filter(t => !t.is_active).length === 0 && (
-                                            // Fallback if no themes loaded yet, though we are using builtInThemes from store now
-                                            null
-                                        )}
+                                    <div className="flex justify-center">
                                         {useThemeStore.getState().builtInThemes.map(theme => (
                                             <div
                                                 key={theme.id}
-                                                onClick={() => setBuiltInTheme(theme.id as any)}
-                                                className={clsx(
-                                                    "p-6 rounded-2xl flex flex-col items-center gap-3 cursor-pointer transition-all",
-                                                    currentBuiltInTheme === theme.id ? "bg-matrix-green/10 border border-matrix-green/30" : "bg-white/5 border border-white/10 opacity-40 hover:opacity-100"
-                                                )}
+                                                className="p-8 rounded-2xl flex flex-col items-center gap-4 bg-matrix-green/10 border border-matrix-green/30 max-w-sm"
                                             >
-                                                {theme.id === 'light-mode' ? <Sun size={32} className={currentBuiltInTheme === theme.id ? "text-blue-500" : "text-white"} /> :
-                                                    theme.id === 'frosted-glass' ? <Sparkles size={32} className={currentBuiltInTheme === theme.id ? "text-purple-400" : "text-white"} /> :
-                                                        theme.id === 'roundmoled' ? <Circle size={32} className={currentBuiltInTheme === theme.id ? "text-blue-400" : "text-white"} /> :
-                                                            <Moon size={32} className={currentBuiltInTheme === theme.id ? "text-matrix-green" : "text-white"} />}
-
-                                                <span className={clsx("font-black",
-                                                    currentBuiltInTheme === theme.id && theme.id === 'light-mode' ? "text-blue-500" :
-                                                        currentBuiltInTheme === theme.id && theme.id === 'frosted-glass' ? "text-purple-400" :
-                                                            currentBuiltInTheme === theme.id && theme.id === 'roundmoled' ? "text-blue-400" :
-                                                                currentBuiltInTheme === theme.id ? "text-matrix-green" : "text-white"
-                                                )}>
+                                                <Circle size={48} className="text-blue-400" />
+                                                <span className="font-black text-xl text-blue-400">
                                                     {theme.name}
                                                 </span>
+                                                <p className="text-xs text-matrix-muted text-center">
+                                                    {t('current_theme') || 'Active Theme'}
+                                                </p>
                                             </div>
                                         ))}
                                     </div>
-
-                                    {/* Compact Layout Removed */}
                                 </div>
                             )}
 
