@@ -5,6 +5,7 @@ import { useAppStore } from '../stores/appStore';
 import { UserMinus, Ban } from 'lucide-react';
 import { useI18nStore } from '../stores/i18nStore';
 import { useChatMessages } from '../hooks/useChatMessages';
+import { clsx } from 'clsx';
 
 export const MemberList: React.FC = () => {
     const [members, setMembers] = useState<any[]>([]);
@@ -90,53 +91,74 @@ export const MemberList: React.FC = () => {
         return merged;
     }, [members, messages]);
 
-    const onlineMembers = allMembers.filter(m => isOnline(m.last_seen) && !m.is_banned);
-    const offlineMembers = allMembers.filter(m => !isOnline(m.last_seen) && !m.is_banned);
+    const isMemberOnline = (m: any) => {
+        const status = m.id === user?.id ? userStatus : m.custom_status;
+        if (['online', 'idle', 'dnd'].includes(status)) return true;
+        if (status === 'invisible') return false;
+        // Fallback to time-based check for others
+        return isOnline(m.last_seen);
+    };
+
+    const onlineMembers = allMembers.filter(m => isMemberOnline(m) && !m.is_banned);
+    const offlineMembers = allMembers.filter(m => !isMemberOnline(m) && !m.is_banned);
     const bannedMembers = allMembers.filter(m => m.is_banned);
 
-    const renderMemberParams = (m: any, status: string) => (
-        <div key={m.id} className="group flex items-center gap-3 p-1.5 hover:bg-white/5 rounded-lg cursor-pointer transition-colors relative">
-            <div className="relative">
-                {m.avatar_url ? (
-                    <img src={m.avatar_url} className={`w-8 h-8 rounded-full border border-white/10 ${status === 'offline' ? 'grayscale opacity-70' : ''}`} alt="" />
-                ) : (
-                    <div className={`w-8 h-8 rounded-full bg-matrix-green/10 border border-matrix-green/20 flex items-center justify-center ${status === 'offline' ? 'grayscale opacity-70' : ''}`}>
-                        <span className="text-[10px] font-bold text-matrix-green">
-                            {(m.display_name || m.username).substring(0, 1).toUpperCase()}
-                        </span>
-                    </div>
-                )}
-                {/* Status Dot Removed (Mavi nokta kaldırıldı) */}
-                {m.is_banned && (
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-matrix-darker"></div>
-                )}
-            </div>
-            <div className="flex-1 min-w-0">
-                <div className={`font-medium text-[14px] truncate ${status === 'offline' ? 'text-matrix-muted' : 'text-gray-200'} group-hover:text-white`}>
-                    {m.display_name || m.username}
-                    {!!m.is_banned && <span className="ml-2 text-[10px] text-red-500 font-bold uppercase">(BANNED)</span>}
-                </div>
-                {/* Custom status or presence */}
-                <div className="text-[10px] text-matrix-muted truncate opacity-50 group-hover:opacity-100 transition-opacity">
-                    {m.id === user?.id ? t(userStatus === 'invisible' ? 'offline' : userStatus) : (m.custom_status || (status === 'online' ? 'Online' : 'Offline'))}
-                </div>
-            </div>
+    const renderMemberParams = (m: any, section: string) => {
+        const status = m.id === user?.id ? userStatus : (m.custom_status || (isOnline(m.last_seen) ? 'online' : 'invisible'));
+        const statusColor = status === 'online' ? 'bg-matrix-green' :
+            status === 'idle' ? 'bg-yellow-500' :
+                status === 'dnd' ? 'bg-red-500' : 'bg-gray-500';
 
-            {/* Moderation Actions (Hover) */}
-            <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 bg-matrix-darker/80 rounded p-0.5 shadow-sm backdrop-blur-sm">
-                {isOwner && selectedServerId && m.id !== user?.id && (
-                    <button onClick={(e) => { e.stopPropagation(); handleKick(m.id); }} title="Kick from Server" className="p-1 hover:text-red-400 text-matrix-muted transition-colors">
-                        <UserMinus size={14} />
-                    </button>
-                )}
-                {isAdmin && m.id !== user?.id && !m.is_banned && (
-                    <button onClick={(e) => { e.stopPropagation(); handleBan(m.id); }} title="Ban Globally" className="p-1 hover:text-red-500 text-matrix-muted transition-colors">
-                        <Ban size={14} />
-                    </button>
-                )}
+        return (
+            <div key={m.id} className="group flex items-center gap-3 p-1.5 hover:bg-white/5 rounded-lg cursor-pointer transition-colors relative">
+                <div className="relative">
+                    {m.avatar_url ? (
+                        <img src={m.avatar_url} className={clsx("w-8 h-8 rounded-full border border-white/10", section === 'offline' && 'grayscale opacity-70')} alt="" />
+                    ) : (
+                        <div className={clsx("w-8 h-8 rounded-full bg-matrix-green/10 border border-matrix-green/20 flex items-center justify-center", section === 'offline' && 'grayscale opacity-70')}>
+                            <span className="text-[10px] font-bold text-matrix-green">
+                                {(m.display_name || m.username).substring(0, 1).toUpperCase()}
+                            </span>
+                        </div>
+                    )}
+
+                    {!m.is_banned && (
+                        <div className={clsx("absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-matrix-darker transition-colors", statusColor)}>
+                            {status === 'dnd' && <div className="w-1.5 h-0.5 bg-matrix-darker absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" />}
+                            {status === 'idle' && <div className="w-1.5 h-1.5 bg-matrix-darker absolute -top-0.5 -left-0.5 rounded-full" />}
+                        </div>
+                    )}
+
+                    {m.is_banned && (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-matrix-darker"></div>
+                    )}
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className={clsx("font-medium text-[14px] truncate group-hover:text-white", section === 'offline' ? 'text-matrix-muted' : 'text-gray-200')}>
+                        {m.display_name || m.username}
+                        {!!m.is_banned && <span className="ml-2 text-[10px] text-red-500 font-bold uppercase">(BANNED)</span>}
+                    </div>
+                    <div className="text-[10px] text-matrix-muted truncate opacity-50 group-hover:opacity-100 transition-opacity">
+                        {['online', 'idle', 'dnd', 'invisible'].includes(status) ? t(status === 'invisible' ? 'offline' : status) : (m.custom_status || (section === 'online' ? t('online') : t('offline')))}
+                    </div>
+                </div>
+
+                {/* Moderation Actions (Hover) */}
+                <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 bg-matrix-darker/80 rounded p-0.5 shadow-sm backdrop-blur-sm">
+                    {isOwner && selectedServerId && m.id !== user?.id && (
+                        <button onClick={(e) => { e.stopPropagation(); handleKick(m.id); }} title="Kick from Server" className="p-1 hover:text-red-400 text-matrix-muted transition-colors">
+                            <UserMinus size={14} />
+                        </button>
+                    )}
+                    {isAdmin && m.id !== user?.id && !m.is_banned && (
+                        <button onClick={(e) => { e.stopPropagation(); handleBan(m.id); }} title="Ban Globally" className="p-1 hover:text-red-500 text-matrix-muted transition-colors">
+                            <Ban size={14} />
+                        </button>
+                    )}
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     return (
         <div className="w-[var(--member-list-width)] bg-transparent flex flex-col shrink-0 border-l border-white/5 members da-members members-3WRCEx members_c8ffbb container_c8ffbb">

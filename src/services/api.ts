@@ -52,7 +52,7 @@ export class ApiService {
     }
 
     // --- User ---
-    static async updateProfile(userId: string, data: { display_name: string, avatar_url: string, bio?: string }) {
+    static async updateProfile(userId: string, data: { display_name: string, avatar_url: string, bio?: string, custom_status?: string }) {
         return this.post('/user/profile', { id: userId, ...data }, userId);
     }
 

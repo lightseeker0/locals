@@ -23,7 +23,21 @@ export const useAuthStore = create<AuthState>()(
             isLoading: true,
             userStatus: 'online',
 
-            setUserStatus: (status) => set({ userStatus: status }),
+            setUserStatus: async (status) => {
+                const { user } = useAuthStore.getState();
+                set({ userStatus: status });
+                if (user) {
+                    try {
+                        await ApiService.updateProfile(user.id, {
+                            display_name: user.display_name,
+                            avatar_url: user.avatar_url,
+                            custom_status: status
+                        } as any);
+                    } catch (err) {
+                        console.error('Failed to update status on server:', err);
+                    }
+                }
+            },
 
             login: async (username: string, password?: string) => {
                 const user = await ApiService.login({ username, password });
