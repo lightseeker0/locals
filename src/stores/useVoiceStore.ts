@@ -75,7 +75,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
                 for (const p of participants) {
                     if (p.id !== userId) {
-                        (get() as any).initiatePeerConnection(callId, userId, p.id, stream);
+                        if (userId < p.id) {
+                            console.log(`[WebRTC] Mesh (Start): Initiating with ${p.id} (${userId} < ${p.id})`);
+                            (get() as any).initiatePeerConnection(callId, userId, p.id, stream);
+                        } else {
+                            console.log(`[WebRTC] Mesh (Start): Waiting for ${p.id} to initiate (${userId} > ${p.id})`);
+                        }
                     }
                 }
             }
@@ -109,7 +114,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
             for (const p of participants) {
                 if (p.id !== userId) {
-                    (get() as any).initiatePeerConnection(callId, userId, p.id, stream);
+                    if (userId < p.id) {
+                        console.log(`[WebRTC] Mesh (Join): Initiating with ${p.id} (${userId} < ${p.id})`);
+                        (get() as any).initiatePeerConnection(callId, userId, p.id, stream);
+                    } else {
+                        console.log(`[WebRTC] Mesh (Join): Waiting for ${p.id} to initiate (${userId} > ${p.id})`);
+                    }
                 }
             }
 
@@ -129,6 +139,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         set({ pendingPeers: newPending });
 
         try {
+            console.log(`[WebRTC] Starting peer with ${targetId} (initiator: true)`);
             const peer = new SimplePeer({
                 initiator: true,
                 trickle: true,
@@ -142,6 +153,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             });
 
             peer.on('signal', async (data: any) => {
+                console.log(`[WebRTC] Outgoing signal to ${targetId}:`, data.type || 'ice');
                 await ApiService.sendSignal(callId, userId, data.type || 'signal', {
                     signal: data,
                     to: targetId,
@@ -239,6 +251,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 });
 
                 peer.on('signal', async (data: any) => {
+                    console.log(`[WebRTC] Outgoing (joiner) signal back to ${fromId}:`, data.type || 'ice');
                     await ApiService.sendSignal(callId, userId, data.type || 'signal', {
                         signal: data,
                         to: fromId,
@@ -282,6 +295,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
         if (peer) {
             try {
+                console.log(`[WebRTC] Processing incoming signal from ${fromId}:`, payload.type || 'ice');
                 peer.signal(payload);
             } catch (e) {
                 console.error(`[WebRTC] Error signaling peer ${fromId}:`, e);

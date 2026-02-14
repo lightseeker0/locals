@@ -13,7 +13,7 @@ export const VoiceCallOverlay: React.FC = () => {
         if (activeCall && user) {
             interval = setInterval(() => {
                 if (user?.id) pollSignals(user.id);
-            }, 1000); // Poll every 1 second (Faster signaling)
+            }, 333); // Poll every 333ms for faster WebRTC handshake
         }
         return () => clearInterval(interval);
     }, [activeCall, user, pollSignals]);
