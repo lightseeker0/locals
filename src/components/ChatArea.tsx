@@ -382,12 +382,13 @@ export const ChatArea: React.FC = () => {
         </div>
     );
 };
-
 const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: ChatMessage, onReply: () => void, onImageClick: (url: string) => void, onDelete: () => void }) => {
     const { user } = useAuthStore();
     const { t } = useI18nStore();
     const { reactions, toggleReaction } = useReactions(message.id);
     const isMe = message.user_id === user?.id;
+    const adminUsername = import.meta.env.VITE_ADMIN_USERNAME || 'ds4d';
+    const isAdmin = user?.username?.toLowerCase() === adminUsername.toLowerCase();
 
     const handleDelete = async () => {
         if (confirm(t('delete_message_confirm') || 'Delete this message?')) {
@@ -419,12 +420,18 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
     };
 
     return (
-        <div className="group flex flex-col mb-2 animate-in slide-in-from-bottom-2 duration-300 items-start">
-            <div className="flex max-w-[85%] md:max-w-[85%] gap-2 md:gap-3 flex-row">
+        <div className={clsx(
+            "group flex flex-col mb-4 animate-in slide-in-from-bottom-2 duration-300",
+            isMe ? "items-end" : "items-start"
+        )}>
+            <div className={clsx(
+                "flex max-w-[85%] md:max-w-[70%] gap-2 md:gap-3",
+                isMe ? "flex-row-reverse" : "flex-row"
+            )}>
                 {/* Avatar */}
                 <div className={clsx(
                     "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-lg font-black text-sm",
-                    isMe ? "bg-matrix-green text-matrix-darker border-matrix-green/20" : "bg-matrix-green/20 text-matrix-green border-matrix-green/10"
+                    isMe ? "bg-[#F8F2EF] text-matrix-darker border-[#F8F2EF]/20" : "bg-matrix-green/20 text-matrix-green border-matrix-green/10"
                 )}>
                     {message.avatar_url ? (
                         <img src={message.avatar_url} className="w-full h-full rounded-xl object-cover" />
@@ -433,10 +440,10 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                     )}
                 </div>
 
-                <div className="flex flex-col items-start">
+                <div className={clsx("flex flex-col", isMe ? "items-end" : "items-start")}>
                     {/* Username & Time */}
-                    <div className="flex items-baseline gap-2 mb-1 px-1 flex-row">
-                        <span className={clsx("text-[11px] font-black tracking-tight", isMe ? "text-matrix-green" : "text-white")}>
+                    <div className={clsx("flex items-baseline gap-2 mb-1 px-1", isMe ? "flex-row-reverse" : "flex-row")}>
+                        <span className={clsx("text-[11px] font-black tracking-tight", isMe ? "text-[#F8F2EF]" : "text-white")}>
                             {message.display_name || message.username}
                         </span>
                         <span className="text-[9px] font-bold text-matrix-muted opacity-40 uppercase tracking-widest">
@@ -447,42 +454,42 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                     {/* Bubble */}
                     <div className="relative group/bubble">
                         <div className={clsx(
-                            "px-4 py-2.5 shadow-xl relative transition-all duration-200 font-medium rounded-[1.25rem] rounded-tl-none border",
+                            "px-4 py-2.5 shadow-xl relative transition-all duration-200 font-medium rounded-[1.25rem] border",
                             isMe
-                                ? "bg-[#F8F2EF]/20 border-[#F8F2EF]/40 text-white hover:bg-[#F8F2EF]/30"
-                                : "bg-matrix-dark border-white/5 text-white/90 hover:bg-matrix-dark/80"
+                                ? "bg-[#F8F2EF]/20 border-[#F8F2EF]/40 text-white hover:bg-[#F8F2EF]/30 rounded-tr-none"
+                                : "bg-matrix-dark border-white/5 text-white/90 hover:bg-matrix-dark/80 rounded-tl-none"
                         )}>
                             {renderContent(message.content)}
                         </div>
 
                         {/* Actions Overlay */}
                         <div className={clsx(
-                            "absolute top-0 opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 flex items-center gap-1 z-10",
-                            isMe ? "right-full mr-2" : "left-full ml-2"
+                            "absolute opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 flex items-center gap-1 z-10 -top-4",
+                            isMe ? "right-0" : "left-0"
                         )}>
                             <button
                                 onClick={onReply}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-matrix-green/10 transition-all"
+                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-white/5 transition-all shadow-xl"
                             >
                                 <Reply size={16} />
                             </button>
                             <button
                                 onClick={() => toggleReaction('❤️')}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-red-500/10 transition-all"
+                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-red-500/10 transition-all shadow-xl"
                             >
                                 <Smile size={16} />
                             </button>
                             <button
                                 onClick={() => ApiService.pinMessage(message.id, true).then(() => alert('Message pinned!'))}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-white/10 transition-all"
+                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-white/10 transition-all shadow-xl"
                                 title="Pin Message"
                             >
                                 <Pin size={16} />
                             </button>
-                            {(isMe || (user as any)?.is_admin) && (
+                            {(isMe || isAdmin) && (
                                 <button
                                     onClick={handleDelete}
-                                    className="p-2 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-lg"
+                                    className="p-2 bg-red-500 border border-red-600 rounded-xl text-white hover:bg-red-600 transition-all shadow-[0_0_15px_rgba(239,68,68,0.4)]"
                                     title="Delete Message"
                                 >
                                     <Trash2 size={16} />
