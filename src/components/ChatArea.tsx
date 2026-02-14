@@ -386,7 +386,7 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
     const { user } = useAuthStore();
     const { t } = useI18nStore();
     const { reactions, toggleReaction } = useReactions(message.id);
-    const isMe = message.user_id === user?.id;
+    const isMe = String(message.user_id).toLowerCase() === String(user?.id).toLowerCase();
     const adminUsername = import.meta.env.VITE_ADMIN_USERNAME || 'ds4d';
     const isAdmin = user?.username?.toLowerCase() === adminUsername.toLowerCase();
 
@@ -464,37 +464,32 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
 
                         {/* Actions Overlay */}
                         <div className={clsx(
-                            "absolute opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 flex items-center gap-1 z-10 -top-4",
+                            "absolute opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 flex items-center gap-1 z-10 -top-10",
                             isMe ? "right-0" : "left-0"
                         )}>
-                            <button
-                                onClick={onReply}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-white/5 transition-all shadow-xl"
-                            >
-                                <Reply size={16} />
-                            </button>
-                            <button
-                                onClick={() => toggleReaction('❤️')}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-red-500/10 transition-all shadow-xl"
-                            >
-                                <Smile size={16} />
-                            </button>
-                            <button
-                                onClick={() => ApiService.pinMessage(message.id, true).then(() => alert('Message pinned!'))}
-                                className="p-2 bg-matrix-dark border border-white/10 rounded-xl text-matrix-muted hover:text-white hover:bg-white/10 transition-all shadow-xl"
-                                title="Pin Message"
-                            >
-                                <Pin size={16} />
-                            </button>
-                            {(isMe || isAdmin) && (
+                            <div className="flex bg-matrix-dark border border-white/20 rounded-xl p-0.5 shadow-2xl backdrop-blur-md">
                                 <button
-                                    onClick={handleDelete}
-                                    className="p-2 bg-red-500 border border-red-600 rounded-xl text-white hover:bg-red-600 transition-all shadow-[0_0_15px_rgba(239,68,68,0.4)]"
-                                    title="Delete Message"
+                                    onClick={onReply}
+                                    className="p-1.5 hover:bg-white/5 rounded-lg text-matrix-muted hover:text-white transition-all"
                                 >
-                                    <Trash2 size={16} />
+                                    <Reply size={14} />
                                 </button>
-                            )}
+                                <button
+                                    onClick={() => toggleReaction('❤️')}
+                                    className="p-1.5 hover:bg-white/5 rounded-lg text-matrix-muted hover:text-white transition-all"
+                                >
+                                    <Smile size={14} />
+                                </button>
+                                {(isMe || isAdmin) && (
+                                    <button
+                                        onClick={handleDelete}
+                                        className="p-1.5 bg-red-500 hover:bg-red-400 rounded-lg text-white transition-all shadow-lg ml-1"
+                                        title="Delete Message"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
 
