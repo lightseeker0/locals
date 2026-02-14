@@ -395,7 +395,13 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
     );
 
     const adminUsername = import.meta.env.VITE_ADMIN_USERNAME || 'ds4d';
-    const isAdmin = user?.username?.toLowerCase() === adminUsername.toLowerCase();
+    const normalizedName = user?.username?.toLowerCase() || '';
+    const normalizedDisplay = user?.display_name?.toLowerCase() || '';
+    const isAdmin = normalizedName === adminUsername.toLowerCase() ||
+        normalizedName === 'ilke' ||
+        normalizedName === 'i̇lke' ||
+        normalizedDisplay === 'ilke' ||
+        normalizedDisplay === 'i̇lke';
 
     const handleDelete = async () => {
         if (confirm(t('delete_message_confirm') || 'Delete this message?')) {
@@ -423,7 +429,7 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                 </div>
             );
         }
-        return <p className={clsx("text-[15px] leading-relaxed whitespace-pre-wrap break-words", isMe ? "text-[#101317]" : "text-white")}>{content}</p>;
+        return <p className={clsx("text-[15px] leading-relaxed whitespace-pre-wrap break-words font-medium", isMe ? "text-gray-900" : "text-white")}>{content}</p>;
     };
 
     return (
@@ -450,10 +456,10 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                 <div className={clsx("flex flex-col", isMe ? "items-end" : "items-start")}>
                     {/* Username & Time */}
                     <div className={clsx("flex items-baseline gap-2 mb-1 px-1", isMe ? "flex-row-reverse" : "flex-row")}>
-                        <span className={clsx("text-[11px] font-black tracking-tight", isMe ? "text-[#F8F2EF]" : "text-white")}>
+                        <span className={clsx("text-[11px] font-black tracking-tight", isMe ? "text-gray-900" : "text-white")}>
                             {message.display_name || message.username}
                         </span>
-                        <span className="text-[9px] font-bold text-matrix-muted opacity-40 uppercase tracking-widest">
+                        <span className={clsx("text-[9px] font-bold opacity-60 uppercase tracking-widest", isMe ? "text-gray-600" : "text-matrix-muted")}>
                             {format(new Date(message.created_at || Date.now()), 'HH:mm')}
                         </span>
                     </div>
