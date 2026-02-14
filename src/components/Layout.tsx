@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { ChannelList } from './ChannelList';
 import { ChatArea } from './ChatArea';
 import { MemberList } from './MemberList';
+import { UserControlPanel } from './UserControlPanel';
 import { useAppStore } from '../stores/appStore';
 import { SettingsModal } from './modals/SettingsModal';
 import { clsx } from 'clsx';
@@ -67,6 +68,11 @@ export const Layout: React.FC = () => {
                     <Sidebar />
                     <ChannelList />
                 </div>
+            </div>
+
+            {/* User Control Panel - New Column */}
+            <div className="hidden lg:flex shrink-0">
+                <UserControlPanel />
             </div>
 
             {/* Main Chat Area */}
