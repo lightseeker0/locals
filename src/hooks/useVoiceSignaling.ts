@@ -18,15 +18,16 @@ export const useVoiceSignaling = () => {
         const pollLoop = async () => {
             if (!isActive || !activeCall || !user?.id) return;
 
-            const { callStatus } = useVoiceStore.getState();
+            const { callStatus, pollingBackoff } = useVoiceStore.getState();
 
             // Fast polling (333ms) during handshake, slow polling (2000ms) once connected
-            const interval = callStatus === 'connected' ? 2000 : 333;
+            // Add extra backoff if server is currently failing (502/504)
+            const interval = (callStatus === 'connected' ? 2000 : 333) + pollingBackoff;
 
             try {
                 await pollSignals(user.id);
             } catch (err) {
-                // Error handling is inside pollSignals, but we catch here just in case
+                // Handled in pollSignals
             }
 
             if (isActive) {

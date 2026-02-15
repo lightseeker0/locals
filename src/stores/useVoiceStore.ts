@@ -31,6 +31,7 @@ interface VoiceState {
     isPolling: boolean;
     processedSignalIds: Set<number>;
     processedSignalHashes: Set<string>;
+    pollingBackoff: number;
 }
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
@@ -48,6 +49,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     isPolling: false,
     processedSignalIds: new Set(),
     processedSignalHashes: new Set(),
+    pollingBackoff: 0,
     audioInputDeviceId: localStorage.getItem('audioInputDeviceId'),
     audioOutputDeviceId: localStorage.getItem('audioOutputDeviceId'),
 
@@ -392,6 +394,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const signals: any[] = await ApiService.pollSignals(activeCall.id, userId, lastSignalId);
 
             if (signals && Array.isArray(signals) && signals.length > 0) {
+                set({ pollingBackoff: 0 }); // Reset backoff on success
                 const highestId = Math.max(...signals.map(s => s.id));
                 set({ lastSignalId: highestId });
 
@@ -407,9 +410,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 }
             }
         } catch (err: any) {
-            // Log 502/504 as warnings to not spam the console
-            if (err.status === 502 || err.status === 504) {
-                console.warn('[WebRTC] Server temporarily unavailable (502/504). Retrying...');
+            // Log 502/504 as warnings and increment backoff
+            if (err.status === 502 || err.status === 504 || err.message?.includes('502') || err.message?.includes('504')) {
+                const currentBackoff = get().pollingBackoff;
+                const nextBackoff = Math.min(currentBackoff + 1000, 5000); // Caps at 5s extra
+                console.warn(`[WebRTC] Server temporarily unavailable. Increasing backoff to ${nextBackoff}ms.`);
+                set({ pollingBackoff: nextBackoff });
             } else {
                 console.error('[WebRTC] Polling error:', err);
             }

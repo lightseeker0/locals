@@ -61,7 +61,7 @@ export const ChatArea: React.FC = () => {
     useEffect(() => {
         if (selectedChannelId && user && messages.length > 0) {
             const lastMsg = messages[messages.length - 1];
-            ApiService.updateReadReceipt(selectedChannelId, user.id, lastMsg.id);
+            ApiService.updateReadReceipt(selectedChannelId, user.id, lastMsg.id).catch(() => { });
         }
     }, [selectedChannelId, user, messages]);
 
@@ -121,7 +121,7 @@ export const ChatArea: React.FC = () => {
     useEffect(() => {
         if (selectedChannelId && user && messages.length > 0) {
             const lastMsg = messages[messages.length - 1];
-            ApiService.updateReadReceipt(selectedChannelId, user.id, lastMsg.id);
+            ApiService.updateReadReceipt(selectedChannelId, user.id, lastMsg.id).catch(() => { });
         }
     }, [selectedChannelId, user, messages]);
 

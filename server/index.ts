@@ -634,11 +634,12 @@ app.get('/api/voice/participants/:roomId', async (c: Context) => {
 
     if (!call) return c.json([]);
 
+    // Get participants seen in the last 2 minutes
     const participants = db.prepare(`
         SELECT u.id, u.username, u.display_name, u.avatar_url 
         FROM call_participants cp
         JOIN users u ON cp.user_id = u.id
-        WHERE cp.call_id = ?
+        WHERE cp.call_id = ? AND u.last_seen > datetime('now', '-2 minutes')
     `).all(call.id);
 
     return c.json(participants);
@@ -680,11 +681,18 @@ app.post('/api/voice/signal', async (c: Context) => {
 app.post('/api/voice/poll', async (c: Context) => {
     const { call_id, last_signal_id } = await c.req.json();
     const userId = c.req.header('X-User-ID');
+
+    // Heartbeat: Update last seen
+    if (userId) {
+        updateLastSeen(userId);
+    }
+
     const results = db.prepare('SELECT * FROM call_signals WHERE call_id = ? AND id > ? AND sender_id != ? ORDER BY id ASC')
         .all(call_id, last_signal_id || 0, userId);
 
     return c.json(results);
 });
+
 
 app.post('/api/voice/end', async (c: Context) => {
     const userId = c.req.header('X-User-ID');

@@ -28,16 +28,20 @@ export class ApiService {
         });
         const contentType = response.headers.get('content-type');
         if (!response.ok) {
+            const status = response.status;
+            let message = response.statusText;
             if (contentType && contentType.includes('application/json')) {
-                const err = await response.json();
-                throw new Error(err.error || response.statusText);
+                const err = await response.json().catch(() => ({}));
+                message = err.error || message;
             }
-            throw new Error(response.statusText);
+            const error: any = new Error(message);
+            error.status = status;
+            throw error;
         }
         if (contentType && contentType.includes('application/json')) {
             return response.json();
         }
-        return response.text(); // Fallback for non-JSON success? Or throw?
+        return response.text();
     }
 
     static async post(path: string, data: any, userId?: string) {
@@ -47,8 +51,16 @@ export class ApiService {
             body: JSON.stringify(data)
         });
         if (!response.ok) {
-            const err = await response.json().catch(() => ({ error: response.statusText }));
-            throw new Error(err.error || response.statusText);
+            const status = response.status;
+            const contentType = response.headers.get('content-type');
+            let message = response.statusText;
+            if (contentType && contentType.includes('application/json')) {
+                const err = await response.json().catch(() => ({}));
+                message = err.error || message;
+            }
+            const error: any = new Error(message);
+            error.status = status;
+            throw error;
         }
         return response.json();
     }
