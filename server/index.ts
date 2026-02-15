@@ -569,7 +569,19 @@ app.post('/api/voice/poll', async (c: Context) => {
     return c.json(results);
 });
 
-return c.json({ status: 'ended' });
+app.post('/api/voice/end', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (userId) {
+        // Remove from participants
+        db.prepare('DELETE FROM call_participants WHERE user_id = ?').run(userId);
+
+        // Mark call as ended if no participants left
+        const remaining = db.prepare('SELECT COUNT(*) as count FROM call_participants cp JOIN calls c ON cp.call_id = c.id WHERE c.status = \'active\' AND cp.user_id != ?').get(userId) as any;
+        if (remaining && remaining.count === 0) {
+            db.prepare('UPDATE calls SET status = \'ended\' WHERE status = \'active\'').run();
+        }
+    }
+    return c.json({ status: 'ended' });
 });
 
 // --- Zombie Cleanup Task ---
