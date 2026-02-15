@@ -5,13 +5,20 @@ export class ApiService {
 
     private static getHeaders(userId?: string) {
         const headers: any = { 'Content-Type': 'application/json' };
-        if (userId) headers['X-User-ID'] = userId;
 
-        // Add Bearer token from auth store
-        const token = useAuthStore.getState().user?.session_token;
-        if (token) {
+        // Add Bearer token and User ID from auth store
+        const user = useAuthStore.getState().user;
+        const token = user?.session_token;
+
+        if (userId && token) {
+            headers['X-User-ID'] = userId;
             headers['Authorization'] = `Bearer ${token}`;
+        } else if (userId) {
+            // Warn if we are sending a userId but have no token
+            console.warn('[API] Sending request with UserId but no Session Token! This will likely cause a 401.', { userId });
+            headers['X-User-ID'] = userId;
         }
+
         return headers;
     }
 

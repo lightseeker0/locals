@@ -16,15 +16,12 @@ import { VoiceCallOverlay } from './components/VoiceCallOverlay';
 import { useSwipe } from './hooks/useSwipe';
 import { clsx } from 'clsx';
 
-function App() {
-  const { user, isLoading, validateSession } = useAuthStore();
+const MainFramework = () => {
+  const { user } = useAuthStore();
   const { currentBuiltInTheme } = useThemeStore();
   const { isSettingsOpen, setSettingsOpen, isUserListOpen, isMobileMenuOpen, setMobileMenuOpen } = useAppStore();
-  const [debugStatus, setDebugStatus] = useState('Initializing...');
-  const [updateInfo, setUpdateInfo] = useState<{ status: 'available' | 'downloading' | 'ready', progress?: number } | null>(null);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
 
-  const { initElectronListener } = useThemeStore();
   useAppData();
 
   useEffect(() => {
@@ -35,39 +32,6 @@ function App() {
       localStorage.setItem('hasSeenThemeAnnouncement_v2', 'true');
     }
   }, [user]);
-
-  useEffect(() => {
-    initElectronListener();
-
-    // Auto-update listeners
-    const el = (window as any).electron;
-    if (el) {
-      el.onUpdateAvailable?.(() => {
-        setUpdateInfo({ status: 'available' });
-      });
-
-      el.onUpdateProgress?.((progress: any) => {
-        setUpdateInfo({ status: 'downloading', progress: progress.percent });
-      });
-
-      el.onUpdateDownloaded?.(() => {
-        setUpdateInfo({ status: 'ready' });
-      });
-    }
-
-    const init = async () => {
-      try {
-        console.log('App starting...');
-        setDebugStatus('Starting session validation...');
-        await validateSession();
-        setDebugStatus('Session validation complete.');
-      } catch (e: any) {
-        console.error('App init failed:', e);
-        setDebugStatus(`Error: ${e.message}`);
-      }
-    };
-    init();
-  }, [initElectronListener, validateSession]);
 
   useEffect(() => {
     // Apply theme
@@ -90,6 +54,105 @@ function App() {
   const isElectron = !!(window as any).electron;
 
   return (
+    <div id="app-mount" className="da-app appMount-3stXN7 app-mount layer-container h-full">
+      <div data-layout-v3="true" className="flex flex-col h-screen bg-transparent text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app layer__960e4 baseLayer__960e4">
+        {isElectron && <TitleBar />}
+
+        <div className="flex flex-row flex-1 overflow-hidden relative">
+          <div
+            className={clsx("sidebar-overlay", isMobileMenuOpen && "open")}
+            onClick={() => setMobileMenuOpen(false)}
+          />
+
+          <div className={clsx(
+            "sidebar-container flex flex-row shrink-0 h-full",
+            isMobileMenuOpen && "open"
+          )}>
+            <div className="w-[var(--sidebar-width)] h-full shrink-0">
+              <Sidebar />
+            </div>
+            <div className="w-[var(--channel-list-width)] h-full shrink-0">
+              <ChannelList />
+            </div>
+          </div>
+
+          <div className="flex-1 flex flex-col min-w-0 bg-transparent relative z-10 box-399657 da-chat h-full">
+            <Routes>
+              <Route path="/" element={<ChatArea />} />
+              <Route path="/channels/:spaceId/:roomId" element={<ChatArea />} />
+              <Route path="/dm/:roomId" element={<ChatArea />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
+
+          {isUserListOpen && (
+            <div className="hidden lg:flex shrink-0 da-membersGroup h-full">
+              <MemberList />
+            </div>
+          )}
+        </div>
+
+        <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
+        <ThemeAnnouncementModal isOpen={showAnnouncement} onClose={() => setShowAnnouncement(false)} />
+        <VoiceCallOverlay />
+      </div>
+    </div>
+  );
+};
+
+function App() {
+  const { user, isLoading, hasHydrated, validateSession } = useAuthStore();
+  const { initElectronListener } = useThemeStore();
+  const [debugStatus, setDebugStatus] = useState('Initializing...');
+  const [updateInfo, setUpdateInfo] = useState<{ status: 'available' | 'downloading' | 'ready', progress?: number } | null>(null);
+
+  useEffect(() => {
+    initElectronListener();
+
+    // Auto-update listeners
+    const el = (window as any).electron;
+    if (el) {
+      el.onUpdateAvailable?.(() => {
+        setUpdateInfo({ status: 'available' });
+      });
+
+      el.onUpdateProgress?.((progress: any) => {
+        setUpdateInfo({ status: 'downloading', progress: progress.percent });
+      });
+
+      el.onUpdateDownloaded?.(() => {
+        setUpdateInfo({ status: 'ready' });
+      });
+    }
+
+    const init = async () => {
+      try {
+        if (!hasHydrated) {
+          console.log('Waiting for hydration...');
+          setDebugStatus('Waiting for hydration...');
+          return;
+        }
+        console.log('App starting...');
+        setDebugStatus('Starting session validation...');
+        await validateSession();
+        setDebugStatus('Session validation complete.');
+      } catch (e: any) {
+        console.error('App init failed:', e);
+        setDebugStatus(`Error: ${e.message}`);
+      }
+    };
+    init();
+  }, [initElectronListener, validateSession, hasHydrated]);
+
+  if (!hasHydrated) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-black text-matrix-green font-mono">
+        <div className="animate-pulse">Loading Identity...</div>
+      </div>
+    );
+  }
+
+  return (
     <Router>
       {isLoading ? (
         <div className="flex flex-col items-center justify-center h-screen bg-black text-matrix-green font-mono p-4">
@@ -103,52 +166,10 @@ function App() {
       ) : !user ? (
         <Login />
       ) : (
-        <div id="app-mount" className="da-app appMount-3stXN7 app-mount layer-container h-full">
-          <div data-layout-v3="true" className="flex flex-col h-screen bg-transparent text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app layer__960e4 baseLayer__960e4">
-            {isElectron && <TitleBar />}
+        <>
+          <MainFramework />
 
-            <div className="flex flex-row flex-1 overflow-hidden relative">
-              {/* Sidebar Overlay for Mobile */}
-              <div
-                className={clsx("sidebar-overlay", isMobileMenuOpen && "open")}
-                onClick={() => setMobileMenuOpen(false)}
-              />
-
-              {/* Combined Sidebar Container */}
-              <div className={clsx(
-                "sidebar-container flex flex-row shrink-0 h-full",
-                isMobileMenuOpen && "open"
-              )}>
-                <div className="w-[var(--sidebar-width)] h-full shrink-0">
-                  <Sidebar />
-                </div>
-                <div className="w-[var(--channel-list-width)] h-full shrink-0">
-                  <ChannelList />
-                </div>
-              </div>
-
-              <div className="flex-1 flex flex-col min-w-0 bg-transparent relative z-10 box-399657 da-chat h-full">
-                <Routes>
-                  <Route path="/" element={<ChatArea />} />
-                  <Route path="/channels/:spaceId/:roomId" element={<ChatArea />} />
-                  <Route path="/dm/:roomId" element={<ChatArea />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </div>
-
-              {isUserListOpen && (
-                <div className="hidden lg:flex shrink-0 da-membersGroup h-full">
-                  <MemberList />
-                </div>
-              )}
-            </div>
-
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
-            <ThemeAnnouncementModal isOpen={showAnnouncement} onClose={() => setShowAnnouncement(false)} />
-            <VoiceCallOverlay />
-          </div>
-
-          {/* Update Notification - Forced Overlay */}
+          {/* Update Notification - Shared logic */}
           {updateInfo && (
             <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-fade-in">
               <div className="bg-matrix-darker border-2 border-matrix-green shadow-[0_0_50px_rgba(13,189,139,0.3)] rounded-2xl p-8 max-w-md w-full text-center relative overflow-hidden group">
@@ -205,7 +226,7 @@ function App() {
               </div>
             </div>
           )}
-        </div>
+        </>
       )}
     </Router>
   );

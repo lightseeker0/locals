@@ -13,6 +13,8 @@ interface AuthState {
     userStatus: 'online' | 'idle' | 'dnd' | 'invisible';
     setUserStatus: (status: 'online' | 'idle' | 'dnd' | 'invisible') => void;
     logout: () => void;
+    hasHydrated: boolean;
+    setHasHydrated: (val: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -22,6 +24,9 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             isLoading: true,
             userStatus: 'online',
+            hasHydrated: false,
+
+            setHasHydrated: (val) => set({ hasHydrated: val }),
 
             setUserStatus: async (status) => {
                 const { user } = useAuthStore.getState();
@@ -78,6 +83,9 @@ export const useAuthStore = create<AuthState>()(
         {
             name: 'locals-auth-storage',
             partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
+            onRehydrateStorage: () => (state) => {
+                state?.setHasHydrated(true);
+            }
         }
     )
 );

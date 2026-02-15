@@ -5,10 +5,10 @@ import { ApiService } from '../services/api';
 
 export const useAppData = () => {
     const { setServers, setChannels, selectedServerId } = useAppStore();
-    const { user } = useAuthStore();
+    const { user, isLoading } = useAuthStore();
 
     const fetchSpaces = useCallback(async () => {
-        if (!user) return;
+        if (!user || isLoading) return;
         try {
             const spaces = await ApiService.fetchSpaces(user.id);
             setServers(spaces.map((s: any) => ({
