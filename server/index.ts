@@ -57,6 +57,18 @@ try {
     console.error('[MIGRATION ERROR]', err);
 }
 
+// Migration: Add space_id to participants if it doesn't exist
+try {
+    const tableInfo = db.prepare("PRAGMA table_info(participants)").all() as any[];
+    const hasSpaceId = tableInfo.some(col => col.name === 'space_id');
+    if (!hasSpaceId) {
+        console.log('[MIGRATION] Adding space_id column to participants table...');
+        db.exec("ALTER TABLE participants ADD COLUMN space_id TEXT REFERENCES spaces(id);");
+    }
+} catch (err) {
+    console.error('[MIGRATION ERROR] Participants space_id:', err);
+}
+
 // Performance Indexes
 try {
     db.exec(`
@@ -543,8 +555,8 @@ app.post('/api/auth/register', async (c: Context) => {
 
                 const rooms = db.prepare('SELECT id FROM rooms WHERE space_id = ?').all(defaultSpace.id) as any[];
                 for (const room of rooms) {
-                    db.prepare('INSERT OR IGNORE INTO participants (room_id, user_id) VALUES (?, ?)')
-                        .run(room.id, id);
+                    db.prepare('INSERT OR IGNORE INTO participants (room_id, user_id, space_id) VALUES (?, ?, ?)')
+                        .run(room.id, id, defaultSpace.id);
                 }
             }
         } catch (autoJoinErr) {

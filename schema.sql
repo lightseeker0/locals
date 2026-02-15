@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS rooms (
 CREATE TABLE IF NOT EXISTS participants (
     room_id TEXT REFERENCES rooms(id),
     user_id TEXT REFERENCES users(id),
+    space_id TEXT REFERENCES spaces(id),
     role TEXT DEFAULT 'member', -- 'owner', 'admin', 'member'
     joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (room_id, user_id)
