@@ -136,9 +136,9 @@ export const MemberList: React.FC = () => {
             <div key={m.id} className="group flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors relative">
                 <div className="relative">
                     {m.avatar_url ? (
-                        <img src={m.avatar_url} className={clsx("w-10 h-10 rounded-full border border-white/10", section === 'offline' && 'grayscale opacity-70')} alt="" />
+                        <img src={m.avatar_url} className={clsx("w-12 h-12 rounded-full border border-white/10", section === 'offline' && 'grayscale opacity-70')} alt="" />
                     ) : (
-                        <div className={clsx("w-10 h-10 rounded-full bg-matrix-green/10 border border-matrix-green/20 flex items-center justify-center", section === 'offline' && 'grayscale opacity-70')}>
+                        <div className={clsx("w-12 h-12 rounded-full bg-matrix-green/10 border border-matrix-green/20 flex items-center justify-center", section === 'offline' && 'grayscale opacity-70')}>
                             <span className="text-xs font-bold text-matrix-green">
                                 {(m.display_name || m.username).substring(0, 1).toUpperCase()}
                             </span>
@@ -157,7 +157,7 @@ export const MemberList: React.FC = () => {
                     )}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className={clsx("font-medium text-[15px] truncate group-hover:text-white", section === 'offline' ? 'text-matrix-muted' : 'text-gray-200')}>
+                    <div className={clsx("font-medium text-[16px] truncate group-hover:text-white", section === 'offline' ? 'text-matrix-muted' : 'text-gray-200')}>
                         {m.display_name || m.username}
                         {!!m.is_banned && <span className="ml-2 text-[10px] text-red-500 font-bold uppercase">(BANNED)</span>}
                     </div>

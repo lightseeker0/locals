@@ -113,7 +113,7 @@ export const useI18nStore = create<I18nState>()(
             }
         }),
         {
-            name: 'locals-i18n'
+            name: 'fiskos-i18n'
         }
     )
 );

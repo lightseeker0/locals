@@ -417,10 +417,8 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
     const normalizedName = user?.username?.toLowerCase() || '';
     const normalizedDisplay = user?.display_name?.toLowerCase() || '';
     const isAdmin = normalizedName === adminUsername.toLowerCase() ||
-        normalizedName === 'ilke' ||
-        normalizedName === 'i̇lke' ||
-        normalizedDisplay === 'ilke' ||
-        normalizedDisplay === 'i̇lke';
+        normalizedName === 'asuna' ||
+        normalizedDisplay === 'asuna';
 
     const handleDelete = async () => {
         if (confirm(t('delete_message_confirm') || 'Delete this message?')) {
@@ -456,7 +454,7 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
             <div className="flex max-w-[85%] md:max-w-[70%] gap-2 md:gap-3 flex-row">
                 {/* Avatar */}
                 <div className={clsx(
-                    "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-lg font-black text-sm",
+                    "w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border shadow-lg font-black text-base",
                     isMe ? "bg-[#F8F2EF] text-matrix-darker border-[#F8F2EF]/20" : "bg-matrix-green/20 text-matrix-green border-matrix-green/10"
                 )}>
                     {message.avatar_url ? (
@@ -469,10 +467,10 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                 <div className="flex flex-col items-start">
                     {/* Username & Time */}
                     <div className="flex items-baseline gap-2 mb-1 px-1 flex-row">
-                        <span className={clsx("text-[11px] font-black tracking-tight", isMe ? "text-gray-900" : "text-white")}>
+                        <span className={clsx("text-[15px] font-black tracking-tight", isMe ? "text-gray-900" : "text-white")}>
                             {message.display_name || message.username}
                         </span>
-                        <span className={clsx("text-[9px] font-bold opacity-60 uppercase tracking-widest", isMe ? "text-gray-600" : "text-matrix-muted")}>
+                        <span className={clsx("text-[11px] font-bold opacity-60 uppercase tracking-widest", isMe ? "text-gray-600" : "text-matrix-muted")}>
                             {format(new Date(message.created_at || Date.now()), 'HH:mm')}
                         </span>
                     </div>

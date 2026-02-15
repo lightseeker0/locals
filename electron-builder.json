@@ -1,6 +1,6 @@
 {
-    "appId": "com.locals.app",
-    "productName": "Locals",
+    "appId": "com.fiskos.app",
+    "productName": "Fiskos",
     "directories": {
         "output": "dist-electron"
     },
@@ -14,7 +14,7 @@
         {
             "provider": "github",
             "owner": "lightseeker0",
-            "repo": "locals",
+            "repo": "fiskos",
             "releaseType": "release"
         }
     ],

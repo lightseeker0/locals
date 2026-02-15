@@ -107,7 +107,7 @@ export const useThemeStore = create<ThemeState>()(
             }
         }),
         {
-            name: 'locals-theme-storage',
+            name: 'fiskos-theme-storage',
             partialize: (state) => ({ currentBuiltInTheme: state.currentBuiltInTheme }),
         }
     )

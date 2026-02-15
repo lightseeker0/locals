@@ -86,7 +86,7 @@ export const ChannelList: React.FC = () => {
 
     const currentServer = servers.find(s => s.id === selectedServerId);
     const isOwner = currentServer?.owner_id === user?.id;
-    const globalAdmins = ['ds4d', 'ilke', 'i̇lke'];
+    const globalAdmins = ['ds4d', 'Asuna', 'asuna'];
     const isGlobalAdmin = user && globalAdmins.includes(user.username.toLowerCase());
 
     const handleDeleteSpace = async (e: React.MouseEvent) => {

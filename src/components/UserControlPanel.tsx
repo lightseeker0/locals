@@ -20,9 +20,9 @@ export const UserControlPanel: React.FC = () => {
                 {/* Avatar & Status */}
                 <div className="relative shrink-0">
                     {user?.avatar_url ? (
-                        <img src={user.avatar_url} className="w-10 h-10 rounded-lg border border-white/10" alt="" />
+                        <img src={user.avatar_url} className="w-12 h-12 rounded-lg border border-white/10" alt="" />
                     ) : (
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-tr from-matrix-green to-blue-500 flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-lg bg-gradient-to-tr from-matrix-green to-blue-500 flex items-center justify-center">
                             <span className="text-sm font-black text-white">
                                 {(user?.display_name || user?.username || '?').substring(0, 1).toUpperCase()}
                             </span>
@@ -42,10 +42,10 @@ export const UserControlPanel: React.FC = () => {
 
                 {/* User Info */}
                 <div className="flex-1 min-w-0">
-                    <div className="font-bold text-white truncate text-xs">
+                    <div className="font-bold text-white truncate text-sm">
                         {user?.display_name || user?.username}
                     </div>
-                    <div className="text-matrix-muted truncate text-[10px] opacity-60">
+                    <div className="text-matrix-muted truncate text-[11px] opacity-60">
                         {user?.username}
                     </div>
                 </div>
