@@ -1,28 +1,15 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useVoiceStore } from '../stores/useVoiceStore';
 import { useAuthStore } from '../stores/authStore';
 import { PhoneOff, Mic, MicOff, Headphones, HeadphoneOff } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export const VoiceCallOverlay: React.FC = () => {
-    const { activeCall, callStatus, isMuted, isDeafened, toggleMute, toggleDeafen, endCall, pollSignals } = useVoiceStore();
+    const { activeCall, callStatus, isMuted, isDeafened, toggleMute, toggleDeafen, endCall } = useVoiceStore();
     const { user } = useAuthStore();
 
-    useEffect(() => {
-        let interval: any;
-        if (activeCall && user) {
-            console.log(`[WebRTC] Signaling poll started for call: ${activeCall.id}`);
-            interval = setInterval(() => {
-                if (user?.id) pollSignals(user.id);
-            }, 333); // Poll every 333ms for faster WebRTC handshake
-        }
-        return () => {
-            if (interval) {
-                console.log("[WebRTC] Signaling poll stopped.");
-                clearInterval(interval);
-            }
-        };
-    }, [activeCall, user, pollSignals]);
+    // WebRTC Signaling poll is now handled globally via useVoiceSignaling hook in App.tsx
+
 
     if (callStatus === 'idle' || !activeCall) return null;
 

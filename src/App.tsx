@@ -13,6 +13,8 @@ import { useAppData } from './hooks/useAppData';
 import { useThemeStore } from './stores/themeStore';
 import { useAppStore } from './stores/appStore';
 import { useSwipe } from './hooks/useSwipe';
+import { useVoiceSignaling } from './hooks/useVoiceSignaling';
+import { VoiceCallOverlay } from './components/VoiceCallOverlay';
 import { clsx } from 'clsx';
 
 const MainFramework = () => {
@@ -22,6 +24,7 @@ const MainFramework = () => {
   const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   useAppData();
+  useVoiceSignaling();
 
   useEffect(() => {
     // Show theme announcement once
@@ -97,6 +100,7 @@ const MainFramework = () => {
 
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
         <ThemeAnnouncementModal isOpen={showAnnouncement} onClose={() => setShowAnnouncement(false)} />
+        <VoiceCallOverlay />
       </div>
     </div>
   );
