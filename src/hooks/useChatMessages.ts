@@ -31,7 +31,7 @@ export const useChatMessages = (roomId: string) => {
 
     useEffect(() => {
         fetchMessages();
-        const interval = setInterval(fetchMessages, 3000);
+        const interval = setInterval(fetchMessages, 5000);
         return () => clearInterval(interval);
     }, [roomId, fetchMessages]);
 

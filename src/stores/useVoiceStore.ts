@@ -473,7 +473,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     fetchParticipants: async (roomId: string, userId: string) => {
         const { activeCall, localStream } = get();
-        if (!activeCall) return;
+        // We want to fetch to see who is in rooms even if we aren't, 
+        // but we only proceed to mesh logic if we have a local stream and active call.
 
         try {
             const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
@@ -486,7 +487,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             // MESH LOGIC: Ensure every participant has a P2P connection
             // CRITICAL FIX: Only initiate mesh if this is our ACTIVE call room.
             // Prevents cross-room signaling artifacts from background polls.
-            if (localStream && activeCall.roomId === roomId) {
+            if (localStream && activeCall && activeCall.roomId === roomId) {
                 for (const p of participants) {
                     if (p.id === userId) continue;
 

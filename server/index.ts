@@ -175,8 +175,8 @@ const updateLastSeen = (userId: string) => {
     const now = Date.now();
     const lastUpdate = lastSeenCache.get(userId) || 0;
 
-    // Only update DB if more than 5 seconds passed since last update for this user
-    if (now - lastUpdate > 5000) {
+    // Only update DB if more than 30 seconds passed since last update for this user
+    if (now - lastUpdate > 30000) {
         try {
             db.prepare('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?').run(userId);
             lastSeenCache.set(userId, now);
@@ -237,18 +237,14 @@ app.get('/api/spaces', async (c: Context) => {
         if (userId) {
             results = db.prepare(`
                 SELECT DISTINCT s.*,
-                    (SELECT COUNT(*) FROM messages m 
-                     JOIN rooms r2 ON m.room_id = r2.id 
-                     LEFT JOIN read_receipts rr ON rr.room_id = r2.id AND rr.user_id = ?
-                     WHERE r2.space_id = s.id AND m.user_id != ? AND (rr.updated_at IS NULL OR m.created_at > rr.updated_at)
-                    ) as unread_count,
+                    0 as unread_count,
                     0 as mention_count
                 FROM spaces s 
                 LEFT JOIN rooms r ON s.id = r.space_id 
                 LEFT JOIN participants p ON r.id = p.room_id 
                 WHERE s.is_private = 0 OR s.owner_id = ? OR p.user_id = ? 
                 ORDER BY s.created_at DESC
-            `).all(userId, userId, userId, userId);
+            `).all(userId, userId);
         } else {
             results = db.prepare(`SELECT *, 0 as unread_count, 0 as mention_count FROM spaces WHERE is_private = 0 ORDER BY created_at DESC`).all();
         }
@@ -301,14 +297,11 @@ app.get('/api/rooms/:spaceId', async (c: Context) => {
         if (userId) {
             results = db.prepare(`
                 SELECT r.*,
-                    (SELECT COUNT(*) FROM messages m 
-                     LEFT JOIN read_receipts rr ON rr.room_id = r.id AND rr.user_id = ?
-                     WHERE m.room_id = r.id AND m.user_id != ? AND (rr.updated_at IS NULL OR m.created_at > rr.updated_at)
-                    ) as unread_count,
+                    0 as unread_count,
                     0 as mention_count
                 FROM rooms r 
                 WHERE r.space_id = ? AND r.is_private = 0
-            `).all(userId, userId, spaceId);
+            `).all(spaceId);
         } else {
             results = db.prepare('SELECT *, 0 as unread_count, 0 as mention_count FROM rooms WHERE space_id = ? AND is_private = 0').all(spaceId);
         }
@@ -474,18 +467,6 @@ app.post('/api/reactions', async (c: Context) => {
 });
 
 
-// --- Read Receipts ---
-app.post('/api/read-receipts', async (c: Context) => {
-    const { room_id, user_id, message_id } = await c.req.json();
-    db.prepare(`
-        INSERT INTO read_receipts (room_id, user_id, last_read_message_id, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(room_id, user_id) DO UPDATE SET
-            last_read_message_id = excluded.last_read_message_id,
-            updated_at = CURRENT_TIMESTAMP
-    `).run(room_id, user_id, message_id);
-    return c.json({ status: 'updated' });
-});
 
 // --- Typing (In-memory for simplicity) ---
 const typingState = new Map<string, Set<string>>(); // roomId -> Set of userIds

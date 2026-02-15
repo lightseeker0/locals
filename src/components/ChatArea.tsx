@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
 import { useChatMessages } from '../hooks/useChatMessages';
@@ -8,7 +8,6 @@ import { useReactions } from '../hooks/useReactions';
 import { Hash, Pin, Search, Plus, Gift, Smile, Reply, AtSign, X, Menu, Trash2, Maximize2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
-import { ApiService } from '../services/api';
 import { useI18nStore } from '../stores/i18nStore';
 import { useVoiceStore } from '../stores/useVoiceStore';
 import { Phone } from 'lucide-react';
@@ -57,13 +56,6 @@ export const ChatArea: React.FC = () => {
         reader.readAsDataURL(file);
     };
 
-    // Read Receipt logic
-    useEffect(() => {
-        if (selectedChannelId && user && messages.length > 0) {
-            const lastMsg = messages[messages.length - 1];
-            ApiService.updateReadReceipt(selectedChannelId, user.id, lastMsg.id).catch(() => { });
-        }
-    }, [selectedChannelId, user, messages]);
 
     const handleSendMessage = () => {
         if (inputValue.trim()) {
@@ -117,13 +109,6 @@ export const ChatArea: React.FC = () => {
         }
     };
 
-    // Read Receipt logic
-    useEffect(() => {
-        if (selectedChannelId && user && messages.length > 0) {
-            const lastMsg = messages[messages.length - 1];
-            ApiService.updateReadReceipt(selectedChannelId, user.id, lastMsg.id).catch(() => { });
-        }
-    }, [selectedChannelId, user, messages]);
 
     if (!selectedChannelId) {
         return (

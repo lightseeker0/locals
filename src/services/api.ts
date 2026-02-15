@@ -136,9 +136,6 @@ export class ApiService {
         return this.post('/reactions', { message_id: messageId, user_id: userId, emoji }, userId);
     }
 
-    static async updateReadReceipt(roomId: string, userId: string, messageId: string) {
-        return this.post('/read-receipts', { room_id: roomId, user_id: userId, message_id: messageId }, userId);
-    }
 
     static async setTyping(roomId: string, userId: string, isTyping: boolean) {
         return this.post('/typing', { room_id: roomId, user_id: userId, is_typing: isTyping }, userId);

@@ -127,7 +127,7 @@ export const ChannelList: React.FC = () => {
         };
 
         poll();
-        const interval = setInterval(poll, 2000); // Check every 2 seconds for mesh health
+        const interval = setInterval(poll, 10000); // Check every 10 seconds for mesh health
         return () => clearInterval(interval);
     }, [selectedServerId, channels, user?.id, fetchParticipants]);
 
