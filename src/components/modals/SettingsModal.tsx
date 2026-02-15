@@ -191,42 +191,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                                             setProfileError('Selected file is too large (>5MB). Use a smaller image.');
                                                             return;
                                                         }
-                                                        
+
                                                         const reader = new FileReader();
                                                         reader.onload = (ev) => {
                                                             const img = new Image();
                                                             img.onload = () => {
                                                                 const canvas = document.createElement('canvas');
-                                                                const MAX_SIZE = 80; // Ultra-small for profile avatars
+                                                                const MAX_SIZE = 256; // Higher resolution for better quality
                                                                 let width = img.width;
                                                                 let height = img.height;
-                                                                if (width > height) {
-                                                                    if (width > MAX_SIZE) {
-                                                                        height *= MAX_SIZE / width;
-                                                                        width = MAX_SIZE;
-                                                                    }
-                                                                } else {
-                                                                    if (height > MAX_SIZE) {
-                                                                        width *= MAX_SIZE / height;
-                                                                        height = MAX_SIZE;
-                                                                    }
-                                                                }
-                                                                canvas.width = width;
-                                                                canvas.height = height;
+
+                                                                // Square crop logic
+                                                                const size = Math.min(width, height);
+                                                                const sourceX = (width - size) / 2;
+                                                                const sourceY = (height - size) / 2;
+
+                                                                canvas.width = MAX_SIZE;
+                                                                canvas.height = MAX_SIZE;
                                                                 const ctx = canvas.getContext('2d');
-                                                                ctx?.drawImage(img, 0, 0, width, height);
-                                                                
-                                                                // Try WebP first (better compression), fallback to JPEG
-                                                                let dataUrl = canvas.toDataURL('image/webp', 0.2);
-                                                                if (!dataUrl.includes('webp') || dataUrl.length > 200000) {
-                                                                    dataUrl = canvas.toDataURL('image/jpeg', 0.2);
+                                                                if (ctx) {
+                                                                    ctx.imageSmoothingEnabled = true;
+                                                                    ctx.imageSmoothingQuality = 'high';
+                                                                    ctx.drawImage(img, sourceX, sourceY, size, size, 0, 0, MAX_SIZE, MAX_SIZE);
                                                                 }
-                                                                
-                                                                if (dataUrl.length > 200000) {
+
+                                                                // Better quality settings (0.7)
+                                                                let dataUrl = canvas.toDataURL('image/webp', 0.7);
+                                                                if (!dataUrl.includes('webp') || dataUrl.length > 500000) {
+                                                                    dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                                                                }
+
+                                                                if (dataUrl.length > 1000000) { // Support up to 1MB data URL
                                                                     setProfileError('Image too large after compression');
                                                                     return;
                                                                 }
-                                                                
+
                                                                 setProfileError(null);
                                                                 setAvatarUrl(dataUrl);
                                                             };

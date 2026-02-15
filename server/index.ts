@@ -215,6 +215,16 @@ app.get('/api/rooms/:spaceId', async (c: Context) => {
     return c.json(results);
 });
 
+app.get('/api/auth/me', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const user = db.prepare('SELECT id, username, display_name, avatar_url, last_seen, is_banned, custom_status FROM users WHERE id = ?').get(userId);
+    if (!user) return c.json({ error: 'User not found' }, 404);
+
+    return c.json(user);
+});
+
 app.get('/api/dm/list', async (c: Context) => {
     const userId = c.req.header('X-User-ID');
     if (!userId) return c.json({ error: 'Unauthorized' }, 401);
@@ -227,6 +237,30 @@ app.get('/api/dm/list', async (c: Context) => {
         WHERE p.user_id = ? AND r.type = 'dm'
     `).all(userId);
     return c.json(results);
+});
+
+app.post('/api/user/profile', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    try {
+        const { display_name, avatar_url, bio, custom_status } = await c.req.json();
+
+        // Ensure user can only update their own profile
+        db.prepare(`
+            UPDATE users 
+            SET display_name = COALESCE(?, display_name), 
+                avatar_url = COALESCE(?, avatar_url), 
+                custom_status = COALESCE(?, custom_status) 
+            WHERE id = ?
+        `).run(display_name, avatar_url, custom_status, userId);
+
+        console.log(`[USER] Profile updated for: ${userId}`);
+        return c.json({ status: 'updated' });
+    } catch (err: any) {
+        console.error(`[USER] Profile update error:`, err);
+        return c.json({ error: 'Failed to update profile', details: err.message }, 500);
+    }
 });
 
 app.get('/api/messages/:roomId', async (c: Context) => {
