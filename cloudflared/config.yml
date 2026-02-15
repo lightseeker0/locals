@@ -1,5 +1,5 @@
-tunnel: b3a3389c-53ea-4761-ba64-cd7da3237778
-credentials-file: /etc/cloudflared/b3a3389c-53ea-4761-ba64-cd7da3237778.json
+tunnel: b2c6b564-64eb-49a5-ba7d-aa66d4de717b
+credentials-file: /etc/cloudflared/b2c6b564-64eb-49a5-ba7d-aa66d4de717b.json
 
 ingress:
   - hostname: fiskos.xyz
@@ -9,3 +9,6 @@ ingress:
   - hostname: www.fiskos.xyz
     service: http://api:3000
   - service: http_status:404
+
+loglevel: debug
+transport-loglevel: debug

@@ -104,34 +104,45 @@ function App() {
         <Login />
       ) : (
         <div id="app-mount" className="da-app appMount-3stXN7 app-mount layer-container h-full">
-          <div className={`flex h-screen bg-transparent text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app layer__960e4 baseLayer__960e4`}>
+          <div data-layout-v3="true" className="flex flex-col h-screen bg-transparent text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app layer__960e4 baseLayer__960e4">
             {isElectron && <TitleBar />}
 
-            {/* Sidebar Overlay for Mobile */}
-            <div
-              className={clsx("sidebar-overlay", isMobileMenuOpen && "open")}
-              onClick={() => setMobileMenuOpen(false)}
-            />
+            <div className="flex flex-row flex-1 overflow-hidden relative">
+              {/* Sidebar Overlay for Mobile */}
+              <div
+                className={clsx("sidebar-overlay", isMobileMenuOpen && "open")}
+                onClick={() => setMobileMenuOpen(false)}
+              />
 
-            {/* Combined Sidebar Container for Mobile Drawer */}
-            <div className={clsx("sidebar-container", isMobileMenuOpen && "open")}>
-              <Sidebar />
-              <ChannelList />
-            </div>
-
-            <div className="flex-1 flex flex-col min-w-0 bg-matrix-darker relative z-10 box-399657 da-chat">
-              <Routes>
-                <Route path="/" element={<ChatArea />} />
-                <Route path="/channels/:spaceId/:roomId" element={<ChatArea />} />
-                <Route path="/dm/:roomId" element={<ChatArea />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </div>
-            {isUserListOpen && (
-              <div className="hidden lg:flex shrink-0 da-membersGroup">
-                <MemberList />
+              {/* Combined Sidebar Container */}
+              <div className={clsx(
+                "sidebar-container flex flex-row shrink-0 h-full",
+                isMobileMenuOpen && "open"
+              )}>
+                <div className="w-[var(--sidebar-width)] h-full shrink-0">
+                  <Sidebar />
+                </div>
+                <div className="w-[var(--channel-list-width)] h-full shrink-0">
+                  <ChannelList />
+                </div>
               </div>
-            )}
+
+              <div className="flex-1 flex flex-col min-w-0 bg-transparent relative z-10 box-399657 da-chat h-full">
+                <Routes>
+                  <Route path="/" element={<ChatArea />} />
+                  <Route path="/channels/:spaceId/:roomId" element={<ChatArea />} />
+                  <Route path="/dm/:roomId" element={<ChatArea />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </div>
+
+              {isUserListOpen && (
+                <div className="hidden lg:flex shrink-0 da-membersGroup h-full">
+                  <MemberList />
+                </div>
+              )}
+            </div>
+
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
             <ThemeAnnouncementModal isOpen={showAnnouncement} onClose={() => setShowAnnouncement(false)} />
             <VoiceCallOverlay />

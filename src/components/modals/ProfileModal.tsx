@@ -12,6 +12,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     const [displayName, setDisplayName] = useState(user?.display_name || user?.username || '');
     const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || '');
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     if (!isOpen) return null;
@@ -20,14 +21,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // Check file size before processing
+        if (file.size > 5000000) { // 5MB max input
+            setError('Selected file is too large. Please choose an image less than 5MB.');
+            return;
+        }
+
         // Resize and convert to Base64
         const reader = new FileReader();
         reader.onload = (event) => {
             const img = new Image();
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 128;
-                const MAX_HEIGHT = 128;
+                const MAX_WIDTH = 64;   // Even smaller (efficient for avatars)
+                const MAX_HEIGHT = 64;  // Square avatars
                 let width = img.width;
                 let height = img.height;
 
@@ -46,7 +53,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx?.drawImage(img, 0, 0, width, height);
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                
+                // Try WebP first (better compression), fallback to JPEG
+                let dataUrl = canvas.toDataURL('image/webp', 0.2);
+                
+                // If WebP not supported or still too large, try JPEG
+                if (!dataUrl.includes('webp') || dataUrl.length > 200000) {
+                    dataUrl = canvas.toDataURL('image/jpeg', 0.2);
+                }
+                
+                // Final size check (200KB limit with improved backend)
+                if (dataUrl.length > 200000) {
+                    setError('Image compression failed - try a simpler image.');
+                    return;
+                }
+                
+                setError(null);
                 setAvatarUrl(dataUrl);
             };
             img.src = event.target?.result as string;
@@ -57,11 +79,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setError(null);
         try {
             await updateProfile({ display_name: displayName, avatar_url: avatarUrl });
             onClose();
-        } catch (error) {
+        } catch (error: any) {
+            const errorMsg = error?.message || 'Failed to update profile';
             console.error('Failed to update profile:', error);
+            setError(errorMsg);
         } finally {
             setLoading(false);
         }
@@ -113,6 +138,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                             />
                         </div>
                     </div>
+
+                    {error && (
+                        <div className="bg-red-500/20 border border-red-500/50 text-red-300 rounded-lg px-4 py-3 text-sm font-medium">
+                            {error}
+                        </div>
+                    )}
 
                     <button
                         type="submit"

@@ -1,0 +1,28 @@
+﻿services:
+  api:
+    image: ghcr.io/lightseeker0/locals:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./server/data:/app/server/data
+    environment:
+      - NODE_ENV=production
+    restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro
+    restart: always
+    depends_on:
+      - api
+
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 300 --label-enable --cleanup
+    restart: always

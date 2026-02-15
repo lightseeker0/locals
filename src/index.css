@@ -46,8 +46,7 @@
 /* BetterDiscord Compatibility Aliases & Shim */
 #app-mount,
 .appMount-3stXN7 {
-  background-color: transparent;
-  /* Allow window transparency */
+  background: url('https://i.imgur.com/7SbtKvw.png') center/cover no-repeat fixed !important;
   color: var(--text-normal);
   height: 100vh;
   width: 100vw;
@@ -55,39 +54,47 @@
 
 .app-323596,
 .da-app {
-  background-color: transparent;
+  background-color: transparent !important;
 }
 
 .sidebar-1tnWFu,
 .da-sidebar,
 .sidebar {
-  background-color: var(--background-secondary);
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
 }
 
 .chat-2Z9I9e,
 .da-chat,
 .chat-content {
-  background-color: var(--background-primary);
+  background-color: transparent !important;
 }
 
 .members-3WRCEx,
 .da-members,
 .member-list {
-  background-color: var(--background-secondary);
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
 }
 
 .container-1NXEAG,
 .da-channels,
 .channel-list {
-  background-color: var(--background-secondary);
+  background-color: rgba(0, 0, 0, 0.1) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
 }
 
 /* User Popout & Modals Shim */
 .userPopout-2j1QC_,
 .da-userPopout {
-  background-color: var(--bg-secondary);
+  background-color: rgba(13, 18, 23, 0.8) !important;
+  backdrop-filter: blur(10px);
   border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+  border: 1px border rgba(255, 255, 255, 0.05);
 }
 
 /* Scrollbar Compatibility */
@@ -99,17 +106,17 @@
 
 .scrollerBase-18p36i::-webkit-scrollbar,
 .da-scrollerBase::-webkit-scrollbar {
-  width: 8px;
+  width: 4px;
 }
 
 /* BetterDiscord Theme Variable Fallbacks */
 :root {
-  --background-primary: var(--bg-primary);
-  --background-secondary: var(--bg-secondary);
-  --background-secondary-alt: var(--matrix-darker);
-  --background-tertiary: var(--matrix-darker);
-  --background-accent: var(--matrix-dark);
-  --background-floating: var(--matrix-darker);
+  --background-primary: transparent;
+  --background-secondary: rgba(0, 0, 0, 0.2);
+  --background-secondary-alt: rgba(0, 0, 0, 0.3);
+  --background-tertiary: rgba(0, 0, 0, 0.4);
+  --background-accent: var(--matrix-green);
+  --background-floating: #0d1217;
   --header-primary: var(--text-normal);
   --header-secondary: var(--text-muted);
   --text-normal: var(--matrix-text);
@@ -130,8 +137,7 @@
 }
 
 body {
-  background-color: transparent;
-  /* Changed from var(--color-matrix-darker) for transparency */
+  background: url('https://i.imgur.com/7SbtKvw.png') center/cover no-repeat fixed !important;
   color: var(--color-matrix-text);
   overflow: hidden;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -144,17 +150,32 @@ body {
   /* Changed from manipulation to allow smooth vertical scrolling but detect horizontal swipes */
 }
 
+.sidebar-container {
+  display: flex !important;
+  flex-direction: row !important;
+  height: 100% !important;
+  flex-shrink: 0;
+}
+
+.channel-list,
+.sidebar {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
 /* Sidebar Drawer for Mobile */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .sidebar-container {
     position: fixed;
     top: 0;
     left: 0;
-    bottom: 0;
+    height: 100vh;
+    height: 100dvh;
     z-index: 1000;
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    display: flex;
+    display: flex !important;
   }
 
   .sidebar-container.open {

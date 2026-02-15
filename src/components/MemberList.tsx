@@ -91,17 +91,40 @@ export const MemberList: React.FC = () => {
         return merged;
     }, [members, messages]);
 
-    const isMemberOnline = (m: any) => {
-        const status = m.id === user?.id ? userStatus : m.custom_status;
-        if (['online', 'idle', 'dnd'].includes(status)) return true;
-        if (status === 'invisible') return false;
-        // Fallback to time-based check for others
-        return isOnline(m.last_seen);
+    const categorizeMembers = (members: any[]) => {
+        const result: { [key: string]: any[] } = {
+            'online': [],
+            'idle': [],
+            'dnd': [],
+            'offline': [],
+            'banned': []
+        };
+
+        members.forEach(m => {
+            const status = m.id === user?.id ? userStatus : (m.custom_status || (isOnline(m.last_seen) ? 'online' : 'offline'));
+            
+            if (m.is_banned) {
+                result['banned'].push(m);
+            } else if (status === 'online') {
+                result['online'].push(m);
+            } else if (status === 'idle') {
+                result['idle'].push(m);
+            } else if (status === 'dnd') {
+                result['dnd'].push(m);
+            } else {
+                result['offline'].push(m);
+            }
+        });
+
+        return result;
     };
 
-    const onlineMembers = allMembers.filter(m => isMemberOnline(m) && !m.is_banned);
-    const offlineMembers = allMembers.filter(m => !isMemberOnline(m) && !m.is_banned);
-    const bannedMembers = allMembers.filter(m => m.is_banned);
+    const categorizedMembers = categorizeMembers(allMembers);
+    const onlineMembers = categorizedMembers['online'];
+    const idleMembers = categorizedMembers['idle'];
+    const dndMembers = categorizedMembers['dnd'];
+    const offlineMembers = categorizedMembers['offline'];
+    const bannedMembers = categorizedMembers['banned'];
 
     const renderMemberParams = (m: any, section: string) => {
         const status = m.id === user?.id ? userStatus : (m.custom_status || (isOnline(m.last_seen) ? 'online' : 'invisible'));
@@ -168,23 +191,56 @@ export const MemberList: React.FC = () => {
             <div className="p-4 flex-1 overflow-y-auto no-scrollbar">
 
                 {/* Online */}
-                <h3 className="text-[11px] font-bold text-matrix-muted uppercase mb-4 tracking-wider flex items-center gap-2">
-                    Online
-                </h3>
-                <div className="space-y-1 mb-6">
-                    {onlineMembers.map(m => renderMemberParams(m, 'online'))}
-                </div>
+                {onlineMembers.length > 0 && (
+                    <>
+                        <h3 className="text-[11px] font-bold text-matrix-muted uppercase mb-4 tracking-wider flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-matrix-green" />
+                            Online
+                        </h3>
+                        <div className="space-y-1 mb-6">
+                            {onlineMembers.map(m => renderMemberParams(m, 'online'))}
+                        </div>
+                    </>
+                )}
+
+                {/* Idle */}
+                {idleMembers.length > 0 && (
+                    <>
+                        <h3 className="text-[11px] font-bold text-matrix-muted uppercase mb-4 tracking-wider flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                            Idle
+                        </h3>
+                        <div className="space-y-1 mb-6">
+                            {idleMembers.map(m => renderMemberParams(m, 'idle'))}
+                        </div>
+                    </>
+                )}
+
+                {/* Do Not Disturb */}
+                {dndMembers.length > 0 && (
+                    <>
+                        <h3 className="text-[11px] font-bold text-matrix-muted uppercase mb-4 tracking-wider flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-red-500" />
+                            Do Not Disturb
+                        </h3>
+                        <div className="space-y-1 mb-6">
+                            {dndMembers.map(m => renderMemberParams(m, 'dnd'))}
+                        </div>
+                    </>
+                )}
 
                 {/* Offline */}
-                <h3 className="text-[11px] font-bold text-matrix-muted uppercase mb-4 tracking-wider flex items-center gap-2">
-                    Offline
-                </h3>
-                <div className="space-y-1 mb-6">
-                    {offlineMembers.map(m => renderMemberParams(m, 'offline'))}
-                    {offlineMembers.length === 0 && (
-                        <div className="text-[10px] text-matrix-muted opacity-30 italic px-2">No offline members</div>
-                    )}
-                </div>
+                {offlineMembers.length > 0 && (
+                    <>
+                        <h3 className="text-[11px] font-bold text-matrix-muted uppercase mb-4 tracking-wider flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-gray-500" />
+                            Offline
+                        </h3>
+                        <div className="space-y-1 mb-6">
+                            {offlineMembers.map(m => renderMemberParams(m, 'offline'))}
+                        </div>
+                    </>
+                )}
 
                 {/* Banned (Admin Only?) - Or just list them */}
                 {/* For now let's list them if they are still returned (which they are) */}

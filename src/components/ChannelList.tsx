@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
-import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Settings, Trash2, Bell, Circle, Clock, MinusCircle, LogOut } from 'lucide-react';
+import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Settings, Bell, Circle, Clock, MinusCircle, LogOut } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DirectMessageModal } from './modals/DirectMessageModal';
 import { useVoiceStore } from '../stores/useVoiceStore';
 import { CreateRoomModal } from './modals/CreateRoomModal';
 import { InviteModal } from './modals/InviteModal';
 import { useAppData } from '../hooks/useAppData';
-import { ApiService } from '../services/api';
 
 import { useI18nStore } from '../stores/i18nStore';
 import { ShieldAlert } from 'lucide-react';
@@ -16,9 +15,9 @@ import { NotificationList } from './NotificationList';
 import { AdminPanel } from './modals/AdminPanel';
 
 export const ChannelList: React.FC = () => {
-    const { selectedServerId, servers, channels, selectedChannelId, setSelectedChannel, setSettingsOpen, setSelectedServer, setMobileMenuOpen } = useAppStore();
+    const { selectedServerId, servers, channels, selectedChannelId, setSelectedChannel, setSettingsOpen, setMobileMenuOpen } = useAppStore();
     const { user, userStatus, setUserStatus, logout } = useAuthStore();
-    const { refreshRooms, refreshSpaces } = useAppData();
+    const { refreshRooms } = useAppData();
     const { t } = useI18nStore();
     const [isDMOpen, setIsDMOpen] = useState(false);
     const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
@@ -419,52 +418,31 @@ export const ChannelList: React.FC = () => {
     if (!selectedServerId) return renderHomeView();
 
     return (
-        <div className="w-[var(--channel-list-width)] bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 channel-list da-channels h-full">
+        <div className="w-[var(--channel-list-width)] bg-transparent flex flex-col shrink-0 border-r border-white/5 channel-list da-channels h-full relative">
             {/* Space Header */}
-            <div className="h-12 flex items-center justify-between px-4 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors group shrink-0">
+            <div className="h-12 flex items-center justify-between px-4 hover:bg-white/5 cursor-pointer transition-colors group shrink-0">
                 <h1 className="font-bold text-white truncate max-w-[140px] group-hover:text-matrix-green">{currentServer?.title || 'Space'}</h1>
                 <div className="flex items-center gap-1">
-                    {(() => {
-                        const adminUsername = import.meta.env.VITE_ADMIN_USERNAME || 'ds4d';
-                        const canDelete = currentServer?.is_private
-                            ? currentServer.owner_id === user?.id
-                            : user?.username?.toLowerCase() === adminUsername.toLowerCase();
-
-                        if (!canDelete) return null;
-
-                        return (
-                            <button
-                                onClick={async (e) => {
-                                    e.stopPropagation();
-                                    if (user && selectedServerId && confirm('Delete this server and all its channels?')) {
-                                        try {
-                                            await ApiService.deleteSpace(selectedServerId, user.id);
-                                            setSelectedServer(null);
-                                            refreshSpaces();
-                                        } catch (err) {
-                                            console.error('Delete space failed:', err);
-                                        }
-                                    }
-                                }}
-                                className="p-1 px-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-matrix-muted hover:text-red-500 rounded transition-all"
-                                title="Delete Space"
-                                aria-label="Delete Space"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        );
-                    })()}
                     <ChevronDown size={16} className="text-matrix-muted group-hover:text-white" />
                 </div>
             </div>
 
-
+            {/* v0.0.25 Invite Button */}
+            <div className="px-3 py-1 mb-4 flex-none">
+                <button
+                    onClick={() => setIsInviteOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-matrix-green/30 bg-matrix-green/10 text-matrix-green hover:bg-matrix-green hover:text-white transition-all group active:scale-[0.98] shadow-[0_0_15px_rgba(13,189,139,0.1)]"
+                >
+                    <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+                    <span className="text-[12px] font-black uppercase tracking-[0.2em]">Invite</span>
+                </button>
+            </div>
 
             <div className="flex-1 overflow-y-auto px-2 py-2 no-scrollbar">
-                <div className="flex items-center justify-between group px-2 mb-1">
-                    <div className="flex items-center text-[10px] font-bold text-matrix-muted uppercase tracking-[0.2em] hover:text-white cursor-pointer" onClick={() => { }}>
-                        <ChevronDown size={12} className="mr-1" />
-                        <span>{t('rooms')}</span>
+                <div className="flex items-center justify-between group px-2 mb-2">
+                    <div className="flex items-center text-[10px] font-black text-matrix-muted uppercase tracking-[0.3em] hover:text-white cursor-pointer transition-colors" onClick={() => { }}>
+                        <ChevronDown size={12} className="mr-2 opacity-50" />
+                        <span>{t('rooms') || 'ODALAR'}</span>
                     </div>
                     <Plus
                         size={14}
@@ -473,22 +451,22 @@ export const ChannelList: React.FC = () => {
                     />
                 </div>
 
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                     {channels.filter(c => c.type !== 'dm').map((channel) => (
                         <div key={channel.id}>
                             <div
                                 className={clsx(
-                                    "flex items-center px-3 py-1.5 rounded-xl cursor-pointer group transition-all relative overflow-hidden",
-                                    selectedChannelId === channel.id ? "bg-matrix-green/10 text-matrix-green border border-matrix-green/20" : "text-matrix-muted hover:bg-white/5 hover:text-gray-200 border border-transparent",
+                                    "flex items-center px-4 py-2 rounded-xl cursor-pointer group transition-all relative overflow-hidden active:scale-[0.98]",
+                                    selectedChannelId === channel.id
+                                        ? "bg-matrix-green/15 text-matrix-green border border-matrix-green/20"
+                                        : "text-matrix-muted hover:bg-white/5 hover:text-gray-200 border border-transparent",
                                     activeCall?.roomId === channel.id && "bg-matrix-green/5"
                                 )}
                                 onClick={() => {
                                     if (channel.type === 'voice') {
                                         if (activeCall?.roomId !== channel.id) {
-                                            console.log(`[UI] Joining voice channel: ${channel.title}`);
                                             if (user) startCall(channel.id, user);
                                         }
-                                        // Still select it to show the "chat" area if it exists, or just to focus it
                                         setSelectedChannel(channel.id);
                                     } else {
                                         setSelectedChannel(channel.id);
@@ -497,14 +475,14 @@ export const ChannelList: React.FC = () => {
                                 }}
                             >
                                 {channel.type === 'voice' ? (
-                                    <Volume2 size={18} className={clsx("mr-2 shrink-0 transition-colors", activeCall?.roomId === channel.id ? "text-matrix-green" : "text-matrix-muted group-hover:text-gray-300")} />
+                                    <Volume2 size={18} className={clsx("mr-3 shrink-0 transition-colors", activeCall?.roomId === channel.id ? "text-matrix-green" : "text-matrix-muted group-hover:text-gray-300")} />
                                 ) : (
-                                    <Hash size={18} className={clsx("mr-2 shrink-0 transition-colors", selectedChannelId === channel.id ? "text-matrix-green" : "text-matrix-muted group-hover:text-gray-300")} />
+                                    <Hash size={18} className={clsx("mr-3 shrink-0 transition-colors", selectedChannelId === channel.id ? "text-matrix-green" : "text-matrix-muted group-hover:text-gray-300")} />
                                 )}
-                                <span className="font-bold truncate text-[13px]">{channel.title}</span>
+                                <span className="font-bold truncate text-[14px] leading-tight">{channel.title}</span>
 
                                 {activeCall?.roomId === channel.id && (
-                                    <div className="absolute right-3 flex gap-0.5 items-end h-3">
+                                    <div className="absolute right-4 flex gap-1 items-end h-3">
                                         {[1, 2, 3].map((h, i) => (
                                             <div key={i} className="w-1 bg-matrix-green animate-bounce" style={{ height: `${h * 4}px`, animationDelay: `${i * 0.1}s` }} />
                                         ))}
@@ -512,29 +490,29 @@ export const ChannelList: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Participants List - Visible to everyone */}
+                            {/* Participants List */}
                             {channel.type === 'voice' && (roomParticipants[channel.id]?.length > 0 || activeCall?.roomId === channel.id) && (
-                                <div className="ml-8 mt-1 space-y-1 mb-2">
+                                <div className="ml-10 mt-1 space-y-1 mb-2">
                                     {(roomParticipants[channel.id] || []).map((p: any) => (
-                                        <div key={p.id} className="flex items-center gap-2 group/user px-2 py-1 rounded-lg hover:bg-white/5 transition-all cursor-pointer">
+                                        <div key={p.id} className="flex items-center gap-3 group/user px-2 py-1.5 rounded-lg hover:bg-white/5 transition-all cursor-pointer">
                                             <div className="relative">
                                                 {p.avatar_url ? (
                                                     <img
                                                         src={p.avatar_url}
                                                         className={clsx(
-                                                            "w-6 h-6 rounded-lg object-cover transition-all duration-150",
-                                                            speakingUsers[p.id] ? "ring-2 ring-matrix-green shadow-[0_0_8px_rgba(0,255,100,0.6)]" : ""
+                                                            "w-7 h-7 rounded-lg object-cover transition-all duration-150",
+                                                            speakingUsers[p.id] ? "ring-2 ring-matrix-green shadow-[0_0_8px_rgba(0,255,100,0.6)]" : "border border-white/10"
                                                         )}
                                                     />
                                                 ) : (
                                                     <div className={clsx(
-                                                        "w-6 h-6 rounded-lg bg-matrix-green/20 flex items-center justify-center text-[10px] font-black text-matrix-green transition-all duration-150",
-                                                        speakingUsers[p.id] ? "ring-2 ring-matrix-green shadow-[0_0_8px_rgba(0,255,100,0.6)]" : ""
+                                                        "w-7 h-7 rounded-lg bg-matrix-green/20 flex items-center justify-center text-[10px] font-black text-matrix-green transition-all duration-150",
+                                                        speakingUsers[p.id] ? "ring-2 ring-matrix-green shadow-[0_0_8px_rgba(0,255,100,0.6)]" : "border border-white/10"
                                                     )}>
                                                         {(p.display_name || p.username || '?')[0].toUpperCase()}
                                                     </div>
                                                 )}
-                                                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-matrix-green rounded-full border border-matrix-dark" />
+                                                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-matrix-green rounded-full border-2 border-matrix-dark" />
                                             </div>
                                             <span className={clsx(
                                                 "text-[13px] font-bold truncate transition-colors",
@@ -548,14 +526,14 @@ export const ChannelList: React.FC = () => {
                             )}
                         </div>
                     ))}
-
-                    {channels.filter(c => c.type !== 'dm').length === 0 && (
-                        <div className="text-[10px] text-matrix-muted text-center py-8 opacity-20 uppercase font-black tracking-widest leading-relaxed">
-                            Searching rooms...
-                        </div>
-                    )}
                 </div>
             </div>
+
+            {/* v0.0.25 Version Tag */}
+            <div className="absolute bottom-[64px] right-4 pointer-events-none select-none">
+                <span className="text-[9px] font-black text-matrix-muted/20 uppercase tracking-[0.2em]">v0.0.25</span>
+            </div>
+
             {renderUserControls()}
             <DirectMessageModal isOpen={isDMOpen} onClose={() => setIsDMOpen(false)} />
             <CreateRoomModal isOpen={isCreateRoomOpen} onClose={() => setIsCreateRoomOpen(false)} spaceId={selectedServerId!} onSuccess={() => refreshRooms()} />

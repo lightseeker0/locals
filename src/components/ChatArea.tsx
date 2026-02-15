@@ -163,7 +163,7 @@ export const ChatArea: React.FC = () => {
     return (
         <div className="flex flex-col h-full chat-content da-chat chatContent_f75fb0 content_f75fb0 bg-transparent">
             {/* Header */}
-            <div className="h-12 border-b border-white/5 flex items-center px-4 md:px-6 justify-between shrink-0 bg-matrix-dark/30 backdrop-blur-xl z-20 header relative">
+            <div className="h-12 border-b border-white/5 flex items-center px-4 md:px-6 justify-between shrink-0 bg-transparent backdrop-blur-xl z-20 header relative">
                 <div className="flex items-center gap-2 md:gap-4">
                     <button
                         onClick={() => setMobileMenuOpen(true)}
@@ -290,7 +290,7 @@ export const ChatArea: React.FC = () => {
                 )}
 
                 <div className={clsx(
-                    "bg-matrix-dark border border-white/10 p-2 md:p-3 flex flex-col shadow-2xl focus-within:border-matrix-green/30 transition-all",
+                    "bg-matrix-darker/40 backdrop-blur-xl border border-white/10 p-2 md:p-3 flex flex-col shadow-2xl focus-within:border-matrix-green/30 transition-all",
                     replyingTo ? "rounded-b-2xl" : "rounded-3xl"
                 )}>
                     {showGifPicker && (

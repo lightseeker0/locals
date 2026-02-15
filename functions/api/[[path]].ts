@@ -5,6 +5,9 @@ interface Env {
     ADMIN_USERNAME: string;
 }
 
+// Increase request body size handling
+const MAX_BODY_SIZE = 2000000; // 2MB - increase from default 100KB
+
 // Utility for hashing passwords (PBKDF2)
 const hashPassword = async (password: string, salt: Uint8Array) => {
     const encoder = new TextEncoder();
@@ -276,7 +279,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
         // --- POST METHODS ---
         if (request.method === 'POST') {
-            const body = await request.json() as any;
+            let body: any = {};
+            try {
+                body = await request.json();
+            } catch (parseError: any) {
+                console.error('JSON Parse error:', parseError);
+                return Response.json({ error: 'Invalid JSON: ' + parseError.message }, { status: 400, headers: corsHeaders });
+            }
 
             if (path === '/auth/register') {
                 const { username, password } = body;
@@ -318,10 +327,34 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
             if (path === '/user/profile') {
                 const { id, display_name, avatar_url } = body;
-                // Ignore bio, handle avatar_url (which might be base64 now)
-                await env.DB.prepare('UPDATE users SET display_name = ?, avatar_url = ? WHERE id = ?')
-                    .bind(display_name, avatar_url, id).run();
-                return Response.json({ status: 'updated' }, { headers: corsHeaders });
+                
+                // Validation: Check avatar_url size (1.5MB with improved request handling)
+                if (avatar_url && avatar_url.length > 1500000) {
+                    return Response.json({ error: 'Avatar image exceeds 1.5MB limit' }, { status: 413, headers: corsHeaders });
+                }
+                
+                // Validation: Check display_name
+                if (!display_name || display_name.trim().length === 0) {
+                    return Response.json({ error: 'Display name cannot be empty' }, { status: 400, headers: corsHeaders });
+                }
+                
+                if (display_name.length > 50) {
+                    return Response.json({ error: 'Display name too long (max 50 characters)' }, { status: 400, headers: corsHeaders });
+                }
+                
+                try {
+                    const result = await env.DB.prepare('UPDATE users SET display_name = ?, avatar_url = ? WHERE id = ?')
+                        .bind(display_name, avatar_url || null, id).run();
+                    
+                    if (!result.success) {
+                        return Response.json({ error: 'Failed to save avatar' }, { status: 500, headers: corsHeaders });
+                    }
+                    
+                    return Response.json({ status: 'updated' }, { headers: corsHeaders });
+                } catch (dbError: any) {
+                    console.error('Database error:', dbError);
+                    return Response.json({ error: 'Database error: ' + dbError.message }, { status: 500, headers: corsHeaders });
+                }
             }
 
             if (path === '/admin/users') {

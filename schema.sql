@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT,
     display_name TEXT,
-    avatar_url TEXT,
+    avatar_url BLOB,
     bio TEXT,
     custom_status TEXT,
     last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,

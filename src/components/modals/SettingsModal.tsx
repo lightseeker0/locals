@@ -25,6 +25,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     // Profile state
     const [displayName, setDisplayName] = useState(user?.display_name || '');
     const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || '');
+    const [profileError, setProfileError] = useState<string | null>(null);
+    const [profileLoading, setProfileLoading] = useState(false);
 
     // Theme import state
     const [showImport, setShowImport] = useState(false);
@@ -53,12 +55,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
     const handleSaveProfile = async () => {
         if (!user) return;
+        setProfileLoading(true);
+        setProfileError(null);
         try {
             await updateProfile({ display_name: displayName, avatar_url: avatarUrl });
-            alert('Profile updated successfully!');
-            onClose(); // Close on save
-        } catch (error) {
-            alert('Failed to update profile');
+            console.log('Profile updated successfully');
+            // Don't close modal - let user see the success. You can add a toast notification here
+        } catch (error: any) {
+            const errorMsg = error?.message || 'Failed to update profile';
+            console.error('Failed to update profile:', error);
+            setProfileError(errorMsg);
+        } finally {
+            setProfileLoading(false);
         }
     };
 
@@ -178,12 +186,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                                 <input type="file" accept="image/*" onChange={(e) => {
                                                     const file = e.target.files?.[0];
                                                     if (file) {
+                                                        // Check file size first
+                                                        if (file.size > 5000000) {
+                                                            setProfileError('Selected file is too large (>5MB). Use a smaller image.');
+                                                            return;
+                                                        }
+                                                        
                                                         const reader = new FileReader();
                                                         reader.onload = (ev) => {
                                                             const img = new Image();
                                                             img.onload = () => {
                                                                 const canvas = document.createElement('canvas');
-                                                                const MAX_SIZE = 400; // Increased quality slightly
+                                                                const MAX_SIZE = 80; // Ultra-small for profile avatars
                                                                 let width = img.width;
                                                                 let height = img.height;
                                                                 if (width > height) {
@@ -201,7 +215,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                                                 canvas.height = height;
                                                                 const ctx = canvas.getContext('2d');
                                                                 ctx?.drawImage(img, 0, 0, width, height);
-                                                                setAvatarUrl(canvas.toDataURL('image/jpeg', 0.9));
+                                                                
+                                                                // Try WebP first (better compression), fallback to JPEG
+                                                                let dataUrl = canvas.toDataURL('image/webp', 0.2);
+                                                                if (!dataUrl.includes('webp') || dataUrl.length > 200000) {
+                                                                    dataUrl = canvas.toDataURL('image/jpeg', 0.2);
+                                                                }
+                                                                
+                                                                if (dataUrl.length > 200000) {
+                                                                    setProfileError('Image too large after compression');
+                                                                    return;
+                                                                }
+                                                                
+                                                                setProfileError(null);
+                                                                setAvatarUrl(dataUrl);
                                                             };
                                                             img.src = ev.target?.result as string;
                                                         };
@@ -222,11 +249,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         </div>
                                     </div>
 
+                                    {profileError && (
+                                        <div className="bg-red-500/20 border border-red-500/50 text-red-300 rounded-lg px-4 py-3 text-sm font-medium">
+                                            {profileError}
+                                        </div>
+                                    )}
+
                                     <button
                                         onClick={handleSaveProfile}
-                                        className="bg-matrix-green text-matrix-darker px-8 py-3 rounded-xl font-black text-[14px] hover:scale-105 transition-all shadow-lg flex items-center gap-2"
+                                        disabled={profileLoading}
+                                        className="bg-matrix-green text-matrix-darker px-8 py-3 rounded-xl font-black text-[14px] hover:scale-105 disabled:opacity-50 transition-all shadow-lg flex items-center gap-2"
                                     >
-                                        <Save size={18} /> {t('save')}
+                                        <Save size={18} /> {profileLoading ? 'Saving...' : t('save')}
                                     </button>
 
                                     {/* Language Switcher */}

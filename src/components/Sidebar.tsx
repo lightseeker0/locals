@@ -75,16 +75,16 @@ interface SidebarItemProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const SidebarItem: React.FC<SidebarItemProps> = ({ active, children, className, onClick, tooltip }) => {
     return (
-        <div className="relative group flex items-center justify-center w-12 h-12 cursor-pointer" onClick={onClick}>
-            {/* Hover Pill */}
+        <div className="relative group flex items-center justify-center w-12 h-12 cursor-pointer mb-2" onClick={onClick}>
+            {/* Hover Pill - Discord style */}
             <div className={twMerge(
-                "absolute left-0 bg-matrix-green rounded-r-lg w-1.5 transition-all duration-200",
-                active ? "h-8 opacity-100" : "h-2 opacity-0 group-hover:opacity-100 group-hover:h-5"
+                "absolute left-0 bg-matrix-green rounded-r-lg w-1 transition-all duration-300",
+                active ? "h-10 opacity-100" : "h-2 opacity-0 group-hover:opacity-100 group-hover:h-5"
             )} />
 
             <div className={twMerge(
-                "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 overflow-hidden border border-transparent",
-                active ? "bg-matrix-darker border-matrix-green/50 shadow-[0_0_10px_rgba(13,189,139,0.2)]" : "bg-matrix-dark group-hover:bg-matrix-darker group-hover:border-white/10",
+                "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 overflow-hidden border border-transparent select-none",
+                active ? "bg-matrix-green/20 border-matrix-green/30 rounded-[16px] shadow-[0_0_20px_rgba(13,189,139,0.2)]" : "bg-white/5 group-hover:bg-matrix-green/20 group-hover:rounded-[16px] group-hover:border-matrix-green/20",
                 className
             )}>
                 {children}
@@ -92,7 +92,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ active, children, className, 
 
             {/* Tooltip */}
             {tooltip && (
-                <div className="absolute left-[70px] bg-matrix-darker border border-white/10 text-white text-xs font-medium px-2.5 py-1.5 rounded-md hidden group-hover:block whitespace-nowrap z-50 shadow-xl">
+                <div className="absolute left-[65px] bg-matrix-darker/90 backdrop-blur-md border border-white/10 text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-lg hidden group-hover:block whitespace-nowrap z-[100] shadow-2xl">
                     {tooltip}
                 </div>
             )}
