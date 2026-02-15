@@ -79,11 +79,21 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
             const response = await ApiService.createCall(roomId, userId);
             const callId = response.id;
+            const status = response.status;
 
             set({ activeCall: { id: callId, roomId } });
 
-            // Mesh initiation is now handled exclusively by fetchParticipants
-            // to prevent double-initiation race conditions.
+            // REGRESSION FIX: Eager initiation for the initiator (from commit 114f282)
+            // This reduces delay on slow networks by starting the mesh before the next poll.
+            if (status === 'joined') {
+                const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
+                for (const p of participants) {
+                    if (p.id !== userId && userId < p.id) {
+                        (get() as any).initiatePeerConnection(callId, userId, p.id, stream);
+                    }
+                }
+            }
+
             await get().fetchParticipants(roomId, userId);
 
         } catch (err) {
@@ -407,7 +417,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             }));
 
             // MESH LOGIC: Ensure every participant has a P2P connection
-            if (localStream) {
+            // CRITICAL FIX: Only initiate mesh if this is our ACTIVE call room.
+            // Prevents cross-room signaling artifacts from background polls.
+            if (localStream && activeCall.roomId === roomId) {
                 for (const p of participants) {
                     if (p.id === userId) continue;
 
@@ -418,11 +430,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                     if (!currentPeers[p.id] && !currentPending.has(p.id)) {
                         // Deterministic rule: smaller ID initiates connection to avoid double-initiation
                         if (userId < p.id) {
-                            console.log(`[WebRTC] Mesh: Discovered ${p.id}, I am the initiator (${userId} < ${p.id})`);
+                            console.log(`[WebRTC] Mesh: Discovered ${p.id} in room ${roomId}. Initiating P2P...`);
                             (get() as any).initiatePeerConnection(activeCall.id, userId, p.id, localStream);
-                        } else {
-                            // Larger ID waits, but if it's been too long, we could have a fallback
-                            // For now, sticking to strict rules for stability.
                         }
                     }
                 }

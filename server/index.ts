@@ -679,6 +679,13 @@ app.post('/api/voice/poll', async (c: Context) => {
     const results = db.prepare('SELECT * FROM call_signals WHERE call_id = ? AND id > ? AND sender_id != ? ORDER BY id ASC')
         .all(call_id, last_signal_id || 0, userId);
 
+    // If user is polling but not in participants (due to cleanup), re-add them
+    const isParticipant = db.prepare('SELECT 1 FROM call_participants WHERE call_id = ? AND user_id = ?').get(call_id, userId);
+    if (!isParticipant) {
+        console.log(`[POLL] User ${userId} missing from call ${call_id}, re-inserting...`);
+        db.prepare('INSERT OR IGNORE INTO call_participants (call_id, user_id) VALUES (?, ?)').run(call_id, userId);
+    }
+
     if (results.length > 0) {
         console.log(`[POLL] User ${userId} found ${results.length} new signals for call ${call_id}`);
     }
@@ -704,12 +711,12 @@ app.post('/api/voice/end', async (c: Context) => {
 // Runs every 15 seconds to remove participants who aren't polling anymore (tab closed)
 setInterval(() => {
     try {
-        // Find participants whose last_seen is older than 20 seconds
+        // Find participants whose last_seen is older than 90 seconds (relaxed for poor networks)
         const zombies = db.prepare(`
             SELECT cp.user_id, cp.call_id, u.username
             FROM call_participants cp
             JOIN users u ON cp.user_id = u.id
-            WHERE u.last_seen < datetime('now', '-45 seconds')
+            WHERE u.last_seen < datetime('now', '-90 seconds')
         `).all() as any[];
 
         if (zombies.length > 0) {
