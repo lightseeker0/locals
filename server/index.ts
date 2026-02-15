@@ -138,9 +138,21 @@ const isAdmin = (userId: string) => {
     return adminUsernames.includes(user.username.toLowerCase());
 };
 
+const lastSeenCache = new Map<string, number>();
 const updateLastSeen = (userId: string) => {
     if (!userId) return;
-    db.prepare('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?').run(userId);
+    const now = Date.now();
+    const lastUpdate = lastSeenCache.get(userId) || 0;
+
+    // Only update DB if more than 5 seconds passed since last update for this user
+    if (now - lastUpdate > 5000) {
+        try {
+            db.prepare('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?').run(userId);
+            lastSeenCache.set(userId, now);
+        } catch (err) {
+            console.error(`[DB] Failed to update lastSeen for ${userId}:`, err);
+        }
+    }
 };
 
 // Middleware to update last seen and validate session
