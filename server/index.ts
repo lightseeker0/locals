@@ -17,6 +17,7 @@ if (!fs.existsSync(path.dirname(dbPath))) {
 }
 
 const db = new Database(dbPath, { verbose: (sql) => console.log(`[SQL] ${sql}`) });
+db.pragma('journal_mode = WAL'); // Enable Write-Ahead Logging for better concurrency
 
 // Initialize database schema if not exists
 const possibleSchemaPaths = [
@@ -223,6 +224,9 @@ app.onError((err, c) => {
         stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     }, 500);
 });
+
+// --- Health Check ---
+app.get('/api/health', (c) => c.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() }));
 
 // --- API Routes (Replicating [[path]].ts) ---
 
@@ -740,10 +744,11 @@ setInterval(() => {
 }, 15000);
 
 // Start the server
-const port = 3000;
-console.log(`Server is running on http://localhost:${port}`);
+const port = Number(process.env.PORT) || 3000;
+console.log(`[SERVER] Starting on http://0.0.0.0:${port}`);
 
 serve({
     fetch: app.fetch,
-    port
+    port,
+    hostname: '0.0.0.0'
 });
