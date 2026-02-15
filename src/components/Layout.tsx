@@ -51,7 +51,7 @@ export const Layout: React.FC = () => {
         >
             {/* Mobile Sidebar & ChannelList Wrapper */}
             <div className={clsx(
-                "fixed inset-0 z-[100] transition-all duration-300 md:relative md:flex md:z-auto",
+                "fixed inset-0 z-[100] transition-all duration-300 md:relative md:flex md:z-auto md:flex-col",
                 isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
             )}>
                 {/* Backdrop (Mobile Only) */}
@@ -64,15 +64,17 @@ export const Layout: React.FC = () => {
                 />
 
                 {/* Navigation Panels */}
-                <div className="relative flex h-full shadow-2xl md:shadow-none bg-matrix-darker border-r border-white/5">
-                    <Sidebar />
-                    <ChannelList />
+                <div className="relative flex flex-col h-full shadow-2xl md:shadow-none bg-matrix-darker border-r border-white/5">
+                    <div className="flex flex-1 min-h-0">
+                        <Sidebar />
+                        <ChannelList />
+                    </div>
+                    
+                    {/* User Control Panel - Bottom */}
+                    <div className="shrink-0 border-t border-white/5">
+                        <UserControlPanel />
+                    </div>
                 </div>
-            </div>
-
-            {/* User Control Panel - New Column */}
-            <div className="hidden lg:flex shrink-0">
-                <UserControlPanel />
             </div>
 
             {/* Main Chat Area */}
