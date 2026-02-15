@@ -25,6 +25,7 @@ RUN npm install
 
 # Copy backend source
 COPY server/ .
+COPY schema.sql /app/
 
 # Copy built frontend from Stage 1
 COPY --from=frontend-builder /app/dist /app/dist
