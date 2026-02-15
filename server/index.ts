@@ -57,6 +57,24 @@ try {
     console.error('[MIGRATION ERROR]', err);
 }
 
+// Performance Indexes
+try {
+    db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_messages_room_id_created ON messages(room_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_rooms_space_id ON rooms(space_id);
+        CREATE INDEX IF NOT EXISTS idx_participants_user_id ON participants(user_id);
+        CREATE INDEX IF NOT EXISTS idx_call_participants_call_id ON call_participants(call_id);
+        CREATE INDEX IF NOT EXISTS idx_call_signals_call_id_id ON call_signals(call_id, id);
+        CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen);
+    `);
+
+    // Cleanup: Drop notification table if exists since it's no longer used
+    db.exec("DROP TABLE IF EXISTS notifications;");
+    console.log('[DB] Indexes applied and cleanup complete.');
+} catch (err) {
+    console.error('[DB ERROR] Failed to apply indexes:', err);
+}
+
 app.use('*', cors({
     origin: '*',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
