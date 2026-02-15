@@ -1,9 +1,17 @@
+import { useAuthStore } from '../stores/authStore';
+
 export class ApiService {
     private static baseUrl = '/api';
 
     private static getHeaders(userId?: string) {
         const headers: any = { 'Content-Type': 'application/json' };
         if (userId) headers['X-User-ID'] = userId;
+
+        // Add Bearer token from auth store
+        const token = useAuthStore.getState().user?.session_token;
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
         return headers;
     }
 

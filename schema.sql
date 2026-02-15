@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
     custom_status TEXT,
     last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_banned BOOLEAN DEFAULT 0,
+    session_token TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

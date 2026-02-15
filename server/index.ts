@@ -107,14 +107,41 @@ const hashPassword = async (password: string, salt: Uint8Array) => {
     }
 };
 
+// Utility to sanitize HTML and prevent XSS
+const sanitize = (text: string) => {
+    if (!text) return '';
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+};
+
 const updateLastSeen = (userId: string) => {
     if (!userId) return;
     db.prepare('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?').run(userId);
 };
 
-// Middleware to update last seen
+// Middleware to update last seen and validate session
 app.use('/api/*', async (c: Context, next: Next) => {
     const userId = c.req.header('X-User-ID');
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+
+    // Public routes that don't need token validation
+    const publicRoutes = ['/api/auth/login', '/api/auth/register', '/api/spaces'];
+    const isPublic = publicRoutes.some(route => c.req.path === route);
+
+    if (userId && !isPublic) {
+        // Validate token if userId is provided
+        const user = db.prepare('SELECT session_token FROM users WHERE id = ?').get(userId) as any;
+        if (!user || user.session_token !== token) {
+            console.warn(`[AUTH] Unauthorized attempt for user ${userId}. Token mismatch.`);
+            return c.json({ error: 'Unauthorized', message: 'Invalid or missing session token' }, 401);
+        }
+    }
+
     if (userId) updateLastSeen(userId);
     await next();
 });
@@ -217,11 +244,12 @@ app.post('/api/auth/register', async (c: Context) => {
         const passwordHash = await hashPassword(password, new Uint8Array(salt));
         const saltStr = Buffer.from(salt).toString('base64');
 
-        db.prepare('INSERT INTO users (id, username, display_name, password_hash) VALUES (?, ?, ?, ?)')
-            .run(id, username, username, `${saltStr}:${passwordHash}`);
+        const token = crypto.randomUUID();
+        db.prepare('INSERT INTO users (id, username, display_name, password_hash, session_token) VALUES (?, ?, ?, ?, ?)')
+            .run(id, username, username, `${saltStr}:${passwordHash}`, token);
 
         console.log(`[AUTH] User registered successfully: ${username} (${id})`);
-        return c.json({ id, username, status: 'registered' });
+        return c.json({ id, username, session_token: token, status: 'registered' });
     } catch (err: any) {
         console.error(`[AUTH] Registration error:`, err);
         return c.json({ error: 'Internal server error', details: err.message }, 500);
@@ -257,10 +285,13 @@ app.post('/api/auth/login', async (c: Context) => {
             return c.json({ error: 'This account has been banned' }, 403);
         }
 
+        const token = crypto.randomUUID();
+        db.prepare('UPDATE users SET session_token = ? WHERE id = ?').run(token, user.id);
+
         updateLastSeen(user.id);
-        const { password_hash, ...safeUser } = user;
+        const { password_hash, session_token, ...safeUser } = user;
         console.log(`[AUTH] Login successful: ${username}`);
-        return c.json(safeUser);
+        return c.json({ ...safeUser, session_token: token });
     } catch (err: any) {
         console.error(`[AUTH] Login error:`, err);
         return c.json({ error: 'Internal server error', details: err.message }, 500);
@@ -269,12 +300,13 @@ app.post('/api/auth/login', async (c: Context) => {
 
 app.post('/api/messages/send', async (c: Context) => {
     const { room_id, user_id, content, reply_to_id } = await c.req.json();
+    const sanitizedContent = sanitize(content);
     const id = uuidv4();
     db.prepare('INSERT INTO messages (id, room_id, user_id, content, reply_to_id) VALUES (?, ?, ?, ?, ?)')
-        .run(id, room_id, user_id, content, reply_to_id || null);
+        .run(id, room_id, user_id, sanitizedContent, reply_to_id || null);
 
     updateLastSeen(user_id);
-    return c.json({ id, status: 'sent' });
+    return c.json({ id, status: 'sent', content: sanitizedContent });
 });
 
 app.get('/api/voice/participants/:roomId', async (c: Context) => {
