@@ -136,9 +136,10 @@ app.use('/api/*', async (c: Context, next: Next) => {
     if (userId && !isPublic) {
         // Validate token if userId is provided
         const user = db.prepare('SELECT session_token FROM users WHERE id = ?').get(userId) as any;
-        if (!user || user.session_token !== token) {
+        // MUST have a token and it MUST match
+        if (!user || !user.session_token || user.session_token !== token) {
             console.warn(`[AUTH] Unauthorized attempt for user ${userId}. Token mismatch.`);
-            return c.json({ error: 'Unauthorized', message: 'Invalid or missing session token' }, 401);
+            return c.json({ error: 'Unauthorized', message: 'Invalid or missing session token. Please re-login.' }, 401);
         }
     }
 
