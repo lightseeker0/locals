@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import crypto from 'node:crypto';
 
 const app = new Hono();
-const dbPath = path.join(process.cwd(), 'data', 'fiskos.db');
+const dbPath = path.join(process.cwd(), 'data', 'locals.db');
 
 // Ensure data directory exists
 if (!fs.existsSync(path.dirname(dbPath))) {
