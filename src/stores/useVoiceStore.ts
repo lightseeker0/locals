@@ -28,6 +28,7 @@ interface VoiceState {
     playJoinSound: () => void;
     isDeafened: boolean;
     toggleDeafen: () => void;
+    isPolling: boolean;
 }
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
@@ -42,6 +43,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     lastSignalId: 0,
     roomParticipants: {},
     speakingUsers: {},
+    isPolling: false,
     audioInputDeviceId: localStorage.getItem('audioInputDeviceId'),
     audioOutputDeviceId: localStorage.getItem('audioOutputDeviceId'),
 
@@ -212,10 +214,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const pending = new Set(state.pendingPeers);
             pending.delete(targetId);
 
+            const hasConnectedPeers = Object.values(newPeers).some((p: any) => p.connected);
+
             return {
                 peers: newPeers,
                 remoteStreams: newStreams,
-                pendingPeers: pending
+                pendingPeers: pending,
+                callStatus: hasConnectedPeers ? 'connected' : 'calling'
             };
         });
     },
@@ -261,7 +266,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                     set(state => {
                         const nextP = new Set(state.pendingPeers);
                         nextP.delete(fromId);
-                        return { pendingPeers: nextP };
+                        return { callStatus: 'connected', pendingPeers: nextP };
                     });
                 });
 
@@ -299,20 +304,28 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
         if (peer) {
             try {
+                // If it's an offer/answer, check if we're already connected or stable to avoid InvalidStateError
                 if (payload.type === 'answer' || payload.type === 'offer') {
                     if (peer.connected) return;
+                    // @ts-ignore - internal _pc check for signaling state
+                    if (peer._pc?.signalingState === 'stable' && payload.type === 'answer') return;
                 }
                 peer.signal(payload);
-            } catch (e) {
-                console.error(`[WebRTC] Signal application failed:`, e);
+            } catch (e: any) {
+                if (e.message?.includes('stable')) {
+                    console.warn(`[WebRTC] Signal ignored: Peer ${fromId} is already stable.`);
+                } else {
+                    console.error(`[WebRTC] Signal application failed for ${fromId}:`, e);
+                }
             }
         }
     },
 
     pollSignals: async (userId: string) => {
-        const { activeCall, localStream } = get();
-        if (!activeCall || !localStream) return;
+        const { activeCall, localStream, isPolling } = get();
+        if (!activeCall || !localStream || isPolling) return;
 
+        set({ isPolling: true });
         try {
             const lastSignalId = get().lastSignalId || 0;
             const signals: any[] = await ApiService.pollSignals(activeCall.id, userId, lastSignalId);
@@ -331,6 +344,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             }
         } catch (err) {
             console.error('Polling error:', err);
+        } finally {
+            set({ isPolling: false });
         }
     },
 
