@@ -30,6 +30,7 @@ interface VoiceState {
     toggleDeafen: () => void;
     isPolling: boolean;
     processedSignalIds: Set<number>;
+    processedSignalHashes: Set<string>;
 }
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
@@ -46,6 +47,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     speakingUsers: {},
     isPolling: false,
     processedSignalIds: new Set(),
+    processedSignalHashes: new Set(),
     audioInputDeviceId: localStorage.getItem('audioInputDeviceId'),
     audioOutputDeviceId: localStorage.getItem('audioOutputDeviceId'),
 
@@ -247,13 +249,23 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     handleIncomingSignal: async (callId: string, userId: string, signalData: any, stream: MediaStream, signalId?: number) => {
+        // 1. Database ID based deduplication (Level 1)
         if (signalId && get().processedSignalIds.has(signalId)) {
-            console.log(`[WebRTC] Skipping already processed signal: ${signalId}`);
             return;
         }
 
         const fromId = signalData.from;
         const payload = signalData.signal;
+
+        // 2. Content based deduplication (Level 2)
+        // This prevents the same SDP/ICE candidate from being processed twice even if it has a new ID
+        const payloadString = typeof payload === 'string' ? payload : JSON.stringify(payload);
+        const signalKey = `${fromId}:${payload.type || 'ice'}:${payloadString}`;
+
+        if (get().processedSignalHashes.has(signalKey)) {
+            console.log(`[WebRTC] Skipping duplicate signal by content from ${fromId}`);
+            return;
+        }
 
         if (signalId) {
             set(state => {
@@ -262,6 +274,17 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 return { processedSignalIds: nextProcessed };
             });
         }
+
+        set(state => {
+            const nextHashes = new Set(state.processedSignalHashes);
+            nextHashes.add(signalKey);
+            // Limit size to prevent memory leak
+            if (nextHashes.size > 200) {
+                const first = nextHashes.values().next().value;
+                if (first !== undefined) nextHashes.delete(first);
+            }
+            return { processedSignalHashes: nextHashes };
+        });
 
         // Critical: always fetch the absolutely freshest state to avoid processing the same signal twice
         const { peers, pendingPeers } = get();
@@ -408,6 +431,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             pendingPeers: new Set(),
             lastSignalId: 0,
             processedSignalIds: new Set(),
+            processedSignalHashes: new Set(),
             roomParticipants: {},
             speakingUsers: {},
             analyserIntervals: {}
