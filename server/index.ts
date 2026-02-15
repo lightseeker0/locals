@@ -142,15 +142,20 @@ app.use('/api/*', async (c: Context, next: Next) => {
     const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
 
     // Public routes that don't need token validation
-    const publicRoutes = ['/api/auth/login', '/api/auth/register', '/api/spaces'];
+    const publicRoutes = ['/api/auth/login', '/api/auth/register'];
     const isPublic = publicRoutes.some(route => c.req.path === route);
 
     if (userId && !isPublic) {
         // Validate token if userId is provided
         const user = db.prepare('SELECT session_token FROM users WHERE id = ?').get(userId) as any;
-        // MUST have a token and it MUST match
-        if (!user || !user.session_token || user.session_token !== token) {
-            console.warn(`[AUTH] Unauthorized attempt for user ${userId}. Token mismatch.`);
+
+        if (!user) {
+            console.warn(`[AUTH] User ${userId} not found in database.`);
+            return c.json({ error: 'Unauthorized', message: 'User not found.' }, 401);
+        }
+
+        if (!user.session_token || user.session_token !== token) {
+            console.warn(`[AUTH] Unauthorized attempt for user ${userId}. Token mismatch. Provided: ${token ? token.slice(0, 8) + '...' : 'NONE'}, Stored: ${user.session_token ? user.session_token.slice(0, 8) + '...' : 'NONE'}`);
             return c.json({ error: 'Unauthorized', message: 'Invalid or missing session token. Please re-login.' }, 401);
         }
     }
@@ -246,14 +251,14 @@ app.post('/api/user/profile', async (c: Context) => {
     try {
         const { display_name, avatar_url, bio, custom_status } = await c.req.json();
 
-        // Ensure user can only update their own profile
         db.prepare(`
             UPDATE users 
             SET display_name = COALESCE(?, display_name), 
                 avatar_url = COALESCE(?, avatar_url), 
+                bio = COALESCE(?, bio),
                 custom_status = COALESCE(?, custom_status) 
             WHERE id = ?
-        `).run(display_name, avatar_url, custom_status, userId);
+        `).run(display_name, avatar_url, bio, custom_status, userId);
 
         console.log(`[USER] Profile updated for: ${userId}`);
         return c.json({ status: 'updated' });
@@ -261,6 +266,135 @@ app.post('/api/user/profile', async (c: Context) => {
         console.error(`[USER] Profile update error:`, err);
         return c.json({ error: 'Failed to update profile', details: err.message }, 500);
     }
+});
+
+// --- Themes ---
+app.get('/api/themes', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json([]);
+    const themes = db.prepare('SELECT * FROM user_themes WHERE user_id = ?').all(userId);
+    return c.json(themes);
+});
+
+app.post('/api/themes', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+    const { id, name, css_content, is_url, is_active } = await c.req.json();
+    const themeId = id || uuidv4();
+
+    db.prepare(`
+        INSERT INTO user_themes (id, user_id, name, css_content, is_url, is_active)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            css_content = excluded.css_content,
+            is_url = excluded.is_url,
+            is_active = excluded.is_active
+    `).run(themeId, userId, name, css_content, is_url ? 1 : 0, is_active ? 1 : 0);
+
+    return c.json({ id: themeId, status: 'saved' });
+});
+
+app.post('/api/themes/delete', async (c: Context) => {
+    const { id } = await c.req.json();
+    db.prepare('DELETE FROM user_themes WHERE id = ?').run(id);
+    return c.json({ status: 'deleted' });
+});
+
+// --- Reactions ---
+app.get('/api/reactions/:messageId', async (c: Context) => {
+    const messageId = c.req.param('messageId');
+    const results = db.prepare(`
+        SELECT r.*, u.username, u.display_name
+        FROM reactions r
+        JOIN users u ON r.user_id = u.id
+        WHERE r.message_id = ?
+    `).all(messageId);
+    return c.json(results);
+});
+
+app.post('/api/reactions', async (c: Context) => {
+    const { message_id, user_id, emoji } = await c.req.json();
+    const existing = db.prepare('SELECT id FROM reactions WHERE message_id = ? AND user_id = ? AND emoji = ?')
+        .get(message_id, user_id, emoji) as any;
+
+    if (existing) {
+        db.prepare('DELETE FROM reactions WHERE id = ?').run(existing.id);
+        return c.json({ status: 'removed' });
+    } else {
+        const id = uuidv4();
+        db.prepare('INSERT INTO reactions (id, message_id, user_id, emoji) VALUES (?, ?, ?, ?)')
+            .run(id, message_id, user_id, emoji);
+        return c.json({ id, status: 'added' });
+    }
+});
+
+// --- Notifications ---
+app.get('/api/notifications', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json([]);
+    const results = db.prepare(`
+        SELECT n.*, u.username as actor_username, u.display_name as actor_display_name, u.avatar_url as actor_avatar
+        FROM notifications n
+        JOIN users u ON n.actor_id = u.id
+        WHERE n.user_id = ?
+        ORDER BY n.created_at DESC LIMIT 50
+    `).all(userId);
+    return c.json(results);
+});
+
+app.post('/api/notifications/read', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    const { notification_id, all } = await c.req.json();
+    if (all) {
+        db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').run(userId);
+    } else {
+        db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?').run(notification_id, userId);
+    }
+    return c.json({ status: 'read' });
+});
+
+// --- Read Receipts ---
+app.post('/api/read-receipts', async (c: Context) => {
+    const { room_id, user_id, message_id } = await c.req.json();
+    db.prepare(`
+        INSERT INTO read_receipts (room_id, user_id, last_read_message_id, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(room_id, user_id) DO UPDATE SET
+            last_read_message_id = excluded.last_read_message_id,
+            updated_at = CURRENT_TIMESTAMP
+    `).run(room_id, user_id, message_id);
+    return c.json({ status: 'updated' });
+});
+
+// --- Typing (In-memory for simplicity) ---
+const typingState = new Map<string, Set<string>>(); // roomId -> Set of userIds
+
+app.post('/api/typing', async (c: Context) => {
+    const { room_id, user_id, is_typing } = await c.req.json();
+    if (!typingState.has(room_id)) typingState.set(room_id, new Set());
+
+    if (is_typing) {
+        typingState.get(room_id)!.add(user_id);
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            typingState.get(room_id)?.delete(user_id);
+        }, 5000);
+    } else {
+        typingState.get(room_id)!.delete(user_id);
+    }
+    return c.json({ status: 'ok' });
+});
+
+app.get('/api/typing', async (c: Context) => {
+    const roomId = c.req.query('room_id');
+    if (!roomId || !typingState.has(roomId)) return c.json([]);
+
+    const userIds = Array.from(typingState.get(roomId)!);
+    if (userIds.length === 0) return c.json([]);
+
+    const users = db.prepare(`SELECT id, username, display_name FROM users WHERE id IN (${userIds.map(() => '?').join(',')})`).all(...userIds);
+    return c.json(users);
 });
 
 app.get('/api/messages/:roomId', async (c: Context) => {

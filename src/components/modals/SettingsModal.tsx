@@ -196,33 +196,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                                         reader.onload = (ev) => {
                                                             const img = new Image();
                                                             img.onload = () => {
-                                                                const canvas = document.createElement('canvas');
-                                                                const MAX_SIZE = 256; // Higher resolution for better quality
-                                                                let width = img.width;
-                                                                let height = img.height;
+                                                                // Use raw data URL from result to preserve original quality
+                                                                const dataUrl = ev.target?.result as string;
 
-                                                                // Square crop logic
-                                                                const size = Math.min(width, height);
-                                                                const sourceX = (width - size) / 2;
-                                                                const sourceY = (height - size) / 2;
-
-                                                                canvas.width = MAX_SIZE;
-                                                                canvas.height = MAX_SIZE;
-                                                                const ctx = canvas.getContext('2d');
-                                                                if (ctx) {
-                                                                    ctx.imageSmoothingEnabled = true;
-                                                                    ctx.imageSmoothingQuality = 'high';
-                                                                    ctx.drawImage(img, sourceX, sourceY, size, size, 0, 0, MAX_SIZE, MAX_SIZE);
-                                                                }
-
-                                                                // Better quality settings (0.7)
-                                                                let dataUrl = canvas.toDataURL('image/webp', 0.7);
-                                                                if (!dataUrl.includes('webp') || dataUrl.length > 500000) {
-                                                                    dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                                                                }
-
-                                                                if (dataUrl.length > 1000000) { // Support up to 1MB data URL
-                                                                    setProfileError('Image too large after compression');
+                                                                if (dataUrl.length > 5 * 1024 * 1024) { // 5MB limit for DataURL
+                                                                    setProfileError('Image file is too large (>5MB)');
                                                                     return;
                                                                 }
 
