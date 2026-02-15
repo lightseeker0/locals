@@ -5,7 +5,7 @@ import SimplePeer from 'simple-peer/simplepeer.min.js';
 
 interface VoiceState {
     activeCall: { id: string, roomId: string } | null;
-    callStatus: 'idle' | 'calling' | 'connected' | 'ended';
+    callStatus: 'idle' | 'joining' | 'calling' | 'connected' | 'ended';
     localStream: MediaStream | null;
     remoteStreams: Record<string, MediaStream>; // userId -> stream
     isMuted: boolean;
@@ -48,9 +48,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     startCall: async (roomId: string, user: any) => {
         const userId = user.id;
         const { activeCall } = get();
-        if (activeCall?.roomId === roomId) return;
+        if (activeCall?.roomId === roomId || get().callStatus === 'joining') return;
         if (activeCall) await get().endCall(userId);
 
+        set({ callStatus: 'joining' });
         (get() as any).playJoinSound();
 
         try {
