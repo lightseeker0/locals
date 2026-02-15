@@ -39,6 +39,7 @@ interface AppState {
     toggleUserList: () => void;
     setSettingsOpen: (isOpen: boolean) => void;
     setMobileMenuOpen: (isOpen: boolean) => void;
+    clearUnread: (channelId: string) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -61,4 +62,9 @@ export const useAppStore = create<AppState>((set) => ({
     toggleUserList: () => set((state) => ({ isUserListOpen: !state.isUserListOpen })),
     setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
     setMobileMenuOpen: (isOpen) => set({ isMobileMenuOpen: isOpen }),
+    clearUnread: (channelId) => set((state) => ({
+        channels: state.channels.map(c =>
+            c.id === channelId ? { ...c, unread_count: 0, mention_count: 0 } : c
+        )
+    })),
 }));

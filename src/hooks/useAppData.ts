@@ -26,14 +26,22 @@ export const useAppData = () => {
 
     const fetchRoomsOrDMs = useCallback(async () => {
         if (!user) return;
+        const currentIdAtStart = selectedServerId;
         try {
-            if (selectedServerId) {
+            if (currentIdAtStart) {
                 // Fetch rooms for space
-                const rooms = await ApiService.fetchRooms(selectedServerId, user.id);
+                const rooms = await ApiService.fetchRooms(currentIdAtStart, user.id);
+
+                // CRITICAL: Only update if we are still on the same server
+                const { selectedServerId: latestServerId } = useAppStore.getState();
+                if (latestServerId !== currentIdAtStart) return;
+
                 const mappedChannels = rooms.map((r: any) => ({
                     id: r.id,
                     title: r.name,
-                    type: r.type || 'text'
+                    type: r.type || 'text',
+                    unread_count: r.unread_count || 0,
+                    mention_count: r.mention_count || 0
                 }));
                 setChannels(mappedChannels);
 
@@ -46,12 +54,18 @@ export const useAppData = () => {
             } else {
                 // Fetch DMs (Home view)
                 const dms = await ApiService.fetchDMs(user.id);
+
+                const { selectedServerId: latestServerId } = useAppStore.getState();
+                if (latestServerId !== null) return;
+
                 setChannels(dms.map((d: any) => ({
                     id: d.id,
                     title: d.other_display_name || d.other_username,
                     type: 'dm',
                     avatar: d.other_avatar,
-                    last_seen: d.last_seen
+                    last_seen: d.last_seen,
+                    unread_count: d.unread_count || 0,
+                    mention_count: d.mention_count || 0
                 })));
             }
         } catch (error) {

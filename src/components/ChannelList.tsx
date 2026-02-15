@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
-import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Settings, Bell, Circle, Clock, MinusCircle, LogOut } from 'lucide-react';
+import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Settings, Bell, Circle, Clock, MinusCircle, LogOut, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DirectMessageModal } from './modals/DirectMessageModal';
 import { useVoiceStore } from '../stores/useVoiceStore';
@@ -15,7 +15,7 @@ import { NotificationList } from './NotificationList';
 import { AdminPanel } from './modals/AdminPanel';
 
 export const ChannelList: React.FC = () => {
-    const { selectedServerId, servers, channels, selectedChannelId, setSelectedChannel, setSettingsOpen, setMobileMenuOpen } = useAppStore();
+    const { selectedServerId, servers, channels, selectedChannelId, setSelectedChannel, setSettingsOpen, setMobileMenuOpen, clearUnread } = useAppStore();
     const { user, userStatus, setUserStatus, logout } = useAuthStore();
     const { refreshRooms } = useAppData();
     const { t } = useI18nStore();
@@ -390,7 +390,10 @@ export const ChannelList: React.FC = () => {
                                     selectedChannelId === dm.id ? "bg-matrix-green/10 text-matrix-green border border-matrix-green/20" : "text-matrix-muted hover:bg-white/5 hover:text-gray-200 border border-transparent",
                                     dm.unread_count && dm.unread_count > 0 && "unread-marker"
                                 )}
-                                onClick={() => setSelectedChannel(dm.id)}
+                                onClick={() => {
+                                    clearUnread(dm.id);
+                                    setSelectedChannel(dm.id);
+                                }}
                             >
                                 {/* Unread Pill */}
                                 {dm.unread_count && dm.unread_count > 0 && selectedChannelId !== dm.id && (
@@ -481,6 +484,7 @@ export const ChannelList: React.FC = () => {
                                     channel.unread_count && channel.unread_count > 0 && "unread-marker"
                                 )}
                                 onClick={() => {
+                                    clearUnread(channel.id);
                                     if (channel.type === 'voice') {
                                         if (activeCall?.roomId !== channel.id) {
                                             if (user) startCall(channel.id, user);

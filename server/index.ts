@@ -130,6 +130,14 @@ const sanitize = (text: string) => {
         .replace(/'/g, '&#039;');
 };
 
+const isAdmin = (userId: string) => {
+    if (!userId) return false;
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as any;
+    if (!user) return false;
+    const adminUsernames = ['ds4d', 'ilke', 'i̇lke'];
+    return adminUsernames.includes(user.username.toLowerCase());
+};
+
 const updateLastSeen = (userId: string) => {
     if (!userId) return;
     db.prepare('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?').run(userId);
@@ -248,6 +256,41 @@ app.get('/api/rooms/:spaceId', async (c: Context) => {
         results = db.prepare('SELECT *, 0 as unread_count, 0 as mention_count FROM rooms WHERE space_id = ? AND is_private = 0').all(spaceId);
     }
     return c.json(results);
+});
+
+app.post('/api/spaces/delete/:spaceId', async (c: Context) => {
+    const spaceId = c.req.param('spaceId');
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const spaceOrder = db.prepare('SELECT owner_id FROM spaces WHERE id = ?').get(spaceId) as any;
+    if (!spaceOrder) return c.json({ error: 'Space not found' }, 404);
+
+    if (spaceOrder.owner_id !== userId && !isAdmin(userId)) {
+        return c.json({ error: 'Forbidden', message: 'Only owner or site admin can delete a space' }, 403);
+    }
+
+    try {
+        const deleteTx = db.transaction(() => {
+            // Delete rooms first (messages and participants will cascade if defined, otherwise cleanup manually)
+            const rooms = db.prepare('SELECT id FROM rooms WHERE space_id = ?').all(spaceId) as any[];
+            for (const room of rooms) {
+                db.prepare('DELETE FROM messages WHERE room_id = ?').run(room.id);
+                db.prepare('DELETE FROM participants WHERE room_id = ?').run(room.id);
+                db.prepare('DELETE FROM read_receipts WHERE room_id = ?').run(room.id);
+                db.prepare('DELETE FROM rooms WHERE id = ?').run(room.id);
+            }
+            db.prepare('DELETE FROM participants WHERE space_id = ?').run(spaceId); // Global space participants if any
+            db.prepare('DELETE FROM spaces WHERE id = ?').run(spaceId);
+        });
+
+        deleteTx();
+        console.log(`[SPACES] Space deleted: ${spaceId} by ${userId}`);
+        return c.json({ status: 'deleted' });
+    } catch (err: any) {
+        console.error('[SPACES] Delete error:', err);
+        return c.json({ error: 'Failed to delete space', message: err.message }, 500);
+    }
 });
 
 app.get('/api/auth/me', async (c: Context) => {
