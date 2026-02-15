@@ -689,17 +689,38 @@ app.post('/api/voice/poll', async (c: Context) => {
 app.post('/api/voice/end', async (c: Context) => {
     const userId = c.req.header('X-User-ID');
     if (userId) {
+        // Find what calls this user was in before we delete them
+        const userCalls = db.prepare('SELECT call_id FROM call_participants WHERE user_id = ?').all(userId) as any[];
+
         // Remove from participants
         db.prepare('DELETE FROM call_participants WHERE user_id = ?').run(userId);
 
-        // Mark call as ended if no participants left
-        const remaining = db.prepare('SELECT COUNT(*) as count FROM call_participants cp JOIN calls c ON cp.call_id = c.id WHERE c.status = \'active\' AND cp.user_id != ?').get(userId) as any;
-        if (remaining && remaining.count === 0) {
-            db.prepare('UPDATE calls SET status = \'ended\' WHERE status = \'active\'').run();
+        // Check each call they were in
+        for (const { call_id } of userCalls) {
+            const remaining = db.prepare('SELECT COUNT(*) as count FROM call_participants WHERE call_id = ?').get(call_id) as any;
+            if (remaining && remaining.count === 0) {
+                console.log(`[VOICE] Call ${call_id} is now empty. Cleaning up signals and ending call.`);
+                db.prepare('UPDATE calls SET status = \'ended\' WHERE id = ?').run(call_id);
+                db.prepare('DELETE FROM call_signals WHERE call_id = ?').run(call_id);
+            }
         }
     }
     return c.json({ status: 'ended' });
 });
+
+// Periodic Cleanup Task: Run every hour to purge abandoned signals
+setInterval(() => {
+    try {
+        console.log('[CLEANUP] Purging old voice signals...');
+        // Delete signals older than 2 hours
+        const result = db.prepare("DELETE FROM call_signals WHERE created_at < datetime('now', '-2 hours')").run();
+        if (result.changes > 0) {
+            console.log(`[CLEANUP] Deleted ${result.changes} old signals.`);
+        }
+    } catch (err) {
+        console.error('[CLEANUP ERROR] Signal purge failed:', err);
+    }
+}, 3600000); // 1 hour
 
 
 // Start the server

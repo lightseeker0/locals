@@ -49,6 +49,21 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     audioInputDeviceId: localStorage.getItem('audioInputDeviceId'),
     audioOutputDeviceId: localStorage.getItem('audioOutputDeviceId'),
 
+    // Helper for sending signals with retries
+    sendSignalWithRetry: async (callId: string, userId: string, type: string, payload: any, attempts = 5) => {
+        for (let i = 0; i < attempts; i++) {
+            try {
+                await ApiService.sendSignal(callId, userId, type, payload);
+                return;
+            } catch (err: any) {
+                console.warn(`[WebRTC] Signal send failed (Attempt ${i + 1}/${attempts}):`, err.message);
+                if (i === attempts - 1) throw err;
+                // Exponential backoff: 200ms, 400ms, 800ms...
+                await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 200));
+            }
+        }
+    },
+
     startCall: async (roomId: string, user: any) => {
         const userId = user.id;
         const { activeCall } = get();
@@ -154,11 +169,15 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
             peer.on('signal', async (data: any) => {
                 console.log(`[WebRTC] Outgoing signal to ${targetId}: ${data.type || 'ice'}`);
-                await ApiService.sendSignal(callId, userId, data.type || 'signal', {
-                    signal: data,
-                    to: targetId,
-                    from: userId
-                });
+                try {
+                    await (get() as any).sendSignalWithRetry(callId, userId, data.type || 'signal', {
+                        signal: data,
+                        to: targetId,
+                        from: userId
+                    });
+                } catch (err) {
+                    console.error(`[WebRTC] Critical: Failed to send signal to ${targetId} after retries:`, err);
+                }
             });
 
             peer.on('connect', () => {
@@ -269,11 +288,15 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
                 peer.on('signal', async (data: any) => {
                     console.log(`[WebRTC] Outgoing (joiner) signal to ${fromId}: ${data.type || 'ice'}`);
-                    await ApiService.sendSignal(callId, userId, data.type || 'signal', {
-                        signal: data,
-                        to: fromId,
-                        from: userId
-                    });
+                    try {
+                        await (get() as any).sendSignalWithRetry(callId, userId, data.type || 'signal', {
+                            signal: data,
+                            to: fromId,
+                            from: userId
+                        });
+                    } catch (err) {
+                        console.error(`[WebRTC] Critical: Failed to send joiner signal to ${fromId} after retries:`, err);
+                    }
                 });
 
                 peer.on('connect', () => {
