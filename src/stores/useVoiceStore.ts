@@ -59,14 +59,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             console.log(`[WebRTC] Starting call in room ${roomId} (Device: ${audioInputDeviceId || 'default'})`);
 
             const constraints = {
-                audio: {
-                    deviceId: audioInputDeviceId ? { exact: audioInputDeviceId } : undefined,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                    sampleRate: 48000,
-                    channelCount: 1
-                },
+                audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
                 video: false
             };
 
@@ -150,18 +143,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:global.stun.twilio.com:3478' },
-                        // Adding Relay (TURN) servers for network resilience
-                        {
-                            urls: 'turn:openrelay.metered.ca:80',
-                            username: 'openrelayproject',
-                            credential: 'openrelayproject'
-                        },
-                        {
-                            urls: 'turn:openrelay.metered.ca:443',
-                            username: 'openrelayproject',
-                            credential: 'openrelayproject'
-                        }
+                        { urls: 'stun:global.stun.twilio.com:3478' }
                     ]
                 }
             });
@@ -260,18 +242,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                     config: {
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' },
-                            { urls: 'stun:global.stun.twilio.com:3478' },
-                            // Adding Relay (TURN) servers for network resilience
-                            {
-                                urls: 'turn:openrelay.metered.ca:80',
-                                username: 'openrelayproject',
-                                credential: 'openrelayproject'
-                            },
-                            {
-                                urls: 'turn:openrelay.metered.ca:443',
-                                username: 'openrelayproject',
-                                credential: 'openrelayproject'
-                            }
+                            { urls: 'stun:global.stun.twilio.com:3478' }
                         ]
                     }
                 });

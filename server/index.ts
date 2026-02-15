@@ -716,7 +716,7 @@ setInterval(() => {
             SELECT cp.user_id, cp.call_id, u.username
             FROM call_participants cp
             JOIN users u ON cp.user_id = u.id
-            WHERE u.last_seen < datetime('now', '-90 seconds')
+            WHERE u.last_seen < datetime('now', '-120 seconds')
         `).all() as any[];
 
         if (zombies.length > 0) {
