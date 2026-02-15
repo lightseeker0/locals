@@ -95,7 +95,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ active, children, className, 
             </div>
 
             {/* Mention Badge */}
-            {mentionCount && mentionCount > 0 && (
+            {mentionCount !== undefined && mentionCount > 0 && (
                 <div className="absolute -bottom-1 -right-1 bg-red-500 text-white text-[10px] font-black min-w-[20px] h-[20px] px-1.5 flex items-center justify-center rounded-full border-4 border-matrix-darker z-[20] shadow-lg animate-in zoom-in-50 duration-300">
                     {mentionCount > 99 ? '99+' : mentionCount}
                 </div>

@@ -406,7 +406,7 @@ export const ChannelList: React.FC = () => {
                                 className={clsx(
                                     "flex items-center px-2 py-2 rounded-xl cursor-pointer group transition-all relative overflow-hidden",
                                     selectedChannelId === dm.id ? "bg-matrix-green/10 text-matrix-green border border-matrix-green/20" : "text-matrix-muted hover:bg-white/5 hover:text-gray-200 border border-transparent",
-                                    dm.unread_count && dm.unread_count > 0 && "unread-marker"
+                                    dm.unread_count !== undefined && dm.unread_count > 0 && "unread-marker"
                                 )}
                                 onClick={() => {
                                     clearUnread(dm.id);
@@ -414,7 +414,7 @@ export const ChannelList: React.FC = () => {
                                 }}
                             >
                                 {/* Unread Pill */}
-                                {dm.unread_count && dm.unread_count > 0 && selectedChannelId !== dm.id && (
+                                {dm.unread_count !== undefined && dm.unread_count > 0 && selectedChannelId !== dm.id && (
                                     <div className="absolute left-0 w-1 h-2 bg-white rounded-r-full" />
                                 )}
                                 <div className="relative mr-3 shrink-0">
@@ -438,7 +438,7 @@ export const ChannelList: React.FC = () => {
                                 </span>
 
                                 {/* Mention Badge */}
-                                {dm.mention_count && dm.mention_count > 0 && selectedChannelId !== dm.id && (
+                                {dm.mention_count !== undefined && dm.mention_count > 0 && selectedChannelId !== dm.id && (
                                     <div className="bg-red-500 text-white text-[10px] font-black h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full mr-1">
                                         {dm.mention_count}
                                     </div>
@@ -508,7 +508,7 @@ export const ChannelList: React.FC = () => {
                                         ? "bg-matrix-green/15 text-matrix-green border border-matrix-green/20"
                                         : "text-matrix-muted hover:bg-white/5 hover:text-gray-200 border border-transparent",
                                     activeCall?.roomId === channel.id && "bg-matrix-green/5",
-                                    channel.unread_count && channel.unread_count > 0 && "unread-marker"
+                                    channel.unread_count !== undefined && channel.unread_count > 0 && "unread-marker"
                                 )}
                                 onClick={() => {
                                     clearUnread(channel.id);
@@ -524,7 +524,7 @@ export const ChannelList: React.FC = () => {
                                 }}
                             >
                                 {/* Unread Pill */}
-                                {channel.unread_count && channel.unread_count > 0 && selectedChannelId !== channel.id && (
+                                {channel.unread_count !== undefined && channel.unread_count > 0 && selectedChannelId !== channel.id && (
                                     <div className="absolute left-0 w-1 h-2 bg-white rounded-r-xl" />
                                 )}
 
@@ -541,7 +541,7 @@ export const ChannelList: React.FC = () => {
                                 </span>
 
                                 {/* Mention Badge */}
-                                {channel.mention_count && channel.mention_count > 0 && selectedChannelId !== channel.id && (
+                                {channel.mention_count !== undefined && channel.mention_count > 0 && selectedChannelId !== channel.id && (
                                     <div className="bg-red-500 text-white text-[10px] font-black h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full">
                                         {channel.mention_count}
                                     </div>
