@@ -79,25 +79,11 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
             const response = await ApiService.createCall(roomId, userId);
             const callId = response.id;
-            const status = response.status;
 
             set({ activeCall: { id: callId, roomId } });
 
-            if (status === 'joined') {
-                console.log("[WebRTC] Joined existing call, initiating mesh connections...");
-                const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
-                for (const p of participants) {
-                    if (p.id !== userId) {
-                        if (userId < p.id) {
-                            console.log(`[WebRTC] Mesh (Start): Initiating with ${p.id} (${userId} < ${p.id})`);
-                            (get() as any).initiatePeerConnection(callId, userId, p.id, stream);
-                        } else {
-                            console.log(`[WebRTC] Mesh (Start): Waiting for ${p.id} to initiate (${userId} > ${p.id})`);
-                        }
-                    }
-                }
-            }
-
+            // Mesh initiation is now handled exclusively by fetchParticipants
+            // to prevent double-initiation race conditions.
             await get().fetchParticipants(roomId, userId);
 
         } catch (err) {
@@ -150,7 +136,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:global.stun.twilio.com:3478' }
+                        { urls: 'stun:global.stun.twilio.com:3478' },
+                        // Adding Relay (TURN) servers for network resilience
+                        {
+                            urls: 'turn:openrelay.metered.ca:80',
+                            username: 'openrelayproject',
+                            credential: 'openrelayproject'
+                        },
+                        {
+                            urls: 'turn:openrelay.metered.ca:443',
+                            username: 'openrelayproject',
+                            credential: 'openrelayproject'
+                        }
                     ]
                 }
             });
@@ -249,7 +246,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                     config: {
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' },
-                            { urls: 'stun:global.stun.twilio.com:3478' }
+                            { urls: 'stun:global.stun.twilio.com:3478' },
+                            // Adding Relay (TURN) servers for network resilience
+                            {
+                                urls: 'turn:openrelay.metered.ca:80',
+                                username: 'openrelayproject',
+                                credential: 'openrelayproject'
+                            },
+                            {
+                                urls: 'turn:openrelay.metered.ca:443',
+                                username: 'openrelayproject',
+                                credential: 'openrelayproject'
+                            }
                         ]
                     }
                 });
