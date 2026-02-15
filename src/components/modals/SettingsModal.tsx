@@ -151,6 +151,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 setMicLevel(Math.min(100, Math.round((average / 128) * 100)));
             }, 50);
 
+            // Audio Loopback via hidden element
+            if (audioOutputDeviceId || true) {
+                const testAudio = document.getElementById('mic-test-audio') as HTMLAudioElement;
+                if (testAudio) {
+                    testAudio.srcObject = stream;
+                    if (audioOutputDeviceId && (testAudio as any).setSinkId) {
+                        (testAudio as any).setSinkId(audioOutputDeviceId).catch(console.error);
+                    }
+                    testAudio.play().catch(console.error);
+                }
+            }
+
         } catch (err) {
             console.error('Mic test failed:', err);
             alert('Could not access microphone for testing.');
@@ -508,7 +520,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                     <div className="bg-white/5 border border-white/5 p-6 rounded-2xl space-y-4">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <h3 className="text-white font-bold">{t('mic_test') || 'Giriş Testi'}</h3>
+                                                <h3 className="text-white font-bold">{t('mic_test') || 'Giriş Cihazı Testi'}</h3>
                                                 <p className="text-[11px] text-matrix-muted uppercase tracking-widest mt-1">Check if your microphone is working.</p>
                                             </div>
                                             <button
@@ -553,6 +565,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </div>
                 </div>
             </div>
+            {/* Hidden audio element for mic test loopback */}
+            <audio id="mic-test-audio" style={{ display: 'none' }} />
         </div>
     );
 };
