@@ -429,6 +429,24 @@ app.post('/api/auth/register', async (c: Context) => {
         db.prepare('INSERT INTO users (id, username, display_name, password_hash, session_token) VALUES (?, ?, ?, ?, ?)')
             .run(id, username, username, `${saltStr}:${passwordHash}`, token);
 
+        // Auto-join first available space and its rooms
+        try {
+            const defaultSpace = db.prepare('SELECT id FROM spaces LIMIT 1').get() as any;
+            if (defaultSpace) {
+                console.log(`[AUTH] Auto-joining user ${username} to space ${defaultSpace.id}`);
+                db.prepare('INSERT INTO participants (space_id, user_id, role) VALUES (?, ?, ?)')
+                    .run(defaultSpace.id, id, 'member');
+
+                const rooms = db.prepare('SELECT id FROM rooms WHERE space_id = ?').all(defaultSpace.id) as any[];
+                for (const room of rooms) {
+                    db.prepare('INSERT OR IGNORE INTO participants (room_id, user_id) VALUES (?, ?)')
+                        .run(room.id, id);
+                }
+            }
+        } catch (autoJoinErr) {
+            console.error(`[AUTH] Auto-join failed (ignoring):`, autoJoinErr);
+        }
+
         console.log(`[AUTH] User registered successfully: ${username} (${id})`);
         return c.json({ id, username, session_token: token, status: 'registered' });
     } catch (err: any) {

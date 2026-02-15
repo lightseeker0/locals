@@ -295,6 +295,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
         if (peer) {
             try {
+                // GUARD: Don't signal if we are already stable and this is an answer/offer
+                // Simple-peer doesn't expose state easily, but we can check internal PC state if needed
+                // For now, check if the signal was already processed or if it's an ICE candidate (always allowed)
+                if (payload.type === 'answer' || payload.type === 'offer') {
+                    if (peer.connected) {
+                        console.log(`[WebRTC] Peer ${fromId} already connected, ignoring ${payload.type}`);
+                        return;
+                    }
+                }
+
                 console.log(`[WebRTC] Processing incoming signal from ${fromId}:`, payload.type || 'ice');
                 peer.signal(payload);
             } catch (e) {
@@ -349,12 +359,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             try { p.destroy(); } catch (e) { }
         });
 
+        // Forced cleanup of all remote streams
+        Object.values(get().remoteStreams).forEach(stream => {
+            stream.getTracks().forEach(t => t.stop());
+        });
+
         set({
             activeCall: null,
             callStatus: 'idle',
             localStream: null,
             remoteStreams: {},
             peers: {},
+            pendingPeers: new Set(), // Ensure pending is cleared
             lastSignalId: 0,
             roomParticipants: {},
             speakingUsers: {},

@@ -133,22 +133,22 @@ export const MemberList: React.FC = () => {
                 status === 'dnd' ? 'bg-red-500' : 'bg-gray-500';
 
         return (
-            <div key={m.id} className="group flex items-center gap-3 p-1.5 hover:bg-white/5 rounded-lg cursor-pointer transition-colors relative">
+            <div key={m.id} className="group flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors relative">
                 <div className="relative">
                     {m.avatar_url ? (
-                        <img src={m.avatar_url} className={clsx("w-8 h-8 rounded-full border border-white/10", section === 'offline' && 'grayscale opacity-70')} alt="" />
+                        <img src={m.avatar_url} className={clsx("w-10 h-10 rounded-full border border-white/10", section === 'offline' && 'grayscale opacity-70')} alt="" />
                     ) : (
-                        <div className={clsx("w-8 h-8 rounded-full bg-matrix-green/10 border border-matrix-green/20 flex items-center justify-center", section === 'offline' && 'grayscale opacity-70')}>
-                            <span className="text-[10px] font-bold text-matrix-green">
+                        <div className={clsx("w-10 h-10 rounded-full bg-matrix-green/10 border border-matrix-green/20 flex items-center justify-center", section === 'offline' && 'grayscale opacity-70')}>
+                            <span className="text-xs font-bold text-matrix-green">
                                 {(m.display_name || m.username).substring(0, 1).toUpperCase()}
                             </span>
                         </div>
                     )}
 
                     {!m.is_banned && (
-                        <div className={clsx("absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-matrix-darker transition-colors", statusColor)}>
-                            {status === 'dnd' && <div className="w-1.5 h-0.5 bg-matrix-darker absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" />}
-                            {status === 'idle' && <div className="w-1.5 h-1.5 bg-matrix-darker absolute -top-0.5 -left-0.5 rounded-full" />}
+                        <div className={clsx("absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-matrix-darker transition-colors", statusColor)}>
+                            {status === 'dnd' && <div className="w-2 h-0.5 bg-matrix-darker absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" />}
+                            {status === 'idle' && <div className="w-2 h-2 bg-matrix-darker absolute -top-0.5 -left-0.5 rounded-full" />}
                         </div>
                     )}
 
@@ -157,11 +157,11 @@ export const MemberList: React.FC = () => {
                     )}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className={clsx("font-medium text-[14px] truncate group-hover:text-white", section === 'offline' ? 'text-matrix-muted' : 'text-gray-200')}>
+                    <div className={clsx("font-medium text-[15px] truncate group-hover:text-white", section === 'offline' ? 'text-matrix-muted' : 'text-gray-200')}>
                         {m.display_name || m.username}
                         {!!m.is_banned && <span className="ml-2 text-[10px] text-red-500 font-bold uppercase">(BANNED)</span>}
                     </div>
-                    <div className="text-[10px] text-matrix-muted truncate opacity-50 group-hover:opacity-100 transition-opacity">
+                    <div className="text-[11px] text-matrix-muted truncate opacity-50 group-hover:opacity-100 transition-opacity">
                         {['online', 'idle', 'dnd', 'invisible'].includes(status) ? t(status === 'invisible' ? 'offline' : status) : (m.custom_status || (section === 'online' ? t('online') : t('offline')))}
                     </div>
                 </div>
