@@ -11,11 +11,17 @@ export const VoiceCallOverlay: React.FC = () => {
     useEffect(() => {
         let interval: any;
         if (activeCall && user) {
+            console.log(`[WebRTC] Signaling poll started for call: ${activeCall.id}`);
             interval = setInterval(() => {
                 if (user?.id) pollSignals(user.id);
             }, 333); // Poll every 333ms for faster WebRTC handshake
         }
-        return () => clearInterval(interval);
+        return () => {
+            if (interval) {
+                console.log("[WebRTC] Signaling poll stopped.");
+                clearInterval(interval);
+            }
+        };
     }, [activeCall, user, pollSignals]);
 
     if (callStatus === 'idle' || !activeCall) return null;

@@ -55,11 +55,23 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
         try {
             const { audioInputDeviceId } = get();
+            console.log(`[WebRTC] Starting call in room ${roomId} (Device: ${audioInputDeviceId || 'default'})`);
+
             const constraints = {
-                audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
+                audio: {
+                    deviceId: audioInputDeviceId ? { exact: audioInputDeviceId } : undefined,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    sampleRate: 48000,
+                    channelCount: 1
+                },
                 video: false
             };
+
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            console.log("[WebRTC] Local stream acquired, tracks:", stream.getAudioTracks().map(t => `${t.label} (enabled: ${t.enabled})`));
+
             (get() as any).setupAudioAnalyser(stream, userId);
 
             set({ localStream: stream, callStatus: 'calling' });
@@ -88,7 +100,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             await get().fetchParticipants(roomId, userId);
 
         } catch (err) {
-            console.error('Failed to start call/join logic:', err);
+            console.error('[WebRTC] Failed to start call/join logic:', err);
             get().endCall(userId);
         }
     },
@@ -100,8 +112,15 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
         try {
             const { audioInputDeviceId } = get();
+            console.log(`[WebRTC] Joining call ${callId} (Device: ${audioInputDeviceId || 'default'})`);
+
             const constraints = {
-                audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
+                audio: {
+                    deviceId: audioInputDeviceId ? { exact: audioInputDeviceId } : undefined,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                },
                 video: false
             };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -124,7 +143,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             }
 
         } catch (err) {
-            console.error('Failed to join call:', err);
+            console.error('[WebRTC] Failed to join call:', err);
             get().endCall(userId);
         }
     },
@@ -139,7 +158,6 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         set({ pendingPeers: newPending });
 
         try {
-            console.log(`[WebRTC] Starting peer with ${targetId} (initiator: true)`);
             const peer = new SimplePeer({
                 initiator: true,
                 trickle: true,
@@ -153,7 +171,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             });
 
             peer.on('signal', async (data: any) => {
-                console.log(`[WebRTC] Outgoing signal to ${targetId}:`, data.type || 'ice');
+                console.log(`[WebRTC] Outgoing signal to ${targetId}: ${data.type || 'ice'}`);
                 await ApiService.sendSignal(callId, userId, data.type || 'signal', {
                     signal: data,
                     to: targetId,
@@ -162,7 +180,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             });
 
             peer.on('connect', () => {
-                console.log(`[WebRTC] Connected with ${targetId}`);
+                console.log(`[WebRTC] Connected with ${targetId}. Signaling state stable.`);
                 set(state => {
                     const nextPending = new Set(state.pendingPeers);
                     nextPending.delete(targetId);
@@ -173,7 +191,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             });
 
             peer.on('stream', (remoteStream: MediaStream) => {
-                console.log(`[WebRTC] Stream from ${targetId} received`);
+                console.log(`[WebRTC] Remote stream FROM ${targetId} received. Tracks:`, remoteStream.getAudioTracks().length);
                 set(state => ({
                     remoteStreams: { ...state.remoteStreams, [targetId]: remoteStream }
                 }));
@@ -432,19 +450,29 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     setupAudioAnalyser: (stream: MediaStream, targetUserId: string) => {
         try {
-            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            // Guard: AudioContext must be resumed after user gesture for some browsers,
+            // though Electron is usually more lenient.
+            const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+            const audioContext = new AudioContextClass();
+
             const analyser = audioContext.createAnalyser();
             const source = audioContext.createMediaStreamSource(stream);
             source.connect(analyser);
             analyser.fftSize = 512;
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
+            console.log(`[WebRTC] AudioAnalyser setup for ${targetUserId}`);
+
             const interval = setInterval(() => {
+                if (audioContext.state === 'suspended') audioContext.resume();
+
                 analyser.getByteFrequencyData(dataArray);
                 let sum = 0;
                 for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
                 const average = sum / dataArray.length;
-                const isSpeaking = average > 25;
+
+                // Threshold adjustment for sensitivity
+                const isSpeaking = average > 15;
 
                 set(state => {
                     if (state.speakingUsers[targetUserId] !== isSpeaking) {
@@ -457,7 +485,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             set(state => ({
                 analyserIntervals: { ...((state as any).analyserIntervals || {}), [targetUserId]: interval }
             } as any));
-        } catch (e) { }
+        } catch (e) {
+            console.error(`[WebRTC] Analyser setup failed for ${targetUserId}:`, e);
+        }
     },
 
     playJoinSound: () => {
