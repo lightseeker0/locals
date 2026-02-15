@@ -102,7 +102,7 @@ export const MemberList: React.FC = () => {
 
         members.forEach(m => {
             const status = m.id === user?.id ? userStatus : (m.custom_status || (isOnline(m.last_seen) ? 'online' : 'offline'));
-            
+
             if (m.is_banned) {
                 result['banned'].push(m);
             } else if (status === 'online') {
@@ -152,7 +152,7 @@ export const MemberList: React.FC = () => {
                         </div>
                     )}
 
-                    {m.is_banned && (
+                    {!!m.is_banned && (
                         <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-matrix-darker"></div>
                     )}
                 </div>
