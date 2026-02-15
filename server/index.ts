@@ -45,6 +45,18 @@ console.log(`[INFO] Using schema from: ${schemaPath}`);
 const schema = fs.readFileSync(schemaPath, 'utf8');
 db.exec(schema);
 
+// Migration: Add session_token if it doesn't exist
+try {
+    const tableInfo = db.prepare("PRAGMA table_info(users)").all() as any[];
+    const hasSessionToken = tableInfo.some(col => col.name === 'session_token');
+    if (!hasSessionToken) {
+        console.log('[MIGRATION] Adding session_token column to users table...');
+        db.exec("ALTER TABLE users ADD COLUMN session_token TEXT;");
+    }
+} catch (err) {
+    console.error('[MIGRATION ERROR]', err);
+}
+
 app.use('*', cors({
     origin: '*',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
