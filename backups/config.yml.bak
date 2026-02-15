@@ -1,0 +1,11 @@
+tunnel: b3a3389c-53ea-4761-ba64-cd7da3237778
+credentials-file: /etc/cloudflared/b3a3389c-53ea-4761-ba64-cd7da3237778.json
+
+ingress:
+  - hostname: fiskos.xyz
+    service: http://api:3000
+  - hostname: api.fiskos.xyz
+    service: http://api:3000
+  - hostname: www.fiskos.xyz
+    service: http://api:3000
+  - service: http_status:404

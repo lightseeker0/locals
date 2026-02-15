@@ -1,0 +1,743 @@
+import { Hono, Context, Next } from 'hono';
+import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { cors } from 'hono/cors';
+import Database from 'better-sqlite3';
+import { v4 as uuidv4 } from 'uuid';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import crypto from 'node:crypto';
+
+import { logger } from 'hono/logger';
+
+const app = new Hono();
+app.use('*', logger());
+const dbPath = path.join(process.cwd(), 'data', 'locals.db');
+
+// Ensure data directory exists
+if (!fs.existsSync(path.dirname(dbPath))) {
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+}
+
+const db = new Database(dbPath, { verbose: (sql) => console.log(`[SQL] ${sql}`) });
+
+// Initialize database schema if not exists
+const schemaPath = fs.existsSync('/app_root/schema.sql')
+    ? '/app_root/schema.sql'
+    : path.join(process.cwd(), '..', 'schema.sql');
+
+const schema = fs.readFileSync(schemaPath, 'utf8');
+db.exec(schema);
+
+app.use('*', cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-User-ID'],
+    exposeHeaders: ['Content-Type', 'X-Server-Instance'],
+}));
+
+app.use('*', async (c, next) => {
+    c.header('X-Server-Instance', 'Docker-Hono');
+    await next();
+});
+
+app.onError((err, c) => {
+    console.error(`[HONO ERROR] ${c.req.method} ${c.req.path}:`, err);
+    return c.json({ error: 'Internal Server Error', message: err.message }, 500);
+});
+
+// Serve static files from the 'dist' folder
+const distPath = fs.existsSync('/app_root/dist')
+    ? '/app_root/dist'
+    : path.join(process.cwd(), '..', 'dist');
+
+app.use('/*', serveStatic({
+    root: distPath,
+    rewriteRequestPath: (path) => (path === '/' ? '/index.html' : path),
+}));
+
+// Fallback for SPA routing (serve index.html for unknown routes)
+app.get('*', async (c, next) => {
+    if (c.req.path.startsWith('/api')) {
+        return next();
+    }
+    const html = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
+    return c.html(html);
+});
+
+// Utility for hashing passwords (replication of Cloudflare logic)
+// ... (rest of the file remains same, but I'll update the whole block below for consistency)
+const hashPassword = (password: string, salt: Uint8Array): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        crypto.pbkdf2(password, salt, 100000, 32, 'sha256', (err, derivedBits) => {
+            if (err) {
+                console.error('[HASH] Error hashing password:', err);
+                return reject(err);
+            }
+            resolve(derivedBits.toString('base64'));
+        });
+    });
+};
+
+const updateLastSeen = (userId: string) => {
+    if (!userId) return;
+    db.prepare('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?').run(userId);
+};
+
+// Middleware to update last seen
+app.use('/api/*', async (c: Context, next: Next) => {
+    const userId = c.req.header('X-User-ID');
+    if (userId) updateLastSeen(userId);
+    await next();
+});
+
+// --- API Routes (Replicating [[path]].ts) ---
+
+app.get('/api/spaces', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    let results;
+    if (userId) {
+        results = db.prepare(`SELECT DISTINCT s.* FROM spaces s 
+                   LEFT JOIN rooms r ON s.id = r.space_id 
+                   LEFT JOIN participants p ON r.id = p.room_id 
+                   WHERE s.is_private = 0 OR s.owner_id = ? OR p.user_id = ? 
+                   ORDER BY s.created_at DESC`).all(userId, userId);
+    } else {
+        results = db.prepare(`SELECT * FROM spaces WHERE is_private = 0 ORDER BY created_at DESC`).all();
+    }
+    return c.json(results);
+});
+
+app.get('/api/users/search', async (c: Context) => {
+    const query = c.req.query('q') || '';
+    const results = db.prepare('SELECT id, username, display_name, avatar_url FROM users WHERE username LIKE ? OR display_name LIKE ? LIMIT 10')
+        .all(`%${query}%`, `%${query}%`);
+    return c.json(results);
+});
+
+app.get('/api/users/list', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const currentUser = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as any;
+    if (!currentUser) return c.json({ error: 'Unauthorized' }, 401);
+
+    const adminUsername = process.env.VITE_ADMIN_USERNAME || 'ds4d';
+    const isAdmin = currentUser.username.toLowerCase() === adminUsername.toLowerCase();
+
+    const spaceId = c.req.query('space_id');
+    let results;
+
+    if (isAdmin && !spaceId) {
+        results = db.prepare("SELECT id, username, display_name, avatar_url, last_seen, custom_status, is_banned FROM users").all();
+    } else if (spaceId) {
+        results = db.prepare(`
+            SELECT DISTINCT u.id, u.username, u.display_name, u.avatar_url, u.last_seen, u.is_banned, u.custom_status 
+            FROM users u
+            JOIN participants p ON u.id = p.user_id
+            JOIN rooms r ON p.room_id = r.id
+            WHERE r.space_id = ?
+            ORDER BY u.last_seen DESC LIMIT 200
+        `).all(spaceId);
+    } else {
+        // Normal user sees people they share a space with
+        results = db.prepare(`
+            SELECT DISTINCT u.id, u.username, u.display_name, u.avatar_url, u.last_seen, u.custom_status, u.is_banned
+            FROM users u
+            WHERE u.id = ? 
+            OR u.id IN (
+                SELECT DISTINCT p.user_id
+                FROM participants p
+                JOIN rooms r ON p.room_id = r.id
+                WHERE r.space_id IN (
+                    SELECT DISTINCT r2.space_id
+                    FROM rooms r2
+                    JOIN participants p2 ON r2.id = p2.room_id
+                    WHERE p2.user_id = ?
+                )
+            )
+            OR u.id IN (
+                SELECT owner_id FROM spaces WHERE id IN (
+                    SELECT DISTINCT r3.space_id
+                    FROM rooms r3
+                    JOIN participants p3 ON r3.id = p3.room_id
+                    WHERE p3.user_id = ?
+                )
+            )
+            ORDER BY u.last_seen DESC LIMIT 200
+        `).all(userId, userId, userId);
+    }
+    return c.json(results);
+});
+
+app.get('/api/rooms/:spaceId', async (c: Context) => {
+    const spaceId = c.req.param('spaceId');
+    const results = db.prepare('SELECT * FROM rooms WHERE space_id = ? AND is_private = 0').all(spaceId);
+    return c.json(results);
+});
+
+app.get('/api/dm/list', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+    const results = db.prepare(`
+        SELECT r.*, u.username as other_username, u.display_name as other_display_name, u.avatar_url as other_avatar, u.last_seen
+        FROM rooms r
+        JOIN participants p ON r.id = p.room_id
+        JOIN participants p2 ON r.id = p2.room_id AND p2.user_id != p.user_id
+        JOIN users u ON p2.user_id = u.id
+        WHERE p.user_id = ? AND r.type = 'dm'
+    `).all(userId);
+    return c.json(results);
+});
+
+app.get('/api/messages/:roomId', async (c: Context) => {
+    const roomId = c.req.param('roomId');
+    const results = db.prepare(`
+        SELECT m.*, u.username, u.display_name, u.avatar_url 
+        FROM messages m 
+        JOIN users u ON m.user_id = u.id 
+        WHERE m.room_id = ? 
+    `).all(roomId);
+    return c.json(results);
+});
+
+app.get('/api/auth/me', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const user = db.prepare('SELECT id, username, display_name, avatar_url, bio, is_banned, custom_status FROM users WHERE id = ?').get(userId) as any;
+    if (!user) return c.json({ error: 'User not found' }, 404);
+
+    if (user.is_banned) return c.json({ error: 'This account has been banned' }, 403);
+
+    // Add is_admin flag
+    const adminUsername = process.env.VITE_ADMIN_USERNAME || 'ds4d';
+    (user as any).is_admin = user.username.toLowerCase() === adminUsername.toLowerCase();
+
+    return c.json(user);
+});
+
+app.post('/api/user/profile', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const { display_name, avatar_url, custom_status } = await c.req.json();
+
+    db.prepare('UPDATE users SET display_name = ?, avatar_url = ?, custom_status = ? WHERE id = ?')
+        .run(display_name, avatar_url, custom_status || 'online', userId);
+
+    const user = db.prepare('SELECT id, username, display_name, avatar_url, last_seen, is_banned, custom_status FROM users WHERE id = ?').get(userId);
+    return c.json(user);
+});
+
+app.post('/api/auth/register', async (c: Context) => {
+    try {
+        const { username, password } = await c.req.json();
+        console.log(`[AUTH] Registering user: ${username}`);
+
+        // Case-insensitive check
+        const existing = db.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE').get(username);
+        if (existing) {
+            console.log(`[AUTH] Registration failed: User ${username} already exists (case-insensitive)`);
+            return c.json({ error: 'User exists' }, 400);
+        }
+
+        const id = uuidv4();
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const saltStr = Buffer.from(salt).toString('base64');
+        const passwordHash = await hashPassword(password, salt);
+
+        console.log(`[AUTH] Registering with salt: ${saltStr}, hash: ${passwordHash}`);
+
+        // Fixed: Ensure no extra space at the end of the hash
+        db.prepare('INSERT INTO users (id, username, display_name, password_hash) VALUES (?, ?, ?, ?)')
+            .run(id, username, username, `${saltStr}:${passwordHash}`);
+
+        console.log(`[AUTH] User registered successfully: ${username} (${id})`);
+        return c.json({ id, username, status: 'registered' });
+    } catch (err: any) {
+        console.error(`[AUTH] Registration error: `, err);
+        return c.json({ error: 'Internal server error', details: err.message }, 500);
+    }
+});
+
+app.post('/api/auth/login', async (c: Context) => {
+    try {
+        const { username, password } = await c.req.json();
+        console.log(`[AUTH] Login attempt for: ${username}`);
+
+        // Case-insensitive search
+        const user = db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').get(username) as any;
+        if (!user || !user.password_hash) {
+            console.log(`[AUTH] Login failed: User "${username}" NOT FOUND in database`);
+            return c.json({ error: 'User not found' }, 401);
+        }
+
+        // Clean hashing logic: handle potential trailing space in DB
+        const [saltStr, hashWithPotentialSpace] = user.password_hash.split(':');
+        const hash = hashWithPotentialSpace.trim();
+        const salt = Buffer.from(saltStr, 'base64');
+        const calculatedHash = await hashPassword(password, new Uint8Array(salt));
+
+        console.log(`[AUTH] Login DB salt: ${saltStr}, DB hash: ${hash}, Calculated: ${calculatedHash}`);
+
+        if (calculatedHash !== hash) {
+            console.log(`[AUTH] Login failed: Incorrect password for ${username}`);
+            console.log(`[AUTH] Expected: ${hash}`);
+            console.log(`[AUTH] Got     : ${calculatedHash}`);
+            return c.json({ error: 'Incorrect password' }, 401);
+        }
+
+        if (user.is_banned) {
+            console.log(`[AUTH] Login failed: User ${username} is banned`);
+            return c.json({ error: 'This account has been banned' }, 403);
+        }
+
+        updateLastSeen(user.id);
+        const { password_hash, ...safeUser } = user;
+
+        // Add is_admin flag
+        const adminUsername = process.env.VITE_ADMIN_USERNAME || 'ds4d';
+        (safeUser as any).is_admin = safeUser.username.toLowerCase() === adminUsername.toLowerCase();
+
+        console.log(`[AUTH] Login successful: ${username}`);
+        return c.json(safeUser);
+    } catch (err: any) {
+        console.error(`[AUTH] Login error: `, err);
+        return c.json({ error: 'Internal server error', details: err.message }, 500);
+    }
+});
+
+app.post('/api/messages/send', async (c: Context) => {
+    const { room_id, user_id, content, reply_to_id } = await c.req.json();
+    const id = uuidv4();
+    db.prepare('INSERT INTO messages (id, room_id, user_id, content, reply_to_id) VALUES (?, ?, ?, ?, ?)')
+        .run(id, room_id, user_id, content, reply_to_id || null);
+
+    updateLastSeen(user_id);
+
+    // Check for mentions and create notifications
+    const mentionMatch = content.match(/@(\w+)/g);
+    if (mentionMatch) {
+        for (const mention of mentionMatch) {
+            const username = mention.substring(1);
+            const targetUser = db.prepare('SELECT id FROM users WHERE username = ?').get(username) as any;
+            if (targetUser && targetUser.id !== user_id) {
+                const notifId = uuidv4();
+                db.prepare('INSERT INTO notifications (id, user_id, actor_id, type, resource_id) VALUES (?, ?, ?, ?, ?)')
+                    .run(notifId, targetUser.id, user_id, 'mention', id);
+            }
+        }
+    }
+
+    return c.json({ id, status: 'sent' });
+});
+
+// --- Additional Restored Routes ---
+
+app.post('/api/spaces', async (c: Context) => {
+    const { name, owner_id, is_private } = await c.req.json();
+    const id = uuidv4();
+    db.prepare('INSERT INTO spaces (id, name, owner_id, is_private) VALUES (?, ?, ?, ?)')
+        .run(id, name, owner_id, is_private ? 1 : 0);
+
+    // Create default 'general' room
+    const roomId = uuidv4();
+    db.prepare('INSERT INTO rooms (id, space_id, name) VALUES (?, ?, ?)')
+        .run(roomId, id, 'general');
+
+    // Add owner as participant
+    db.prepare('INSERT INTO participants (room_id, user_id, role) VALUES (?, ?, ?)')
+        .run(roomId, owner_id, 'owner');
+
+    return c.json({ id, name, status: 'created' });
+});
+
+app.post('/api/rooms', async (c: Context) => {
+    const { space_id, name, type } = await c.req.json();
+    const id = uuidv4();
+    db.prepare('INSERT INTO rooms (id, space_id, name, type) VALUES (?, ?, ?, ?)')
+        .run(id, space_id, name, type || 'text');
+    return c.json({ id, name, status: 'created' });
+});
+
+app.post('/api/dm/create', async (c: Context) => {
+    const { target_user_id } = await c.req.json();
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const existing = db.prepare(`
+        SELECT r.id FROM rooms r
+        JOIN participants p1 ON r.id = p1.room_id
+        JOIN participants p2 ON r.id = p2.room_id
+        WHERE r.type = 'dm' AND p1.user_id = ? AND p2.user_id = ?
+    `).get(userId, target_user_id) as any;
+
+    if (existing) return c.json(existing);
+
+    const roomId = uuidv4();
+    db.prepare('INSERT INTO rooms (id, name, type, is_private) VALUES (?, ?, ?, ?)')
+        .run(roomId, `dm_${userId}_${target_user_id}`, 'dm', 1);
+
+    db.prepare('INSERT INTO participants (room_id, user_id, role) VALUES (?, ?, ?), (?, ?, ?)')
+        .run(roomId, userId, 'member', roomId, target_user_id, 'member');
+
+    return c.json({ id: roomId, status: 'created' });
+});
+
+app.get('/api/typing', async (c: Context) => {
+    const roomId = c.req.query('room_id');
+    const results = db.prepare(`
+        SELECT u.display_name || ' (@' || u.username || ')' as name
+        FROM participants p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.room_id = ? AND u.last_seen > datetime('now', '-10 seconds')
+        AND u.custom_status = 'typing:' || ?
+    `).all(roomId, roomId);
+    return c.json(results);
+});
+
+app.post('/api/typing', async (c: Context) => {
+    const { room_id, user_id, is_typing } = await c.req.json();
+    const status = is_typing ? `typing:${room_id}` : '';
+    db.prepare('UPDATE users SET custom_status = ? WHERE id = ?').run(status, user_id);
+    return c.json({ status: 'updated' });
+});
+
+app.get('/api/reactions/:messageId', async (c: Context) => {
+    const messageId = c.req.param('messageId');
+    const results = db.prepare(`
+        SELECT emoji, COUNT(*) as count, GROUP_CONCAT(user_id) as users
+        FROM reactions WHERE message_id = ? GROUP BY emoji
+    `).all(messageId);
+    return c.json(results);
+});
+
+app.post('/api/reactions', async (c: Context) => {
+    const { message_id, user_id, emoji } = await c.req.json();
+    const existing = db.prepare('SELECT id FROM reactions WHERE message_id = ? AND user_id = ? AND emoji = ?')
+        .get(message_id, user_id, emoji) as any;
+
+    if (existing) {
+        db.prepare('DELETE FROM reactions WHERE id = ?').run(existing.id);
+        return c.json({ status: 'removed' });
+    } else {
+        const id = uuidv4();
+        db.prepare('INSERT INTO reactions (id, message_id, user_id, emoji) VALUES (?, ?, ?, ?)')
+            .run(id, message_id, user_id, emoji);
+        return c.json({ status: 'added' });
+    }
+});
+
+app.get('/api/themes', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+    const results = db.prepare('SELECT * FROM user_themes WHERE user_id = ?').all(userId);
+    return c.json(results);
+});
+
+app.post('/api/themes', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+    const { id, name, css_content, is_url, is_active } = await c.req.json();
+    if (id) {
+        db.prepare(`
+            UPDATE user_themes SET name = ?, css_content = ?, is_url = ?, is_active = ? WHERE id = ? AND user_id = ?
+        `).run(name, css_content, is_url ? 1 : 0, is_active ? 1 : 0, id, userId);
+    } else {
+        const newId = uuidv4();
+        db.prepare(`
+            INSERT INTO user_themes (id, user_id, name, css_content, is_url, is_active) VALUES (?, ?, ?, ?, ?, ?)
+        `).run(newId, userId, name, css_content, is_url ? 1 : 0, is_active ? 1 : 0);
+    }
+    return c.json({ status: 'saved' });
+});
+
+app.post('/api/themes/delete', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+    const { id } = await c.req.json();
+    db.prepare('DELETE FROM user_themes WHERE id = ? AND user_id = ?').run(id, userId);
+    return c.json({ status: 'deleted' });
+});
+
+app.get('/api/messages/pinned/:roomId', async (c: Context) => {
+    const roomId = c.req.param('roomId');
+    const results = db.prepare(`
+        SELECT m.*, u.username, u.display_name, u.avatar_url 
+        FROM messages m
+        JOIN users u ON m.user_id = u.id
+        WHERE m.room_id = ? AND m.is_pinned = 1
+        ORDER BY m.created_at ASC
+    `).all(roomId);
+    return c.json(results);
+});
+
+app.post('/api/messages/pin', async (c: Context) => {
+    const { message_id, is_pinned } = await c.req.json();
+    db.prepare('UPDATE messages SET is_pinned = ? WHERE id = ?').run(is_pinned ? 1 : 0, message_id);
+    return c.json({ status: 'updated' });
+});
+
+app.get('/api/notifications', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+    const results = db.prepare(`
+        SELECT n.*, u.username as actor_username, u.display_name as actor_display_name, u.avatar_url as actor_avatar
+        FROM notifications n
+        JOIN users u ON n.actor_id = u.id
+        WHERE n.user_id = ?
+        ORDER BY n.created_at DESC
+        LIMIT 50
+    `).all(userId);
+    return c.json(results);
+});
+
+app.post('/api/notifications/read', async (c: Context) => {
+    const { notification_id, all } = await c.req.json();
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    if (all) {
+        db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').run(userId);
+    } else {
+        db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?').run(notification_id, userId);
+    }
+    return c.json({ status: 'updated' });
+});
+
+app.post('/api/read-receipts', async (c: Context) => {
+    const { room_id, user_id, message_id } = await c.req.json();
+    db.prepare(`
+        INSERT INTO read_receipts (room_id, user_id, last_read_message_id) VALUES (?, ?, ?)
+        ON CONFLICT(room_id, user_id) DO UPDATE SET last_read_message_id = excluded.last_read_message_id, updated_at = CURRENT_TIMESTAMP
+    `).run(room_id, user_id, message_id);
+    return c.json({ status: 'updated' });
+});
+
+app.post('/api/admin/users', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const adminUsername = process.env.VITE_ADMIN_USERNAME || 'ds4d';
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as any;
+    if (!user || user.username.toLowerCase() !== adminUsername.toLowerCase()) {
+        return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const results = db.prepare('SELECT id, username, display_name, avatar_url, created_at, is_banned FROM users ORDER BY created_at DESC LIMIT 50').all();
+    return c.json(results);
+});
+
+app.get('/api/admin/banned', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const adminUsername = process.env.VITE_ADMIN_USERNAME || 'ds4d';
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as any;
+    if (!user || user.username.toLowerCase() !== adminUsername.toLowerCase()) {
+        return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const results = db.prepare('SELECT id, username, display_name, avatar_url, is_banned FROM users WHERE is_banned = 1').all();
+    return c.json(results);
+});
+
+app.post('/api/users/ban', async (c: Context) => {
+    const { target_user_id, ban } = await c.req.json();
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const adminUsername = process.env.VITE_ADMIN_USERNAME || 'ds4d';
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as any;
+    if (!user || user.username.toLowerCase() !== adminUsername.toLowerCase()) {
+        return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    db.prepare('UPDATE users SET is_banned = ? WHERE id = ?').run(ban ? 1 : 0, target_user_id);
+    return c.json({ status: ban ? 'banned' : 'unbanned' });
+});
+
+app.post('/api/invites/create', async (c: Context) => {
+    const { space_id, max_uses, expires_in_hours } = await c.req.json();
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const expiresAt = expires_in_hours ? new Date(Date.now() + expires_in_hours * 3600000).toISOString() : null;
+
+    db.prepare('INSERT INTO invitations (code, space_id, created_by, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)')
+        .run(code, space_id, userId, max_uses || 0, expiresAt);
+
+    return c.json({ code });
+});
+
+app.post('/api/invites/join', async (c: Context) => {
+    const { code } = await c.req.json();
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const invite = db.prepare('SELECT * FROM invitations WHERE code = ?').get(code) as any;
+    if (!invite) return c.json({ error: 'Invalid invite code' }, 404);
+
+    if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+        return c.json({ error: 'Invite expired' }, 400);
+    }
+
+    if (invite.max_uses > 0 && invite.uses >= invite.max_uses) {
+        return c.json({ error: 'Invite limit reached' }, 400);
+    }
+
+    db.prepare('UPDATE invitations SET uses = uses + 1 WHERE code = ?').run(code);
+
+    const space = db.prepare('SELECT * FROM spaces WHERE id = ?').get(invite.space_id) as any;
+
+    // Add user to general room
+    const generalRoom = db.prepare('SELECT id FROM rooms WHERE space_id = ? AND name = ?').get(invite.space_id, 'general') as any;
+    if (generalRoom) {
+        db.prepare('INSERT OR IGNORE INTO participants (room_id, user_id) VALUES (?, ?)')
+            .run(generalRoom.id, userId);
+    }
+
+    return c.json(space);
+});
+
+app.get('/api/voice/participants/:roomId', async (c: Context) => {
+    const roomId = c.req.param('roomId');
+    const call = db.prepare('SELECT id FROM calls WHERE room_id = ? AND status = \'active\' ORDER BY created_at DESC LIMIT 1').get(roomId) as any;
+
+    if (!call) return c.json([]);
+
+    const participants = db.prepare(`
+        SELECT u.id, u.username, u.display_name, u.avatar_url 
+        FROM call_participants cp
+        JOIN users u ON cp.user_id = u.id
+        WHERE cp.call_id = ?
+        `).all(call.id);
+
+    return c.json(participants);
+});
+
+app.post('/api/voice/call', async (c: Context) => {
+    const { room_id } = await c.req.json();
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    let call = db.prepare('SELECT id FROM calls WHERE room_id = ? AND status = \'active\' ORDER BY created_at DESC LIMIT 1').get(room_id) as any;
+
+    if (!call) {
+        const id = uuidv4();
+        db.prepare('INSERT INTO calls (id, room_id, caller_id) VALUES (?, ?, ?)')
+            .run(id, room_id, userId);
+        call = { id };
+    }
+
+    // Add user to participants
+    db.prepare('INSERT OR IGNORE INTO call_participants (call_id, user_id) VALUES (?, ?)')
+        .run(call.id, userId);
+
+    return c.json({ id: call.id, status: 'joined' });
+});
+
+app.post('/api/voice/signal', async (c: Context) => {
+    const { call_id, type, payload } = await c.req.json();
+    const userId = c.req.header('X-User-ID');
+
+    const parsedPayload = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    console.log(`[SIGNAL] From: ${userId}, To: ${parsedPayload.to}, Type: ${type} `);
+
+    db.prepare('INSERT INTO call_signals (call_id, sender_id, type, payload) VALUES (?, ?, ?, ?)')
+        .run(call_id, userId, type, JSON.stringify(payload));
+    return c.json({ status: 'sent' });
+});
+
+app.post('/api/voice/poll', async (c: Context) => {
+    const { call_id, last_signal_id } = await c.req.json();
+    const userId = c.req.header('X-User-ID');
+    const results = db.prepare('SELECT * FROM call_signals WHERE call_id = ? AND id > ? AND sender_id != ? ORDER BY id ASC')
+        .all(call_id, last_signal_id || 0, userId);
+
+    if (results.length > 0) {
+        console.log(`[POLL] User ${userId} found ${results.length} new signals for call ${call_id}`);
+    }
+    return c.json(results);
+});
+
+app.post('/api/voice/end', async (c: Context) => {
+    const userId = c.req.header('X-User-ID');
+    if (userId) {
+        // Remove from participants
+        db.prepare('DELETE FROM call_participants WHERE user_id = ?').run(userId);
+
+        // Mark call as ended if no participants left
+        const remaining = db.prepare('SELECT COUNT(*) as count FROM call_participants cp JOIN calls c ON cp.call_id = c.id WHERE c.status = \'active\' AND cp.user_id != ?').get(userId) as any;
+        if (remaining && remaining.count === 0) {
+            db.prepare('UPDATE calls SET status = \'ended\' WHERE status = \'active\'').run();
+        }
+    }
+    return c.json({ status: 'ended' });
+});
+
+app.post('/api/messages/delete/:messageId', async (c: Context) => {
+    const messageId = c.req.param('messageId');
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    db.prepare('DELETE FROM messages WHERE id = ? AND user_id = ?').run(messageId, userId);
+    db.prepare('DELETE FROM reactions WHERE message_id = ?').run(messageId);
+    return c.json({ status: 'deleted' });
+});
+
+app.post('/api/spaces/delete/:spaceId', async (c: Context) => {
+    const spaceId = c.req.param('spaceId');
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const space = db.prepare('SELECT owner_id, is_private FROM spaces WHERE id = ?').get(spaceId) as any;
+    if (!space) return c.json({ error: 'Space not found' }, 404);
+
+    let canDelete = false;
+    if (space.is_private) {
+        canDelete = space.owner_id === userId;
+    } else {
+        const adminUsername = process.env.VITE_ADMIN_USERNAME || 'ds4d';
+        const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as any;
+        canDelete = user?.username?.toLowerCase() === adminUsername.toLowerCase();
+    }
+
+    if (!canDelete) return c.json({ error: 'Forbidden' }, 403);
+
+    // Cascading delete
+    const rooms = db.prepare('SELECT id FROM rooms WHERE space_id = ?').all(spaceId);
+    for (const room of (rooms as any[])) {
+        db.prepare('DELETE FROM messages WHERE room_id = ?').run(room.id);
+        db.prepare('DELETE FROM participants WHERE room_id = ?').run(room.id);
+    }
+    db.prepare('DELETE FROM rooms WHERE space_id = ?').run(spaceId);
+    db.prepare('DELETE FROM spaces WHERE id = ?').run(spaceId);
+
+    return c.json({ status: 'deleted' });
+});
+
+app.post('/api/spaces/kick', async (c: Context) => {
+    const { space_id, target_user_id } = await c.req.json();
+    const userId = c.req.header('X-User-ID');
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    // Implement kick logic (remove from all rooms in space)
+    db.prepare(`
+        DELETE FROM participants 
+        WHERE user_id = ? AND room_id IN(SELECT id FROM rooms WHERE space_id = ?)
+    `).run(target_user_id, space_id);
+
+    return c.json({ status: 'kicked' });
+});
+
+// Start the server
+const port = 3000;
+console.log(`Server is running on http://localhost:${port}`);
+
+serve({
+    fetch: app.fetch,
+    port
+});

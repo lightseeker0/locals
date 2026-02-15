@@ -1,0 +1,14 @@
+tunnel: aa77ed38-2e73-46c7-81ff-ca14a138d66b
+
+ingress:
+  # Root domain
+  - hostname: fiskos.xyz
+    service: http://api:3000
+  # API subdomain
+  - hostname: api.fiskos.xyz
+    service: http://api:3000
+  # WWW subdomain
+  - hostname: www.fiskos.xyz
+    service: http://api:3000
+  # Catch-all rule (required)
+  - service: http_status:404
