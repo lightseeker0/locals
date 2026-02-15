@@ -191,7 +191,7 @@ app.get('/api/spaces', async (c: Context) => {
             LEFT JOIN participants p ON r.id = p.room_id 
             WHERE s.is_private = 0 OR s.owner_id = ? OR p.user_id = ? 
             ORDER BY s.created_at DESC
-        `).all(userId, userId, userId, userId, userId);
+        `).all(userId, userId, userId, userId);
     } else {
         results = db.prepare(`SELECT *, 0 as unread_count, 0 as mention_count FROM spaces WHERE is_private = 0 ORDER BY created_at DESC`).all();
     }
@@ -246,7 +246,7 @@ app.get('/api/rooms/:spaceId', async (c: Context) => {
                 0 as mention_count
             FROM rooms r 
             WHERE r.space_id = ? AND r.is_private = 0
-        `).all(userId, userId, userId, spaceId);
+        `).all(userId, userId, spaceId);
     } else {
         results = db.prepare('SELECT *, 0 as unread_count, 0 as mention_count FROM rooms WHERE space_id = ? AND is_private = 0').all(spaceId);
     }
@@ -313,7 +313,7 @@ app.get('/api/dm/list', async (c: Context) => {
         JOIN participants p2 ON r.id = p2.room_id AND p2.user_id != p.user_id
         JOIN users u ON p2.user_id = u.id
         WHERE p.user_id = ? AND r.type = 'dm'
-    `).all(userId, userId, userId, userId);
+    `).all(userId, userId, userId);
     return c.json(results);
 });
 
