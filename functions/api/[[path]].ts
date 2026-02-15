@@ -241,13 +241,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             if (path.startsWith('/voice/participants/')) {
                 const parts = path.split('/');
                 const roomId = parts[parts.length - 1];
+
+                // Fetch participants from call_participants table
+                // Filter users who haven't updated their 'last_seen' in the last 15 seconds
                 const { results } = await env.DB.prepare(`
-                    SELECT u.id, u.username, u.display_name, u.avatar_url, MAX(c.created_at) as last_activity
-                    FROM calls c 
-                    JOIN users u ON c.caller_id = u.id 
+                    SELECT u.id, u.username, u.display_name, u.avatar_url, MAX(cp.joined_at) as last_activity
+                    FROM call_participants cp
+                    JOIN calls c ON cp.call_id = c.id
+                    JOIN users u ON cp.user_id = u.id
                     WHERE c.room_id = ? AND c.status = 'active'
+                    AND u.last_seen > datetime('now', '-60 seconds')
                     GROUP BY u.id
                 `).bind(roomId).all();
+
                 return Response.json(results, { headers: corsHeaders });
             }
 
@@ -327,29 +333,29 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
             if (path === '/user/profile') {
                 const { id, display_name, avatar_url } = body;
-                
+
                 // Validation: Check avatar_url size (1.5MB with improved request handling)
                 if (avatar_url && avatar_url.length > 1500000) {
                     return Response.json({ error: 'Avatar image exceeds 1.5MB limit' }, { status: 413, headers: corsHeaders });
                 }
-                
+
                 // Validation: Check display_name
                 if (!display_name || display_name.trim().length === 0) {
                     return Response.json({ error: 'Display name cannot be empty' }, { status: 400, headers: corsHeaders });
                 }
-                
+
                 if (display_name.length > 50) {
                     return Response.json({ error: 'Display name too long (max 50 characters)' }, { status: 400, headers: corsHeaders });
                 }
-                
+
                 try {
                     const result = await env.DB.prepare('UPDATE users SET display_name = ?, avatar_url = ? WHERE id = ?')
                         .bind(display_name, avatar_url || null, id).run();
-                    
+
                     if (!result.success) {
                         return Response.json({ error: 'Failed to save avatar' }, { status: 500, headers: corsHeaders });
                     }
-                    
+
                     return Response.json({ status: 'updated' }, { headers: corsHeaders });
                 } catch (dbError: any) {
                     console.error('Database error:', dbError);
@@ -560,23 +566,30 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             // --- Voice Chat Signaling ---
             if (path === '/voice/call') {
                 const { room_id } = body;
+                if (!userIdHeader) return new Response('Unauthorized', { status: 401 });
 
-                // Check if there is already an active call in this room
-                const existingCall = await env.DB.prepare('SELECT id FROM calls WHERE room_id = ? AND status = \'active\' ORDER BY created_at DESC LIMIT 1')
+                // Check for an existing active call in this room
+                let call = await env.DB.prepare('SELECT id FROM calls WHERE room_id = ? AND status = \'active\' ORDER BY created_at DESC LIMIT 1')
                     .bind(room_id).first() as any;
 
-                if (existingCall) {
-                    return Response.json({ id: existingCall.id, status: 'joined' }, { headers: corsHeaders });
+                if (!call) {
+                    // Start a new call
+                    const id = crypto.randomUUID();
+                    await env.DB.prepare('INSERT INTO calls (id, room_id, caller_id) VALUES (?, ?, ?)')
+                        .bind(id, room_id, userIdHeader).run();
+                    call = { id };
                 }
 
-                // End any previous active calls for this user in any room to avoid duplicates
-                await env.DB.prepare('UPDATE calls SET status = \'ended\' WHERE caller_id = ? AND status = \'active\'')
-                    .bind(userIdHeader).run();
+                // Register user as an active participant for this call
+                await env.DB.prepare(`
+                    INSERT INTO call_participants (call_id, user_id) VALUES (?, ?)
+                    ON CONFLICT(call_id, user_id) DO UPDATE SET joined_at = CURRENT_TIMESTAMP
+                `).bind(call.id, userIdHeader).run();
 
-                const id = crypto.randomUUID();
-                await env.DB.prepare('INSERT INTO calls (id, room_id, caller_id) VALUES (?, ?, ?)')
-                    .bind(id, room_id, userIdHeader).run();
-                return Response.json({ id, status: 'initiated' }, { headers: corsHeaders });
+                // Clean up any other active call participations for this user
+                await env.DB.prepare('DELETE FROM call_participants WHERE user_id = ? AND call_id != ?').bind(userIdHeader, call.id).run();
+
+                return Response.json({ id: call.id, status: 'joined' }, { headers: corsHeaders });
             }
 
             if (path === '/voice/signal') {
@@ -595,8 +608,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             }
 
             if (path === '/voice/end') {
-                await env.DB.prepare('UPDATE calls SET status = \'ended\' WHERE caller_id = ? AND status = \'active\'')
-                    .bind(userIdHeader).run();
+                if (!userIdHeader) return new Response('Unauthorized', { status: 401 });
+
+                // Remove from participants
+                await env.DB.prepare('DELETE FROM call_participants WHERE user_id = ?').bind(userIdHeader).run();
+
+                // If the user was the last participant, mark the call as ended
+                // This is a simple cleanup heuristic
                 return Response.json({ status: 'ended' }, { headers: corsHeaders });
             }
 

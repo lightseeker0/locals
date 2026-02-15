@@ -107,43 +107,27 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     joinCall: async (callId: string, user: any) => {
         const userId = user.id;
-        const { activeCall } = get();
-        const roomId = activeCall?.roomId || '';
+        set({ callStatus: 'calling' });
+        (get() as any).playJoinSound();
 
         try {
             const { audioInputDeviceId } = get();
-            console.log(`[WebRTC] Joining call ${callId} (Device: ${audioInputDeviceId || 'default'})`);
-
-            const constraints = {
-                audio: {
-                    deviceId: audioInputDeviceId ? { exact: audioInputDeviceId } : undefined,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                },
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
                 video: false
-            };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            });
             (get() as any).setupAudioAnalyser(stream, userId);
-            (get() as any).playJoinSound();
 
-            set({ localStream: stream, callStatus: 'calling', activeCall: { id: callId, roomId } });
+            set({
+                localStream: stream,
+                activeCall: { id: callId, roomId: '' }
+            });
 
-            // Fetch current participants to initiate connections with them
-            const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
-            for (const p of participants) {
-                if (p.id !== userId) {
-                    if (userId < p.id) {
-                        console.log(`[WebRTC] Mesh (Join): Initiating with ${p.id} (${userId} < ${p.id})`);
-                        (get() as any).initiatePeerConnection(callId, userId, p.id, stream);
-                    } else {
-                        console.log(`[WebRTC] Mesh (Join): Waiting for ${p.id} to initiate (${userId} > ${p.id})`);
-                    }
-                }
-            }
-
+            // Let fetchParticipants handle mesh connections
+            const roomId = get().activeCall?.roomId;
+            if (roomId) get().fetchParticipants(roomId, userId);
         } catch (err) {
-            console.error('[WebRTC] Failed to join call:', err);
+            console.error('[WebRTC] joinCall failed:', err);
             get().endCall(userId);
         }
     },
@@ -245,12 +229,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     handleIncomingSignal: async (callId: string, userId: string, signalData: any, stream: MediaStream) => {
         const fromId = signalData.from;
         const payload = signalData.signal;
-        const { peers, pendingPeers } = get();
 
+        // Critical: always fetch the absolutely freshest state to avoid processing the same signal twice
+        const { peers, pendingPeers } = get();
         let peer = peers[fromId];
 
         if (!peer && !pendingPeers.has(fromId)) {
-            console.log(`[WebRTC] Creating peer for incoming signal from ${fromId}`);
+            console.log(`[WebRTC] Discovered joiner signal from ${fromId}. Handshaking...`);
             const nextPending = new Set(pendingPeers);
             nextPending.add(fromId);
             set({ pendingPeers: nextPending });
@@ -269,7 +254,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 });
 
                 peer.on('signal', async (data: any) => {
-                    console.log(`[WebRTC] Outgoing (joiner) signal back to ${fromId}:`, data.type || 'ice');
+                    console.log(`[WebRTC] Outgoing (joiner) signal to ${fromId}: ${data.type || 'ice'}`);
                     await ApiService.sendSignal(callId, userId, data.type || 'signal', {
                         signal: data,
                         to: fromId,
@@ -278,30 +263,37 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 });
 
                 peer.on('connect', () => {
+                    console.log(`[WebRTC] Peer Connection ESTABLISHED with ${fromId}`);
                     set(state => {
                         const nextP = new Set(state.pendingPeers);
                         nextP.delete(fromId);
                         return { pendingPeers: nextP };
                     });
-                    const roomId = get().activeCall?.roomId;
-                    if (roomId) get().fetchParticipants(roomId, userId);
                 });
 
                 peer.on('stream', (remoteStream: MediaStream) => {
+                    console.log(`[WebRTC] Remote stream received from ${fromId}.`);
                     set(state => ({
                         remoteStreams: { ...state.remoteStreams, [fromId]: remoteStream }
                     }));
                     (get() as any).setupAudioAnalyser(remoteStream, fromId);
                 });
 
-                peer.on('error', () => get().removePeer(fromId));
-                peer.on('close', () => get().removePeer(fromId));
+                peer.on('error', (err: any) => {
+                    console.error(`[WebRTC] Peer ${fromId} error:`, err);
+                    get().removePeer(fromId);
+                });
+
+                peer.on('close', () => {
+                    console.log(`[WebRTC] Peer ${fromId} closed.`);
+                    get().removePeer(fromId);
+                });
 
                 set(state => ({
                     peers: { ...state.peers, [fromId]: peer }
                 }));
             } catch (e) {
-                console.error(`[WebRTC] Failed to create joiner peer for ${fromId}:`, e);
+                console.error(`[WebRTC] Failed to create joiner peer:`, e);
                 set(state => {
                     const nextP = new Set(state.pendingPeers);
                     nextP.delete(fromId);
@@ -313,20 +305,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
         if (peer) {
             try {
-                // GUARD: Don't signal if we are already stable and this is an answer/offer
-                // Simple-peer doesn't expose state easily, but we can check internal PC state if needed
-                // For now, check if the signal was already processed or if it's an ICE candidate (always allowed)
                 if (payload.type === 'answer' || payload.type === 'offer') {
-                    if (peer.connected) {
-                        console.log(`[WebRTC] Peer ${fromId} already connected, ignoring ${payload.type}`);
-                        return;
-                    }
+                    if (peer.connected) return;
                 }
-
-                console.log(`[WebRTC] Processing incoming signal from ${fromId}:`, payload.type || 'ice');
                 peer.signal(payload);
             } catch (e) {
-                console.error(`[WebRTC] Error signaling peer ${fromId}:`, e);
+                console.error(`[WebRTC] Signal application failed:`, e);
             }
         }
     },
@@ -357,68 +341,86 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     endCall: async (userId?: string) => {
-        const { localStream, peers } = get();
+        const { localStream, peers, remoteStreams } = get();
 
-        // Stop all analysers
-        const intervals = (get() as any).analyserIntervals || {};
-        Object.values(intervals).forEach((int: any) => clearInterval(int));
-
-        if (userId) {
-            try {
-                await ApiService.endCall(userId);
-            } catch (e) { }
-        }
-
-        if (localStream) {
-            localStream.getTracks().forEach((t: any) => t.stop());
-        }
-
-        Object.values(peers).forEach((p: any) => {
-            try { p.destroy(); } catch (e) { }
-        });
-
-        // Forced cleanup of all remote streams
-        Object.values(get().remoteStreams).forEach(stream => {
-            stream.getTracks().forEach(t => t.stop());
-        });
-
+        // 1. IMMEDIATE UI CLEANUP (Fixes the "long leave time" symptom)
         set({
             activeCall: null,
             callStatus: 'idle',
             localStream: null,
             remoteStreams: {},
             peers: {},
-            pendingPeers: new Set(), // Ensure pending is cleared
+            pendingPeers: new Set(),
             lastSignalId: 0,
             roomParticipants: {},
             speakingUsers: {},
             analyserIntervals: {}
         } as any);
+
+        // 2. BACKGROUND RESOURCE CLEANUP
+        try {
+            // Stop analysers
+            const intervals = (get() as any).analyserIntervals || {};
+            Object.values(intervals).forEach((int: any) => clearInterval(int));
+
+            // Inform server
+            if (userId) ApiService.endCall(userId).catch(() => { });
+
+            // Stop local tracks
+            if (localStream) {
+                localStream.getTracks().forEach((t: any) => t.stop());
+            }
+
+            // Stop remote tracks
+            Object.values(remoteStreams).forEach(stream => {
+                stream.getTracks().forEach(t => t.stop());
+            });
+
+            // Destroy peers
+            Object.values(peers).forEach((p: any) => {
+                try { p.destroy(); } catch (e) { }
+            });
+        } catch (e) {
+            console.error('[WebRTC] endCall cleanup error:', e);
+        }
     },
 
     fetchParticipants: async (roomId: string, userId: string) => {
-        const { peers, pendingPeers, localStream, activeCall } = get();
+        const { activeCall, localStream } = get();
+        if (!activeCall) return;
+
         try {
             const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
+
+            // Update UI list
             set(state => ({
                 roomParticipants: { ...state.roomParticipants, [roomId]: participants ?? [] }
             }));
 
-            // MESH FIX: If in call, check for missing peers deterministically
-            if (activeCall && localStream) {
+            // MESH LOGIC: Ensure every participant has a P2P connection
+            if (localStream) {
                 for (const p of participants) {
-                    if (p.id !== userId && !peers[p.id] && !pendingPeers.has(p.id)) {
-                        // Deterministic rule: smaller ID initiates connection
-                        // This ensures that even if two users join simultaneously and don't see each other initially,
-                        // one will eventually initiate a connection to the other via this poll.
+                    if (p.id === userId) continue;
+
+                    // ALWAYS use get() to check latest state during the loop
+                    const currentPeers = get().peers;
+                    const currentPending = get().pendingPeers;
+
+                    if (!currentPeers[p.id] && !currentPending.has(p.id)) {
+                        // Deterministic rule: smaller ID initiates connection to avoid double-initiation
                         if (userId < p.id) {
                             console.log(`[WebRTC] Mesh: Discovered ${p.id}, I am the initiator (${userId} < ${p.id})`);
                             (get() as any).initiatePeerConnection(activeCall.id, userId, p.id, localStream);
+                        } else {
+                            // Larger ID waits, but if it's been too long, we could have a fallback
+                            // For now, sticking to strict rules for stability.
                         }
                     }
                 }
             }
-        } catch (err) { }
+        } catch (err) {
+            console.error('[WebRTC] Participant poll failed:', err);
+        }
     },
 
     toggleMute: () => {
