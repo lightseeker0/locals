@@ -12,7 +12,6 @@ import { useAuthStore } from './stores/authStore';
 import { useAppData } from './hooks/useAppData';
 import { useThemeStore } from './stores/themeStore';
 import { useAppStore } from './stores/appStore';
-import { VoiceCallOverlay } from './components/VoiceCallOverlay';
 import { useSwipe } from './hooks/useSwipe';
 import { clsx } from 'clsx';
 
@@ -94,7 +93,6 @@ const MainFramework = () => {
 
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
         <ThemeAnnouncementModal isOpen={showAnnouncement} onClose={() => setShowAnnouncement(false)} />
-        <VoiceCallOverlay />
       </div>
     </div>
   );
