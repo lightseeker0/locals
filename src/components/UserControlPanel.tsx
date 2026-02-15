@@ -1,17 +1,15 @@
-import React, { useState } from 'react';
-import { Settings, LogOut, Bell, ShieldAlert, Circle, Clock, MinusCircle } from 'lucide-react';
+import React from 'react';
+import { Settings, LogOut, ShieldAlert, Circle, Clock, MinusCircle } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { useI18nStore } from '../stores/i18nStore';
 import { clsx } from 'clsx';
-import { NotificationList } from './NotificationList';
 
 export const UserControlPanel: React.FC = () => {
     const { user, logout, userStatus, setUserStatus } = useAuthStore();
     const { setSettingsOpen } = useAppStore();
     const { t } = useI18nStore();
 
-    const [showNotifications, setShowNotifications] = useState(false);
 
     return (
         <div className="w-full bg-matrix-dark flex flex-col shrink-0 border-t border-white/5 relative">
@@ -52,13 +50,6 @@ export const UserControlPanel: React.FC = () => {
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                        onClick={() => setShowNotifications(!showNotifications)}
-                        className="p-1.5 hover:bg-white/5 rounded-lg transition-all text-matrix-muted hover:text-white"
-                        title={t('notifications')}
-                    >
-                        <Bell size={16} />
-                    </button>
                     <button
                         onClick={() => setSettingsOpen(true)}
                         className="p-1.5 hover:bg-white/5 rounded-lg transition-all text-matrix-muted hover:text-white"
@@ -125,8 +116,6 @@ export const UserControlPanel: React.FC = () => {
                 )}
             </div>
 
-            {/* Notifications Popup */}
-            {showNotifications && <NotificationList onClose={() => setShowNotifications(false)} />}
         </div>
     );
 };

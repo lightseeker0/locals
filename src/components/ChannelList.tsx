@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
-import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Settings, Bell, Circle, Clock, MinusCircle, LogOut, Trash2 } from 'lucide-react';
+import { Hash, ChevronDown, Plus, Users, Search, AtSign, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Settings, Circle, Clock, MinusCircle, LogOut, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DirectMessageModal } from './modals/DirectMessageModal';
 import { useVoiceStore } from '../stores/useVoiceStore';
@@ -11,7 +11,6 @@ import { useAppData } from '../hooks/useAppData';
 
 import { useI18nStore } from '../stores/i18nStore';
 import { ShieldAlert } from 'lucide-react';
-import { NotificationList } from './NotificationList';
 import { AdminPanel } from './modals/AdminPanel';
 import { ApiService } from '../services/api';
 
@@ -23,7 +22,6 @@ export const ChannelList: React.FC = () => {
     const [isDMOpen, setIsDMOpen] = useState(false);
     const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
     const [isInviteOpen, setIsInviteOpen] = useState(false);
-    const [showNotifications, setShowNotifications] = useState(false);
     const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
     const [appVersion, setAppVersion] = useState<string>('');
     const [updateStatus, setUpdateStatus] = useState<string>('idle'); // 'idle', 'checking', 'available', 'not-available', 'downloading', 'ready'
@@ -255,7 +253,6 @@ export const ChannelList: React.FC = () => {
             )}
             {renderVoiceControlBar()}
             {/* Popups */}
-            {showNotifications && <NotificationList onClose={() => setShowNotifications(false)} />}
 
             {/* Status Picker Popup */}
             {isStatusPickerOpen && (
@@ -334,15 +331,6 @@ export const ChannelList: React.FC = () => {
                         </button>
                     )}
 
-                    {/* Notification Trigger */}
-                    <button
-                        onClick={() => setShowNotifications(!showNotifications)}
-                        className="p-1 px-1.5 hover:bg-white/5 rounded-lg hover:text-white transition-all relative"
-                        title={t('notifications')}
-                    >
-                        <Bell size={16} />
-                        <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-matrix-dark hidden"></div>
-                    </button>
 
                     <button
                         onClick={() => setSettingsOpen(true)}

@@ -185,10 +185,7 @@ app.get('/api/spaces', async (c: Context) => {
                  LEFT JOIN read_receipts rr ON rr.room_id = r2.id AND rr.user_id = ?
                  WHERE r2.space_id = s.id AND m.user_id != ? AND (rr.updated_at IS NULL OR m.created_at > rr.updated_at)
                 ) as unread_count,
-                (SELECT COUNT(*) FROM notifications n 
-                 LEFT JOIN rooms r3 ON n.resource_id = r3.id
-                 WHERE n.user_id = ? AND n.is_read = 0 AND r3.space_id = s.id
-                ) as mention_count
+                0 as mention_count
             FROM spaces s 
             LEFT JOIN rooms r ON s.id = r.space_id 
             LEFT JOIN participants p ON r.id = p.room_id 
@@ -246,9 +243,7 @@ app.get('/api/rooms/:spaceId', async (c: Context) => {
                  LEFT JOIN read_receipts rr ON rr.room_id = r.id AND rr.user_id = ?
                  WHERE m.room_id = r.id AND m.user_id != ? AND (rr.updated_at IS NULL OR m.created_at > rr.updated_at)
                 ) as unread_count,
-                (SELECT COUNT(*) FROM notifications n 
-                 WHERE n.user_id = ? AND n.is_read = 0 AND n.resource_id = r.id
-                ) as mention_count
+                0 as mention_count
             FROM rooms r 
             WHERE r.space_id = ? AND r.is_private = 0
         `).all(userId, userId, userId, spaceId);
@@ -312,9 +307,7 @@ app.get('/api/dm/list', async (c: Context) => {
              LEFT JOIN read_receipts rr ON rr.room_id = r.id AND rr.user_id = ?
              WHERE m.room_id = r.id AND m.user_id != ? AND (rr.updated_at IS NULL OR m.created_at > rr.updated_at)
             ) as unread_count,
-            (SELECT COUNT(*) FROM notifications n 
-             WHERE n.user_id = ? AND n.is_read = 0 AND n.resource_id = r.id
-            ) as mention_count
+            0 as mention_count
         FROM rooms r
         JOIN participants p ON r.id = p.room_id
         JOIN participants p2 ON r.id = p2.room_id AND p2.user_id != p.user_id
@@ -409,30 +402,6 @@ app.post('/api/reactions', async (c: Context) => {
     }
 });
 
-// --- Notifications ---
-app.get('/api/notifications', async (c: Context) => {
-    const userId = c.req.header('X-User-ID');
-    if (!userId) return c.json([]);
-    const results = db.prepare(`
-        SELECT n.*, u.username as actor_username, u.display_name as actor_display_name, u.avatar_url as actor_avatar
-        FROM notifications n
-        JOIN users u ON n.actor_id = u.id
-        WHERE n.user_id = ?
-        ORDER BY n.created_at DESC LIMIT 50
-    `).all(userId);
-    return c.json(results);
-});
-
-app.post('/api/notifications/read', async (c: Context) => {
-    const userId = c.req.header('X-User-ID');
-    const { notification_id, all } = await c.req.json();
-    if (all) {
-        db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').run(userId);
-    } else {
-        db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?').run(notification_id, userId);
-    }
-    return c.json({ status: 'read' });
-});
 
 // --- Read Receipts ---
 app.post('/api/read-receipts', async (c: Context) => {

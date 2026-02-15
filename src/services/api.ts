@@ -194,18 +194,6 @@ export class ApiService {
         return this.post('/users/ban', { target_user_id: targetUserId, ban: false }, userId);
     }
 
-    // --- Notifications ---
-    static async fetchNotifications(userId: string) {
-        return this.get('/notifications', userId);
-    }
-
-    static async markNotificationAsRead(userId: string, notificationId: string) {
-        return this.post('/notifications/read', { notification_id: notificationId }, userId);
-    }
-
-    static async markAllNotificationsAsRead(userId: string) {
-        return this.post('/notifications/read', { all: true }, userId);
-    }
 
     // --- Pinning ---
     static async fetchPinnedMessages(roomId: string) {
