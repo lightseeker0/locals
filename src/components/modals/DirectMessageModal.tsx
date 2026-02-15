@@ -104,9 +104,9 @@ export const DirectMessageModal: React.FC<DirectMessageModalProps> = ({ isOpen, 
                                 )}
                             >
                                 {target.avatar_url ? (
-                                    <img src={target.avatar_url} className="w-12 h-12 rounded-2xl object-cover border border-white/5" alt="" />
+                                    <img src={target.avatar_url} className="w-12 h-12 rounded-full object-cover border border-white/5" alt="" />
                                 ) : (
-                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-matrix-green/20 to-blue-500/20 flex items-center justify-center border border-white/5 group-hover:bg-matrix-green group-hover:from-matrix-green group-hover:to-matrix-green transition-all duration-500">
+                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-matrix-green/20 to-blue-500/20 flex items-center justify-center border border-white/5 group-hover:bg-matrix-green group-hover:from-matrix-green group-hover:to-matrix-green transition-all duration-500">
                                         <span className="text-sm font-black text-white group-hover:text-matrix-darker">
                                             {(target.display_name || target.username).substring(0, 1).toUpperCase()}
                                         </span>

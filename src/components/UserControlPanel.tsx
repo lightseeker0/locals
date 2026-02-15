@@ -20,9 +20,9 @@ export const UserControlPanel: React.FC = () => {
                 {/* Avatar & Status */}
                 <div className="relative shrink-0">
                     {user?.avatar_url ? (
-                        <img src={user.avatar_url} className="w-12 h-12 rounded-lg border border-white/10" alt="" />
+                        <img src={user.avatar_url} className="w-12 h-12 rounded-full border border-white/10" alt="" />
                     ) : (
-                        <div className="w-12 h-12 rounded-lg bg-gradient-to-tr from-matrix-green to-blue-500 flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-matrix-green to-blue-500 flex items-center justify-center">
                             <span className="text-sm font-black text-white">
                                 {(user?.display_name || user?.username || '?').substring(0, 1).toUpperCase()}
                             </span>

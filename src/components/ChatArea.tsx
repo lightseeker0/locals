@@ -446,49 +446,43 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
                 </div>
             );
         }
-        return <p className={clsx("text-[15px] leading-relaxed whitespace-pre-wrap break-words font-medium", isMe ? "text-gray-900" : "text-white")}>{content}</p>;
+        return <p className={clsx("text-[15px] leading-relaxed whitespace-pre-wrap break-words font-medium text-white/90")}>{content}</p>;
     };
 
     return (
-        <div className="group flex flex-col mb-4 animate-in slide-in-from-bottom-2 duration-300 items-start">
-            <div className="flex max-w-[85%] md:max-w-[70%] gap-2 md:gap-3 flex-row">
+        <div className="group flex flex-col mb-4 animate-in slide-in-from-bottom-2 duration-300 items-start hover:bg-white/[0.02] -mx-4 px-4 py-1 transition-colors">
+            <div className="flex w-full gap-4 flex-row items-start">
                 {/* Avatar */}
                 <div className={clsx(
-                    "w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border shadow-lg font-black text-base",
-                    isMe ? "bg-[#F8F2EF] text-matrix-darker border-[#F8F2EF]/20" : "bg-matrix-green/20 text-matrix-green border-matrix-green/10"
+                    "w-11 h-11 rounded-full flex items-center justify-center shrink-0 border border-white/5 shadow-lg font-black text-base bg-matrix-green/10 text-matrix-green"
                 )}>
                     {message.avatar_url ? (
-                        <img src={message.avatar_url} className="w-full h-full rounded-xl object-cover" />
+                        <img src={message.avatar_url} className="w-full h-full rounded-full object-cover" />
                     ) : (
                         (message.display_name || message.username || '?')[0].toUpperCase()
                     )}
                 </div>
 
-                <div className="flex flex-col items-start">
-                    {/* Username & Time */}
-                    <div className="flex items-baseline gap-2 mb-1 px-1 flex-row">
-                        <span className={clsx("text-[15px] font-black tracking-tight", isMe ? "text-gray-900" : "text-white")}>
+                <div className="flex-1 flex flex-col min-w-0">
+                    {/* Username & Time - Header Style Line */}
+                    <div className="flex items-baseline gap-2 mb-0.5 px-0 flex-row">
+                        <span className={clsx("text-[15px] font-black tracking-tight", isMe ? "text-matrix-green" : "text-white")}>
                             {message.display_name || message.username}
                         </span>
-                        <span className={clsx("text-[11px] font-bold opacity-60 uppercase tracking-widest", isMe ? "text-gray-600" : "text-matrix-muted")}>
+                        <span className="text-[11px] font-bold opacity-30 uppercase tracking-widest text-matrix-muted">
                             {format(new Date(message.created_at || Date.now()), 'HH:mm')}
                         </span>
                     </div>
 
-                    {/* Bubble */}
-                    <div className="relative group/bubble">
-                        <div className={clsx(
-                            "px-4 py-2.5 shadow-xl relative transition-all duration-200 font-medium rounded-[1.25rem] border",
-                            isMe
-                                ? "bg-[#F8F2EF] border-[#F8F2EF] rounded-tl-none"
-                                : "bg-matrix-dark border-white/5 text-white/90 hover:bg-matrix-dark/80 rounded-tl-none"
-                        )}>
+                    {/* Content - No Bubble, just text */}
+                    <div className="relative group/content">
+                        <div className="text-white/90">
                             {renderContent(message.content)}
                         </div>
 
-                        {/* Actions Overlay - Always hidden until hover */}
-                        <div className="absolute transition-all duration-200 flex items-center gap-1 z-10 -top-10 opacity-0 group-hover/bubble:opacity-100 left-0">
-                            <div className="flex bg-matrix-dark border border-white/20 rounded-xl p-0.5 shadow-2xl backdrop-blur-md">
+                        {/* Actions Overlay - Discord style floating right */}
+                        <div className="absolute transition-all duration-200 flex items-center gap-1 z-10 -top-8 right-0 opacity-0 group-hover:opacity-100">
+                            <div className="flex bg-matrix-dark border border-white/20 rounded-xl p-0.5 shadow-2xl backdrop-blur-md scale-90 origin-right">
                                 <button onClick={onReply} className="p-1.5 hover:bg-white/5 rounded-lg text-matrix-muted hover:text-white transition-all"><Reply size={14} /></button>
                                 <button onClick={() => toggleReaction('❤️')} className="p-1.5 hover:bg-white/5 rounded-lg text-matrix-muted hover:text-white transition-all"><Smile size={14} /></button>
                                 {(isMe || isAdmin) && (
@@ -506,9 +500,9 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
 
                     {/* Reactions Display */}
                     {reactions.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2 justify-start">
+                        <div className="flex flex-wrap gap-1 mt-1.5 justify-start">
                             {reactions.map(r => (
-                                <div key={r.emoji} className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/5 border border-white/5 text-[10px] font-bold text-matrix-muted">
+                                <div key={r.emoji} className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-matrix-muted hover:bg-white/10 transition-colors">
                                     <span>{r.emoji}</span>
                                     <span>{r.count}</span>
                                 </div>

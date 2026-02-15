@@ -87,7 +87,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ active, children, className, 
             )} />
 
             <div className={twMerge(
-                "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 overflow-hidden border border-transparent select-none",
+                "w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden border border-transparent select-none",
                 active ? "bg-matrix-green/20 border-matrix-green/30 rounded-[16px] shadow-[0_0_20px_rgba(13,189,139,0.2)]" : "bg-white/5 group-hover:bg-matrix-green/20 group-hover:rounded-[16px] group-hover:border-matrix-green/20",
                 className
             )}>
