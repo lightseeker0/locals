@@ -13,9 +13,10 @@ import { useI18nStore } from '../stores/i18nStore';
 import { ShieldAlert } from 'lucide-react';
 import { NotificationList } from './NotificationList';
 import { AdminPanel } from './modals/AdminPanel';
+import { ApiService } from '../services/api';
 
 export const ChannelList: React.FC = () => {
-    const { selectedServerId, servers, channels, selectedChannelId, setSelectedChannel, setSettingsOpen, setMobileMenuOpen, clearUnread } = useAppStore();
+    const { selectedServerId, servers, channels, selectedChannelId, setSelectedChannel, setSelectedServer, setSettingsOpen, setMobileMenuOpen, clearUnread } = useAppStore();
     const { user, userStatus, setUserStatus, logout } = useAuthStore();
     const { refreshRooms } = useAppData();
     const { t } = useI18nStore();
@@ -84,6 +85,23 @@ export const ChannelList: React.FC = () => {
     };
 
     const currentServer = servers.find(s => s.id === selectedServerId);
+    const isOwner = currentServer?.owner_id === user?.id;
+    const globalAdmins = ['ds4d', 'ilke', 'i̇lke'];
+    const isGlobalAdmin = user && globalAdmins.includes(user.username.toLowerCase());
+
+    const handleDeleteSpace = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!selectedServerId || !user) return;
+        if (confirm(`Are you sure you want to permanently delete the server "${currentServer?.title}"? This cannot be undone.`)) {
+            try {
+                await ApiService.deleteSpace(selectedServerId, user.id);
+                setSelectedServer(null); // Go home
+                // Spaces will re-poll automatically
+            } catch (err: any) {
+                alert(`Failed to delete server: ${err.message}`);
+            }
+        }
+    };
 
     const {
         activeCall,
@@ -159,7 +177,7 @@ export const ChannelList: React.FC = () => {
         poll();
         const interval = setInterval(poll, 2000); // Check every 2 seconds for mesh health
         return () => clearInterval(interval);
-    }, [selectedServerId, channels, user?.id]);
+    }, [selectedServerId, channels, user?.id, fetchParticipants]);
 
     // ... (rest of the file) ...
 
@@ -442,7 +460,16 @@ export const ChannelList: React.FC = () => {
             {/* Space Header */}
             <div className="h-12 flex items-center justify-between px-4 hover:bg-white/5 cursor-pointer transition-colors group shrink-0">
                 <h1 className="font-bold text-white truncate max-w-[140px] group-hover:text-matrix-green">{currentServer?.title || 'Space'}</h1>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
+                    {(isOwner || isGlobalAdmin) && (
+                        <button
+                            onClick={handleDeleteSpace}
+                            className="p-1 px-1.5 hover:bg-red-500/20 text-matrix-muted hover:text-red-500 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                            title="Delete Server"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    )}
                     <ChevronDown size={16} className="text-matrix-muted group-hover:text-white" />
                 </div>
             </div>
@@ -460,7 +487,7 @@ export const ChannelList: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto px-2 py-2 no-scrollbar">
                 <div className="flex items-center justify-between group px-2 mb-2">
-                    <div className="flex items-center text-[10px] font-black text-matrix-muted uppercase tracking-[0.3em] hover:text-white cursor-pointer transition-colors" onClick={() => { }}>
+                    <div className="flex items-center text-[10px] font-black text-matrix-muted uppercase tracking-[0.3em] hover:text-white cursor-pointer transition-colors">
                         <ChevronDown size={12} className="mr-2 opacity-50" />
                         <span>{t('rooms') || 'ODALAR'}</span>
                     </div>

@@ -22,7 +22,7 @@ export const useAppData = () => {
         } catch (error) {
             console.error('Failed to fetch spaces:', error);
         }
-    }, [user, setServers]);
+    }, [user, isLoading, setServers]);
 
     const fetchRoomsOrDMs = useCallback(async () => {
         if (!user) return;

@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-electron
+build
+release
+.git
+server/node_modules
+server/dist
+server/data
+*.db
+*.db-journal
+.env
+.DS_Store
+*.log
