@@ -19,9 +19,11 @@ if (!fs.existsSync(path.dirname(dbPath))) {
 const db = new Database(dbPath, { verbose: (sql) => console.log(`[SQL] ${sql}`) });
 
 // Initialize database schema if not exists
-const schemaPath = fs.existsSync('/app_root/schema.sql')
-    ? '/app_root/schema.sql'
-    : path.join(process.cwd(), '..', 'schema.sql');
+const schemaPath = fs.existsSync(path.join(process.cwd(), 'schema.sql'))
+    ? path.join(process.cwd(), 'schema.sql')
+    : fs.existsSync('/app/schema.sql')
+        ? '/app/schema.sql'
+        : path.join(process.cwd(), '..', 'schema.sql');
 
 const schema = fs.readFileSync(schemaPath, 'utf8');
 db.exec(schema);
@@ -39,9 +41,9 @@ app.onError((err, c) => {
 });
 
 // Serve static files from the 'dist' folder
-const distPath = fs.existsSync('/app_root/dist')
-    ? '/app_root/dist'
-    : path.join(process.cwd(), '..', 'dist');
+const distPath = fs.existsSync(path.join(process.cwd(), '..', 'dist'))
+    ? path.join(process.cwd(), '..', 'dist')
+    : path.join(process.cwd(), 'dist');
 
 app.use('/*', serveStatic({
     root: distPath,
