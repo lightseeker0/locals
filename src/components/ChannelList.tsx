@@ -386,11 +386,16 @@ export const ChannelList: React.FC = () => {
                             <div
                                 key={dm.id}
                                 className={clsx(
-                                    "flex items-center px-2 py-2 rounded-xl cursor-pointer group transition-all",
-                                    selectedChannelId === dm.id ? "bg-matrix-green/10 text-matrix-green border border-matrix-green/20" : "text-matrix-muted hover:bg-white/5 hover:text-gray-200 border border-transparent"
+                                    "flex items-center px-2 py-2 rounded-xl cursor-pointer group transition-all relative overflow-hidden",
+                                    selectedChannelId === dm.id ? "bg-matrix-green/10 text-matrix-green border border-matrix-green/20" : "text-matrix-muted hover:bg-white/5 hover:text-gray-200 border border-transparent",
+                                    dm.unread_count && dm.unread_count > 0 && "unread-marker"
                                 )}
                                 onClick={() => setSelectedChannel(dm.id)}
                             >
+                                {/* Unread Pill */}
+                                {dm.unread_count && dm.unread_count > 0 && selectedChannelId !== dm.id && (
+                                    <div className="absolute left-0 w-1 h-2 bg-white rounded-r-full" />
+                                )}
                                 <div className="relative mr-3 shrink-0">
                                     {dm.avatar ? (
                                         <img src={dm.avatar} className="w-8 h-8 rounded-xl object-cover" alt="" />
@@ -404,7 +409,19 @@ export const ChannelList: React.FC = () => {
                                         isOnline ? "bg-matrix-green" : "bg-matrix-muted opacity-50"
                                     )}></div>
                                 </div>
-                                <span className="font-bold truncate text-[13px]">{dm.title}</span>
+                                <span className={clsx(
+                                    "font-bold truncate text-[13px] flex-1",
+                                    (dm.unread_count && dm.unread_count > 0 && selectedChannelId !== dm.id) ? "text-white" : "text-inherit"
+                                )}>
+                                    {dm.title}
+                                </span>
+
+                                {/* Mention Badge */}
+                                {dm.mention_count && dm.mention_count > 0 && selectedChannelId !== dm.id && (
+                                    <div className="bg-red-500 text-white text-[10px] font-black h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full mr-1">
+                                        {dm.mention_count}
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
@@ -460,7 +477,8 @@ export const ChannelList: React.FC = () => {
                                     selectedChannelId === channel.id
                                         ? "bg-matrix-green/15 text-matrix-green border border-matrix-green/20"
                                         : "text-matrix-muted hover:bg-white/5 hover:text-gray-200 border border-transparent",
-                                    activeCall?.roomId === channel.id && "bg-matrix-green/5"
+                                    activeCall?.roomId === channel.id && "bg-matrix-green/5",
+                                    channel.unread_count && channel.unread_count > 0 && "unread-marker"
                                 )}
                                 onClick={() => {
                                     if (channel.type === 'voice') {
@@ -474,12 +492,29 @@ export const ChannelList: React.FC = () => {
                                     setMobileMenuOpen(false);
                                 }}
                             >
-                                {channel.type === 'voice' ? (
-                                    <Volume2 size={18} className={clsx("mr-3 shrink-0 transition-colors", activeCall?.roomId === channel.id ? "text-matrix-green" : "text-matrix-muted group-hover:text-gray-300")} />
-                                ) : (
-                                    <Hash size={18} className={clsx("mr-3 shrink-0 transition-colors", selectedChannelId === channel.id ? "text-matrix-green" : "text-matrix-muted group-hover:text-gray-300")} />
+                                {/* Unread Pill */}
+                                {channel.unread_count && channel.unread_count > 0 && selectedChannelId !== channel.id && (
+                                    <div className="absolute left-0 w-1 h-2 bg-white rounded-r-xl" />
                                 )}
-                                <span className="font-bold truncate text-[14px] leading-tight">{channel.title}</span>
+
+                                {channel.type === 'voice' ? (
+                                    <Volume2 size={18} className={clsx("mr-3 shrink-0 transition-colors", activeCall?.roomId === channel.id ? "text-matrix-green" : (channel.unread_count && channel.unread_count > 0 ? "text-white" : "text-matrix-muted group-hover:text-gray-300"))} />
+                                ) : (
+                                    <Hash size={18} className={clsx("mr-3 shrink-0 transition-colors", selectedChannelId === channel.id ? "text-matrix-green" : (channel.unread_count && channel.unread_count > 0 ? "text-white" : "text-matrix-muted group-hover:text-gray-300"))} />
+                                )}
+                                <span className={clsx(
+                                    "font-bold truncate text-[14px] leading-tight flex-1",
+                                    (channel.unread_count && channel.unread_count > 0 && selectedChannelId !== channel.id) ? "text-white" : "text-inherit"
+                                )}>
+                                    {channel.title}
+                                </span>
+
+                                {/* Mention Badge */}
+                                {channel.mention_count && channel.mention_count > 0 && selectedChannelId !== channel.id && (
+                                    <div className="bg-red-500 text-white text-[10px] font-black h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full">
+                                        {channel.mention_count}
+                                    </div>
+                                )}
 
                                 {activeCall?.roomId === channel.id && (
                                     <div className="absolute right-4 flex gap-1 items-end h-3">

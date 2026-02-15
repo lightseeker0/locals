@@ -39,6 +39,8 @@ export const Sidebar: React.FC = () => {
                     active={selectedServerId === server.id}
                     onClick={() => handleServerClick(server.id)}
                     tooltip={server.title}
+                    unreadCount={server.unread_count}
+                    mentionCount={server.mention_count}
                 >
                     {server.avatar ? (
                         <img src={server.avatar} alt={server.title} className="w-full h-full object-cover" />
@@ -70,16 +72,18 @@ export const Sidebar: React.FC = () => {
 interface SidebarItemProps extends React.HTMLAttributes<HTMLDivElement> {
     active?: boolean;
     tooltip?: string;
+    unreadCount?: number;
+    mentionCount?: number;
     children: React.ReactNode;
 }
 
-const SidebarItem: React.FC<SidebarItemProps> = ({ active, children, className, onClick, tooltip }) => {
+const SidebarItem: React.FC<SidebarItemProps> = ({ active, children, className, onClick, tooltip, unreadCount, mentionCount }) => {
     return (
         <div className="relative group flex items-center justify-center w-12 h-12 cursor-pointer mb-2 wrapper-3t9DeA" onClick={onClick}>
             {/* Hover Pill - Discord style */}
             <div className={twMerge(
-                "absolute left-0 bg-matrix-green rounded-r-lg w-1 transition-all duration-300",
-                active ? "h-10 opacity-100" : "h-2 opacity-0 group-hover:opacity-100 group-hover:h-5"
+                "absolute left-0 bg-white rounded-r-lg w-1 transition-all duration-300",
+                active ? "h-10 opacity-100" : (unreadCount && unreadCount > 0) ? "h-2 opacity-100" : "h-2 opacity-0 group-hover:opacity-100 group-hover:h-5"
             )} />
 
             <div className={twMerge(
@@ -89,6 +93,13 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ active, children, className, 
             )}>
                 {children}
             </div>
+
+            {/* Mention Badge */}
+            {mentionCount && mentionCount > 0 && (
+                <div className="absolute -bottom-1 -right-1 bg-red-500 text-white text-[10px] font-black min-w-[20px] h-[20px] px-1.5 flex items-center justify-center rounded-full border-4 border-matrix-darker z-[20] shadow-lg animate-in zoom-in-50 duration-300">
+                    {mentionCount > 99 ? '99+' : mentionCount}
+                </div>
+            )}
 
             {/* Tooltip */}
             {tooltip && (

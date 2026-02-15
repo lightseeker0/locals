@@ -7,6 +7,8 @@ interface Server {
     avatar?: string;
     owner_id?: string;
     is_private?: boolean;
+    unread_count?: number;
+    mention_count?: number;
 }
 
 interface Channel {
@@ -15,6 +17,8 @@ interface Channel {
     type: 'text' | 'voice' | 'dm';
     avatar?: string;
     last_seen?: string;
+    unread_count?: number;
+    mention_count?: number;
 }
 
 interface AppState {

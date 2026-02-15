@@ -170,13 +170,25 @@ app.get('/api/spaces', async (c: Context) => {
     const userId = c.req.header('X-User-ID');
     let results;
     if (userId) {
-        results = db.prepare(`SELECT DISTINCT s.* FROM spaces s 
-                   LEFT JOIN rooms r ON s.id = r.space_id 
-                   LEFT JOIN participants p ON r.id = p.room_id 
-                   WHERE s.is_private = 0 OR s.owner_id = ? OR p.user_id = ? 
-                   ORDER BY s.created_at DESC`).all(userId, userId);
+        results = db.prepare(`
+            SELECT DISTINCT s.*,
+                (SELECT COUNT(*) FROM messages m 
+                 JOIN rooms r2 ON m.room_id = r2.id 
+                 LEFT JOIN read_receipts rr ON rr.room_id = r2.id AND rr.user_id = ?
+                 WHERE r2.space_id = s.id AND m.user_id != ? AND (rr.updated_at IS NULL OR m.created_at > rr.updated_at)
+                ) as unread_count,
+                (SELECT COUNT(*) FROM notifications n 
+                 LEFT JOIN rooms r3 ON n.resource_id = r3.id
+                 WHERE n.user_id = ? AND n.is_read = 0 AND r3.space_id = s.id
+                ) as mention_count
+            FROM spaces s 
+            LEFT JOIN rooms r ON s.id = r.space_id 
+            LEFT JOIN participants p ON r.id = p.room_id 
+            WHERE s.is_private = 0 OR s.owner_id = ? OR p.user_id = ? 
+            ORDER BY s.created_at DESC
+        `).all(userId, userId, userId, userId, userId);
     } else {
-        results = db.prepare(`SELECT * FROM spaces WHERE is_private = 0 ORDER BY created_at DESC`).all();
+        results = db.prepare(`SELECT *, 0 as unread_count, 0 as mention_count FROM spaces WHERE is_private = 0 ORDER BY created_at DESC`).all();
     }
     return c.json(results);
 });
@@ -216,7 +228,25 @@ app.get('/api/users/list', async (c: Context) => {
 
 app.get('/api/rooms/:spaceId', async (c: Context) => {
     const spaceId = c.req.param('spaceId');
-    const results = db.prepare('SELECT * FROM rooms WHERE space_id = ? AND is_private = 0').all(spaceId);
+    const userId = c.req.header('X-User-ID');
+
+    let results;
+    if (userId) {
+        results = db.prepare(`
+            SELECT r.*,
+                (SELECT COUNT(*) FROM messages m 
+                 LEFT JOIN read_receipts rr ON rr.room_id = r.id AND rr.user_id = ?
+                 WHERE m.room_id = r.id AND m.user_id != ? AND (rr.updated_at IS NULL OR m.created_at > rr.updated_at)
+                ) as unread_count,
+                (SELECT COUNT(*) FROM notifications n 
+                 WHERE n.user_id = ? AND n.is_read = 0 AND n.resource_id = r.id
+                ) as mention_count
+            FROM rooms r 
+            WHERE r.space_id = ? AND r.is_private = 0
+        `).all(userId, userId, userId, spaceId);
+    } else {
+        results = db.prepare('SELECT *, 0 as unread_count, 0 as mention_count FROM rooms WHERE space_id = ? AND is_private = 0').all(spaceId);
+    }
     return c.json(results);
 });
 
@@ -234,13 +264,20 @@ app.get('/api/dm/list', async (c: Context) => {
     const userId = c.req.header('X-User-ID');
     if (!userId) return c.json({ error: 'Unauthorized' }, 401);
     const results = db.prepare(`
-        SELECT r.*, u.username as other_username, u.display_name as other_display_name, u.avatar_url as other_avatar, u.last_seen
+        SELECT r.*, u.username as other_username, u.display_name as other_display_name, u.avatar_url as other_avatar, u.last_seen,
+            (SELECT COUNT(*) FROM messages m 
+             LEFT JOIN read_receipts rr ON rr.room_id = r.id AND rr.user_id = ?
+             WHERE m.room_id = r.id AND m.user_id != ? AND (rr.updated_at IS NULL OR m.created_at > rr.updated_at)
+            ) as unread_count,
+            (SELECT COUNT(*) FROM notifications n 
+             WHERE n.user_id = ? AND n.is_read = 0 AND n.resource_id = r.id
+            ) as mention_count
         FROM rooms r
         JOIN participants p ON r.id = p.room_id
         JOIN participants p2 ON r.id = p2.room_id AND p2.user_id != p.user_id
         JOIN users u ON p2.user_id = u.id
         WHERE p.user_id = ? AND r.type = 'dm'
-    `).all(userId);
+    `).all(userId, userId, userId, userId);
     return c.json(results);
 });
 
