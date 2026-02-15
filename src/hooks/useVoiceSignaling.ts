@@ -12,28 +12,40 @@ export const useVoiceSignaling = () => {
     const { user } = useAuthStore();
 
     useEffect(() => {
-        let interval: any;
+        let timeoutId: any;
+        let isActive = true;
+
+        const pollLoop = async () => {
+            if (!isActive || !activeCall || !user?.id) return;
+
+            const { callStatus } = useVoiceStore.getState();
+
+            // Fast polling (333ms) during handshake, slow polling (2000ms) once connected
+            const interval = callStatus === 'connected' ? 2000 : 333;
+
+            try {
+                await pollSignals(user.id);
+            } catch (err) {
+                // Error handling is inside pollSignals, but we catch here just in case
+            }
+
+            if (isActive) {
+                timeoutId = setTimeout(pollLoop, interval);
+            }
+        };
 
         if (activeCall && user?.id) {
-            console.log(`[WebRTC] Global signaling poll started for call: ${activeCall.id}`);
-
-            // Initial poll
-            pollSignals(user.id);
-
-            // Poll every 333ms for fast handshake
-            interval = setInterval(() => {
-                const currentUser = useAuthStore.getState().user;
-                if (currentUser?.id) {
-                    pollSignals(currentUser.id);
-                }
-            }, 333);
+            console.log(`[WebRTC] Global adaptive signaling poll started for call: ${activeCall.id}`);
+            pollLoop();
         }
 
         return () => {
-            if (interval) {
+            isActive = false;
+            if (timeoutId) {
                 console.log("[WebRTC] Global signaling poll stopped.");
-                clearInterval(interval);
+                clearTimeout(timeoutId);
             }
         };
     }, [activeCall?.id, user?.id, pollSignals]);
+
 };

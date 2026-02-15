@@ -29,6 +29,7 @@ interface VoiceState {
     isDeafened: boolean;
     toggleDeafen: () => void;
     isPolling: boolean;
+    processedSignalIds: Set<number>;
 }
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
@@ -44,6 +45,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     roomParticipants: {},
     speakingUsers: {},
     isPolling: false,
+    processedSignalIds: new Set(),
     audioInputDeviceId: localStorage.getItem('audioInputDeviceId'),
     audioOutputDeviceId: localStorage.getItem('audioOutputDeviceId'),
 
@@ -225,9 +227,22 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         });
     },
 
-    handleIncomingSignal: async (callId: string, userId: string, signalData: any, stream: MediaStream) => {
+    handleIncomingSignal: async (callId: string, userId: string, signalData: any, stream: MediaStream, signalId?: number) => {
+        if (signalId && get().processedSignalIds.has(signalId)) {
+            console.log(`[WebRTC] Skipping already processed signal: ${signalId}`);
+            return;
+        }
+
         const fromId = signalData.from;
         const payload = signalData.signal;
+
+        if (signalId) {
+            set(state => {
+                const nextProcessed = new Set(state.processedSignalIds);
+                nextProcessed.add(signalId);
+                return { processedSignalIds: nextProcessed };
+            });
+        }
 
         // Critical: always fetch the absolutely freshest state to avoid processing the same signal twice
         const { peers, pendingPeers } = get();
@@ -330,20 +345,28 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const lastSignalId = get().lastSignalId || 0;
             const signals: any[] = await ApiService.pollSignals(activeCall.id, userId, lastSignalId);
 
-            if (signals.length > 0) {
-                set({ lastSignalId: signals[signals.length - 1].id });
+            if (signals && Array.isArray(signals) && signals.length > 0) {
+                const highestId = Math.max(...signals.map(s => s.id));
+                set({ lastSignalId: highestId });
 
                 for (const signal of signals) {
-                    const data = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : signal.payload;
-
-                    // Filter: Only process signals meant for US
-                    if (data.to === userId) {
-                        await (get() as any).handleIncomingSignal(activeCall.id, userId, data, localStream);
+                    try {
+                        const data = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : signal.payload;
+                        if (data.to === userId) {
+                            await (get() as any).handleIncomingSignal(activeCall.id, userId, data, localStream, signal.id);
+                        }
+                    } catch (parseErr) {
+                        console.error('[WebRTC] Signal parse error:', parseErr, signal);
                     }
                 }
             }
-        } catch (err) {
-            console.error('Polling error:', err);
+        } catch (err: any) {
+            // Log 502/504 as warnings to not spam the console
+            if (err.status === 502 || err.status === 504) {
+                console.warn('[WebRTC] Server temporarily unavailable (502/504). Retrying...');
+            } else {
+                console.error('[WebRTC] Polling error:', err);
+            }
         } finally {
             set({ isPolling: false });
         }
@@ -361,6 +384,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             peers: {},
             pendingPeers: new Set(),
             lastSignalId: 0,
+            processedSignalIds: new Set(),
             roomParticipants: {},
             speakingUsers: {},
             analyserIntervals: {}
