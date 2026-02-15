@@ -349,7 +349,7 @@ export const ChannelList: React.FC = () => {
     );
 
     const renderHomeView = () => (
-        <div className="w-[var(--channel-list-width)] bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 sidebar da-channels sidebar_ded4b5 privateChannels_e6b769 h-full">
+        <div className="w-[var(--channel-list-width)] bg-matrix-dark flex flex-col shrink-0 border-r border-white/5 sidebar da-channels sidebar_ded4b5 privateChannels_e6b769 h-full sidebar-1tnOww container-1NXoYp">
             <div className="h-12 flex items-center justify-center px-4 border-b border-white/5 shrink-0">
                 <button
                     onClick={() => setIsDMOpen(true)}
@@ -418,7 +418,7 @@ export const ChannelList: React.FC = () => {
     if (!selectedServerId) return renderHomeView();
 
     return (
-        <div className="w-[var(--channel-list-width)] bg-transparent flex flex-col shrink-0 border-r border-white/5 channel-list da-channels h-full relative">
+        <div className="w-[var(--channel-list-width)] bg-transparent flex flex-col shrink-0 border-r border-white/5 channel-list da-channels h-full relative sidebar-1tnOww container-1NXoYp">
             {/* Space Header */}
             <div className="h-12 flex items-center justify-between px-4 hover:bg-white/5 cursor-pointer transition-colors group shrink-0">
                 <h1 className="font-bold text-white truncate max-w-[140px] group-hover:text-matrix-green">{currentServer?.title || 'Space'}</h1>
@@ -451,7 +451,7 @@ export const ChannelList: React.FC = () => {
                     />
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1 list-36_9v7 container-2gi_v5">
                     {channels.filter(c => c.type !== 'dm').map((channel) => (
                         <div key={channel.id}>
                             <div

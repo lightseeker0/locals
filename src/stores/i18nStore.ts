@@ -86,6 +86,12 @@ export const translations: Translations = {
     'have_account': { en: 'Already have an account?', tr: 'Zaten hesabın var mı?' },
     'signing_in': { en: 'Signing in...', tr: 'Giriş yapılıyor...' },
     'creating_account': { en: 'Creating account...', tr: 'Hesap oluşturuluyor...' },
+
+    // --- Mic Test ---
+    'mic_test': { en: 'Input Device Test', tr: 'Giriş Cihazı Testi' },
+    'start_test': { en: 'TEST MICROPHONE', tr: 'MİKROFONU TEST ET' },
+    'stop_test': { en: 'STOP TEST', tr: 'TESTİ DURDUR' },
+    'mic_level': { en: 'Microphone Level', tr: 'Mikrofon Seviyesi' },
 };
 
 interface I18nState {

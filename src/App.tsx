@@ -54,7 +54,11 @@ const MainFramework = () => {
 
   return (
     <div id="app-mount" className="da-app appMount-3stXN7 app-mount layer-container h-full">
-      <div data-layout-v3="true" className="flex flex-col h-screen bg-transparent text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app layer__960e4 baseLayer__960e4">
+      <div
+        data-layout-v3="true"
+        className="flex flex-col h-screen bg-transparent text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app layer__960e4 baseLayer__960e4 app-1q1i1E bg-1Qv_K9"
+        data-theme={currentBuiltInTheme}
+      >
         {isElectron && <TitleBar />}
 
         <div className="flex flex-row flex-1 overflow-hidden relative">
@@ -64,7 +68,7 @@ const MainFramework = () => {
           />
 
           <div className={clsx(
-            "sidebar-container flex flex-row shrink-0 h-full",
+            "sidebar-container flex flex-row shrink-0 h-full container-2o3qEW",
             isMobileMenuOpen && "open"
           )}>
             <div className="w-[var(--sidebar-width)] h-full shrink-0">

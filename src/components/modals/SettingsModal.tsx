@@ -520,7 +520,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                     <div className="bg-white/5 border border-white/5 p-6 rounded-2xl space-y-4">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <h3 className="text-white font-bold">{t('mic_test') || 'Giriş Cihazı Testi'}</h3>
+                                                <h3 className="text-white font-bold">{t('mic_test')}</h3>
                                                 <p className="text-[11px] text-matrix-muted uppercase tracking-widest mt-1">Check if your microphone is working.</p>
                                             </div>
                                             <button
@@ -532,13 +532,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                                         : "bg-matrix-green text-matrix-darker shadow-[0_0_20px_rgba(13,189,139,0.2)] hover:scale-105"
                                                 )}
                                             >
-                                                {isTestingMic ? (t('stop_test') || 'TESTİ DURDUR') : (t('start_test') || 'MİKROFONU TEST ET')}
+                                                {isTestingMic ? t('stop_test') : t('start_test')}
                                             </button>
                                         </div>
 
                                         <div className="space-y-2">
                                             <div className="flex justify-between items-center px-1">
-                                                <span className="text-[10px] font-black text-matrix-muted uppercase tracking-widest">{t('mic_level') || 'Mikrofon Seviyesi'}</span>
+                                                <span className="text-[10px] font-black text-matrix-muted uppercase tracking-widest">{t('mic_level')}</span>
                                                 <span className={clsx("text-xs font-mono font-bold transition-colors", micLevel > 70 ? "text-yellow-400" : micLevel > 0 ? "text-matrix-green" : "text-matrix-muted")}>
                                                     {micLevel}%
                                                 </span>
