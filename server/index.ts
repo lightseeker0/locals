@@ -19,12 +19,29 @@ if (!fs.existsSync(path.dirname(dbPath))) {
 const db = new Database(dbPath, { verbose: (sql) => console.log(`[SQL] ${sql}`) });
 
 // Initialize database schema if not exists
-const schemaPath = fs.existsSync(path.join(process.cwd(), 'schema.sql'))
-    ? path.join(process.cwd(), 'schema.sql')
-    : fs.existsSync('/app/schema.sql')
-        ? '/app/schema.sql'
-        : path.join(process.cwd(), '..', 'schema.sql');
+const possibleSchemaPaths = [
+    path.join(process.cwd(), 'schema.sql'),
+    path.join(process.cwd(), '..', 'schema.sql'),
+    '/app/schema.sql',
+    '/app/server/schema.sql',
+    '/app_root/schema.sql'
+];
 
+let schemaPath = '';
+for (const p of possibleSchemaPaths) {
+    console.log(`[DEBUG] Checking for schema at: ${p}`);
+    if (fs.existsSync(p)) {
+        schemaPath = p;
+        break;
+    }
+}
+
+if (!schemaPath) {
+    console.error('[ERROR] Could not find schema.sql in any of the following locations:', possibleSchemaPaths);
+    process.exit(1);
+}
+
+console.log(`[INFO] Using schema from: ${schemaPath}`);
 const schema = fs.readFileSync(schemaPath, 'utf8');
 db.exec(schema);
 
