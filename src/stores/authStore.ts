@@ -70,7 +70,14 @@ export const useAuthStore = create<AuthState>()(
                     console.log('Fetching fresh user data...');
                     const freshUser = await ApiService.getMe(user.id);
                     console.log('User refreshed:', freshUser);
-                    set({ user: freshUser, isAuthenticated: true, isLoading: false });
+
+                    // CRITICAL: Merge the session_token back because /api/auth/me doesn't return it
+                    const updatedUser = {
+                        ...freshUser,
+                        session_token: user.session_token
+                    };
+
+                    set({ user: updatedUser, isAuthenticated: true, isLoading: false });
                 } catch (err) {
                     console.error('Session validation failed:', err);
                     set({ user: null, isAuthenticated: false, isLoading: false });

@@ -569,20 +569,40 @@ app.post('/api/voice/poll', async (c: Context) => {
     return c.json(results);
 });
 
-app.post('/api/voice/end', async (c: Context) => {
-    const userId = c.req.header('X-User-ID');
-    if (userId) {
-        // Remove from participants
-        db.prepare('DELETE FROM call_participants WHERE user_id = ?').run(userId);
-
-        // Mark call as ended if no participants left
-        const remaining = db.prepare('SELECT COUNT(*) as count FROM call_participants cp JOIN calls c ON cp.call_id = c.id WHERE c.status = \'active\' AND cp.user_id != ?').get(userId) as any;
-        if (remaining && remaining.count === 0) {
-            db.prepare('UPDATE calls SET status = \'ended\' WHERE status = \'active\'').run();
-        }
-    }
-    return c.json({ status: 'ended' });
+return c.json({ status: 'ended' });
 });
+
+// --- Zombie Cleanup Task ---
+// Runs every 15 seconds to remove participants who aren't polling anymore (tab closed)
+setInterval(() => {
+    try {
+        // Find participants whose last_seen is older than 20 seconds
+        const zombies = db.prepare(`
+            SELECT cp.user_id, cp.call_id, u.username
+            FROM call_participants cp
+            JOIN users u ON cp.user_id = u.id
+            WHERE u.last_seen < datetime('now', '-20 seconds')
+        `).all() as any[];
+
+        if (zombies.length > 0) {
+            console.log(`[CLEANUP] Found ${zombies.length} zombie participants.`);
+
+            for (const zombie of zombies) {
+                console.log(`[CLEANUP] Removing ${zombie.username} (${zombie.user_id}) from call ${zombie.call_id} (Inactivity)`);
+                db.prepare('DELETE FROM call_participants WHERE user_id = ? AND call_id = ?').run(zombie.user_id, zombie.call_id);
+
+                // If no one left, end the call
+                const remaining = db.prepare('SELECT COUNT(*) as count FROM call_participants WHERE call_id = ?').get(zombie.call_id) as any;
+                if (remaining && remaining.count === 0) {
+                    console.log(`[CLEANUP] Ending call ${zombie.call_id} (No active participants)`);
+                    db.prepare('UPDATE calls SET status = \'ended\' WHERE id = ?').run(zombie.call_id);
+                }
+            }
+        }
+    } catch (err) {
+        console.error(`[CLEANUP] Error during voice cleanup:`, err);
+    }
+}, 15000);
 
 // Start the server
 const port = 3000;
