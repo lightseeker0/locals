@@ -38,6 +38,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const { audioInputDeviceId, setAudioInputDevice, audioOutputDeviceId, setAudioOutputDevice } = useVoiceStore();
     const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
     const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
+    const [isTestingMic, setIsTestingMic] = useState(false);
+    const [micLevel, setMicLevel] = useState(0);
+    const micIntervalRef = React.useRef<any>(null);
+    const micStreamRef = React.useRef<MediaStream | null>(null);
 
     useEffect(() => {
         if (isOpen && user) {
@@ -102,6 +106,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             alert('Failed to import theme');
         }
     };
+
+    const stopMicTest = () => {
+        setIsTestingMic(false);
+        setMicLevel(0);
+        if (micIntervalRef.current) clearInterval(micIntervalRef.current);
+        if (micStreamRef.current) {
+            micStreamRef.current.getTracks().forEach(t => t.stop());
+            micStreamRef.current = null;
+        }
+    };
+
+    const startMicTest = async () => {
+        if (isTestingMic) {
+            stopMicTest();
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true
+            });
+            micStreamRef.current = stream;
+
+            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const analyser = audioContext.createAnalyser();
+            const source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            analyser.fftSize = 256;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            setIsTestingMic(true);
+
+            micIntervalRef.current = setInterval(() => {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    sum += dataArray[i];
+                }
+                const average = sum / bufferLength;
+                // Scale 0-255 to 0-100 for percentage bar
+                setMicLevel(Math.min(100, Math.round((average / 128) * 100)));
+            }, 50);
+
+        } catch (err) {
+            console.error('Mic test failed:', err);
+            alert('Could not access microphone for testing.');
+            stopMicTest();
+        }
+    };
+
+    useEffect(() => {
+        return () => stopMicTest();
+    }, [activeTab, isOpen]);
 
     if (!isOpen) return null;
 
@@ -442,6 +501,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                                     </option>
                                                 ))}
                                             </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Mic Test Section */}
+                                    <div className="bg-white/5 border border-white/5 p-6 rounded-2xl space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-white font-bold">{t('mic_test') || 'Giriş Testi'}</h3>
+                                                <p className="text-[11px] text-matrix-muted uppercase tracking-widest mt-1">Check if your microphone is working.</p>
+                                            </div>
+                                            <button
+                                                onClick={startMicTest}
+                                                className={clsx(
+                                                    "px-6 py-2.5 rounded-xl font-black text-xs transition-all uppercase tracking-widest",
+                                                    isTestingMic
+                                                        ? "bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.3)]"
+                                                        : "bg-matrix-green text-matrix-darker shadow-[0_0_20px_rgba(13,189,139,0.2)] hover:scale-105"
+                                                )}
+                                            >
+                                                {isTestingMic ? (t('stop_test') || 'TESTİ DURDUR') : (t('start_test') || 'MİKROFONU TEST ET')}
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center px-1">
+                                                <span className="text-[10px] font-black text-matrix-muted uppercase tracking-widest">{t('mic_level') || 'Mikrofon Seviyesi'}</span>
+                                                <span className={clsx("text-xs font-mono font-bold transition-colors", micLevel > 70 ? "text-yellow-400" : micLevel > 0 ? "text-matrix-green" : "text-matrix-muted")}>
+                                                    {micLevel}%
+                                                </span>
+                                            </div>
+                                            <div className="h-2 bg-matrix-darker border border-white/5 rounded-full overflow-hidden p-0.5">
+                                                <div
+                                                    className={clsx(
+                                                        "h-full rounded-full transition-all duration-75 shadow-[0_0_10px_rgba(13,189,139,0.3)]",
+                                                        micLevel > 80 ? "bg-red-500" : micLevel > 50 ? "bg-yellow-400" : "bg-matrix-green"
+                                                    )}
+                                                    style={{ width: `${micLevel}%` }}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
 
