@@ -104,6 +104,11 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     joinCall: async (callId: string, user: any) => {
         const userId = user.id;
+        // Search available room data for this user to find the roomId
+        const roomId = Object.keys(get().roomParticipants).find(rid =>
+            get().roomParticipants[rid]?.some(p => p.id === userId)
+        ) || '';
+
         set({ callStatus: 'calling' });
         (get() as any).playJoinSound();
 
@@ -117,12 +122,11 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
             set({
                 localStream: stream,
-                activeCall: { id: callId, roomId: '' }
+                activeCall: { id: callId, roomId: roomId }
             });
 
-            // Let fetchParticipants handle mesh connections
-            const roomId = get().activeCall?.roomId;
-            if (roomId) get().fetchParticipants(roomId, userId);
+            // Mesh initiation
+            if (roomId) await get().fetchParticipants(roomId, userId);
         } catch (err) {
             console.error('[WebRTC] joinCall failed:', err);
             get().endCall(userId);
