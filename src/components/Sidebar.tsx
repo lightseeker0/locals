@@ -75,7 +75,7 @@ interface SidebarItemProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const SidebarItem: React.FC<SidebarItemProps> = ({ active, children, className, onClick, tooltip }) => {
     return (
-        <div className="relative group flex items-center justify-center w-12 h-12 cursor-pointer mb-2" onClick={onClick}>
+        <div className="relative group flex items-center justify-center w-12 h-12 cursor-pointer mb-2 wrapper-3t9DeA" onClick={onClick}>
             {/* Hover Pill - Discord style */}
             <div className={twMerge(
                 "absolute left-0 bg-matrix-green rounded-r-lg w-1 transition-all duration-300",

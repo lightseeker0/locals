@@ -453,7 +453,7 @@ export const ChannelList: React.FC = () => {
 
                 <div className="space-y-1 list-36_9v7 container-2gi_v5">
                     {channels.filter(c => c.type !== 'dm').map((channel) => (
-                        <div key={channel.id}>
+                        <div key={channel.id} className="containerDefault-39SOT5 container-1oeRFJ">
                             <div
                                 className={clsx(
                                     "flex items-center px-4 py-2 rounded-xl cursor-pointer group transition-all relative overflow-hidden active:scale-[0.98]",
