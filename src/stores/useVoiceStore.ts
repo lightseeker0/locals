@@ -1,8 +1,11 @@
 import { create } from 'zustand';
 import { ApiService } from '../services/api';
 import { useAuthStore } from './authStore';
+import { Room, RoomEvent, Track, createLocalAudioTrack, type LocalAudioTrack } from 'livekit-client';
 // @ts-ignore
 import SimplePeer from 'simple-peer/simplepeer.min.js';
+
+const VOICE_MODE = (import.meta.env.VITE_VOICE_MODE || 'mesh').toLowerCase() === 'sfu' ? 'sfu' : 'mesh';
 
 interface VoiceState {
     activeCall: { id: string, roomId: string } | null;
@@ -35,8 +38,13 @@ interface VoiceState {
     pollingBackoff: number;
     ws: WebSocket | null;
     wsStatus: 'disconnected' | 'connecting' | 'connected';
+    voiceMode: 'mesh' | 'sfu';
+    sfuRoom: Room | null;
+    localAudioTrack: LocalAudioTrack | null;
     httpPollSupported: boolean;
     httpSignalSupported: boolean;
+    connectSfu: (roomId: string, user: any) => Promise<void>;
+    disconnectSfu: () => Promise<void>;
     connectWS: (userId: string) => void;
     disconnectWS: () => void;
     addMessageListener: (cb: (msg: any) => void) => () => void;
@@ -71,6 +79,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     audioOutputDeviceId: localStorage.getItem('audioOutputDeviceId'),
     ws: null,
     wsStatus: 'disconnected',
+    voiceMode: VOICE_MODE,
+    sfuRoom: null,
+    localAudioTrack: null,
     httpPollSupported: true,
     httpSignalSupported: true,
     messageListeners: [],
@@ -183,10 +194,90 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         }
     },
 
+    connectSfu: async (roomId: string, user: any) => {
+        const { sfuRoom, localAudioTrack } = get();
+        if (sfuRoom) {
+            try { sfuRoom.disconnect(); } catch (e) { }
+        }
+        if (localAudioTrack) {
+            try { localAudioTrack.stop(); } catch (e) { }
+        }
+
+        const tokenResponse = await ApiService.getVoiceToken(
+            roomId,
+            user.id,
+            user.display_name || user.username || user.id
+        );
+        const room = new Room({
+            adaptiveStream: true,
+            dynacast: true
+        });
+
+        room.on(RoomEvent.TrackSubscribed, (track: any, _pub: any, participant: any) => {
+            if (track.kind !== Track.Kind.Audio) return;
+            const mediaStreamTrack = track.mediaStreamTrack;
+            if (!mediaStreamTrack) return;
+            const remoteStream = new MediaStream([mediaStreamTrack]);
+            set(state => ({
+                remoteStreams: { ...state.remoteStreams, [participant.identity]: remoteStream }
+            }));
+            (get() as any).setupAudioAnalyser(remoteStream, participant.identity);
+        });
+
+        room.on(RoomEvent.TrackUnsubscribed, (_track: any, _pub: any, participant: any) => {
+            get().removePeer(participant.identity);
+        });
+
+        room.on(RoomEvent.ParticipantDisconnected, (participant: any) => {
+            get().removePeer(participant.identity);
+        });
+
+        room.on(RoomEvent.ActiveSpeakersChanged, (participants: any[]) => {
+            const speakingMap: Record<string, boolean> = {};
+            participants.forEach((p) => { speakingMap[p.identity] = true; });
+            set(state => ({ speakingUsers: { ...state.speakingUsers, ...speakingMap } }));
+        });
+
+        await room.connect(tokenResponse.url, tokenResponse.token);
+
+        const localAudioTrackInstance = await createLocalAudioTrack({
+            deviceId: get().audioInputDeviceId || undefined,
+            channelCount: 1,
+            sampleRate: 48000,
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+        });
+        await room.localParticipant.publishTrack(localAudioTrackInstance);
+
+        const localStream = new MediaStream([localAudioTrackInstance.mediaStreamTrack]);
+        (get() as any).setupAudioAnalyser(localStream, user.id);
+
+        set({
+            sfuRoom: room,
+            localAudioTrack: localAudioTrackInstance,
+            localStream,
+            callStatus: 'connected'
+        });
+    },
+
+    disconnectSfu: async () => {
+        const { sfuRoom, localAudioTrack } = get();
+        if (localAudioTrack) {
+            try { localAudioTrack.stop(); } catch (e) { }
+        }
+        if (sfuRoom) {
+            try { sfuRoom.disconnect(); } catch (e) { }
+        }
+        set({ sfuRoom: null, localAudioTrack: null });
+    },
+
     // Helper for sending signals with retries
     sendSignalWithRetry: async (callId: string, userId: string, type: string, payload: any, attempts = 5) => {
         const { ws, wsStatus } = get();
         const isNotFound = (err: any) => err?.status === 404 || String(err?.message || '').includes('404');
+        const signalType = payload?.signal?.type || type || 'signal';
+        const isIceCandidate = signalType === 'candidate' || !payload?.signal?.type;
         let sentViaWs = false;
 
         // Try WebSocket first (low latency)
@@ -203,7 +294,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             }
         }
 
-        // Also persist via HTTP so polling fallback can recover dropped WS packets.
+        // Fast path: for ICE candidates, WS is enough in almost all cases.
+        // Persisting every candidate adds unnecessary queue pressure and duplicate processing.
+        if (sentViaWs && isIceCandidate) {
+            return;
+        }
+
+        // Persist via HTTP so polling fallback can recover dropped WS packets (offers/answers).
         if (get().httpSignalSupported) {
             try {
                 await ApiService.sendSignal(callId, userId, type, payload);
@@ -234,15 +331,15 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 }
                 console.warn(`[WebRTC] Signal send failed (Attempt ${i + 1}/${attempts}):`, err.message);
                 if (i === attempts - 1) throw err;
-                // Exponential backoff: 1000ms, 2000ms, 4000ms...
-                await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                // Keep retries tight so signaling doesn't stall for long on transient hiccups.
+                await new Promise(r => setTimeout(r, Math.min(1200, 250 * Math.pow(2, i))));
             }
         }
     },
 
     startCall: async (roomId: string, user: any) => {
         const userId = user.id;
-        const { activeCall } = get();
+        const { activeCall, voiceMode } = get();
         if (activeCall?.roomId === roomId || get().callStatus === 'joining') return;
         if (activeCall) await get().endCall(userId);
 
@@ -250,13 +347,32 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         (get() as any).playJoinSound();
 
         try {
+            if (voiceMode === 'sfu') {
+                const response = await ApiService.createCall(roomId, userId);
+                set({
+                    activeCall: { id: response.id, roomId },
+                    callStatus: 'calling'
+                });
+                await get().connectSfu(roomId, user);
+                await get().fetchParticipants(roomId, userId);
+                get().sendVoiceRoomUpdate(roomId);
+                return;
+            }
+
             const { audioInputDeviceId } = get();
             console.log(`[WebRTC] Starting call in room ${roomId} (Device: ${audioInputDeviceId || 'default'})`);
 
             let stream: MediaStream | null = null;
             try {
                 const preferredConstraints = {
-                    audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
+                    audio: {
+                        ...(audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : {}),
+                        channelCount: 1,
+                        sampleRate: 48000,
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    },
                     video: false
                 };
                 stream = await navigator.mediaDevices.getUserMedia(preferredConstraints);
@@ -298,6 +414,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     joinCall: async (callId: string, user: any) => {
         const userId = user.id;
+        const { voiceMode } = get();
         // Search available room data for this user to find the roomId
         const roomId = Object.keys(get().roomParticipants).find(rid =>
             get().roomParticipants[rid]?.some(p => p.id === userId)
@@ -307,11 +424,26 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         (get() as any).playJoinSound();
 
         try {
+            if (voiceMode === 'sfu') {
+                set({ activeCall: { id: callId, roomId } });
+                if (!roomId) throw new Error('Room ID could not be resolved for SFU join');
+                await get().connectSfu(roomId, user);
+                await get().fetchParticipants(roomId, userId);
+                return;
+            }
+
             const { audioInputDeviceId } = get();
             let stream: MediaStream | null = null;
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
-                    audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
+                    audio: {
+                        ...(audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : {}),
+                        channelCount: 1,
+                        sampleRate: 48000,
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    },
                     video: false
                 });
             } catch (preferredErr) {
@@ -575,6 +707,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     pollSignals: async (userId: string) => {
+        if (get().voiceMode === 'sfu') return false;
         const { activeCall, localStream, isPolling } = get();
         if (!activeCall || !localStream || isPolling) return true;
         if (!get().httpPollSupported) return false;
@@ -623,7 +756,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     endCall: async (userId?: string) => {
-        const { localStream, peers, remoteStreams, activeCall } = get();
+        const { localStream, peers, remoteStreams, activeCall, disconnectSfu } = get();
         const roomId = activeCall?.roomId;
 
         // 1. IMMEDIATE UI CLEANUP (Fixes the "long leave time" symptom)
@@ -644,6 +777,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
         // 2. BACKGROUND RESOURCE CLEANUP
         try {
+            await disconnectSfu();
+
             // Stop analysers
             const intervals = (get() as any).analyserIntervals || {};
             Object.values(intervals).forEach((int: any) => clearInterval(int));
@@ -673,7 +808,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     fetchParticipants: async (roomId: string, userId: string) => {
-        const { activeCall, localStream } = get();
+        const { activeCall, localStream, voiceMode } = get();
         // We want to fetch to see who is in rooms even if we aren't, 
         // but we only proceed to mesh logic if we have a local stream and active call.
 
@@ -688,7 +823,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             // MESH LOGIC: Ensure every participant has a P2P connection
             // CRITICAL FIX: Only initiate mesh if this is our ACTIVE call room.
             // Prevents cross-room signaling artifacts from background polls.
-            if (localStream && activeCall && activeCall.roomId === roomId) {
+            if (voiceMode === 'mesh' && localStream && activeCall && activeCall.roomId === roomId) {
                 for (const p of participants) {
                     if (p.id === userId) continue;
 

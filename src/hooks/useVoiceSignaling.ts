@@ -12,6 +12,9 @@ export const useVoiceSignaling = () => {
     const { user } = useAuthStore();
 
     useEffect(() => {
+        if ((import.meta.env.VITE_VOICE_MODE || 'mesh').toLowerCase() === 'sfu') {
+            return;
+        }
         if (activeCall && user?.id) {
             console.log(`[WebRTC] Voice call active: ${activeCall.id}. Signal relay active via global WS + polling fallback.`);
             let cancelled = false;
@@ -21,8 +24,10 @@ export const useVoiceSignaling = () => {
                 if (cancelled) return;
                 const keepPolling = await pollSignals(user.id);
                 if (!keepPolling) return;
-                const backoff = useVoiceStore.getState().pollingBackoff || 0;
-                timeout = setTimeout(tick, 1200 + backoff);
+                const state = useVoiceStore.getState();
+                const backoff = state.pollingBackoff || 0;
+                const baseInterval = state.wsStatus === 'connected' ? 4000 : 300;
+                timeout = setTimeout(tick, baseInterval + backoff);
             };
 
             tick();

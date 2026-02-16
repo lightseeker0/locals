@@ -210,6 +210,10 @@ export class ApiService {
         return this.get(`/voice/participants/${roomId}`, userId);
     }
 
+    static async getVoiceToken(roomId: string, userId: string, name?: string) {
+        return this.post('/voice/sfu-token', { room_id: roomId, name }, userId);
+    }
+
     static async endCall(userId: string) {
         return this.post('/voice/end', {}, userId);
     }

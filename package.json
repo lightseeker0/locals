@@ -22,6 +22,7 @@
     "electron-updater": "^6.7.3",
     "esbuild-wasm": "^0.27.3",
     "global": "^4.4.0",
+    "livekit-client": "^2.17.1",
     "lucide-react": "^0.563.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

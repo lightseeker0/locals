@@ -79,6 +79,11 @@ CREATE TABLE IF NOT EXISTS call_participants (
     PRIMARY KEY (call_id, user_id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_calls_room_status_created ON calls(room_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_call_participants_call_id ON call_participants(call_id);
+CREATE INDEX IF NOT EXISTS idx_call_signals_call_id_id ON call_signals(call_id, id);
+CREATE INDEX IF NOT EXISTS idx_call_signals_created_at ON call_signals(created_at);
+
 -- User Themes (BetterDiscord Style)
 CREATE TABLE IF NOT EXISTS user_themes (
     id TEXT PRIMARY KEY,

@@ -5,3 +5,7 @@
 fiskos.xyz {
     reverse_proxy api:3000
 }
+
+livekit.fiskos.xyz {
+    reverse_proxy livekit:7880
+}
