@@ -125,7 +125,14 @@ function App() {
   const { user, isLoading, hasHydrated, validateSession } = useAuthStore();
   const { initElectronListener } = useThemeStore();
   const [debugStatus, setDebugStatus] = useState('Initializing...');
-  const [updateInfo, setUpdateInfo] = useState<{ status: 'available' | 'downloading' | 'ready', progress?: number } | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<{ status: 'available' | 'downloading' | 'ready' | 'installing', progress?: number } | null>(null);
+
+  const handleInstallUpdate = () => {
+    setUpdateInfo({ status: 'installing' });
+    setTimeout(() => {
+      (window as any).electron?.installUpdate();
+    }, 200);
+  };
 
   useEffect(() => {
     initElectronListener();
@@ -203,15 +210,17 @@ function App() {
                   </div>
 
                   <h2 className="text-2xl font-black text-white mb-2 tracking-tight">
-                    {updateInfo.status === 'available' && 'SİSTEM GÜNCELLEMESİ'}
-                    {updateInfo.status === 'downloading' && 'VERİ AKTARILIYOR'}
-                    {updateInfo.status === 'ready' && 'GÜNCELLEME HAZIR'}
+                    {updateInfo.status === 'available' && 'Yeni guncelleme var'}
+                    {updateInfo.status === 'downloading' && 'Dosyalar indiriliyor'}
+                    {updateInfo.status === 'ready' && 'Guncelleme hazir'}
+                    {updateInfo.status === 'installing' && 'Yeniden baslatiliyor'}
                   </h2>
 
                   <p className="text-matrix-muted text-sm mb-8 leading-relaxed">
-                    {updateInfo.status === 'available' && 'Yeni bir sürüm tespit edildi. Devam etmek için güncelleme zorunludur.'}
-                    {updateInfo.status === 'downloading' && 'Kritik sistem dosyaları indiriliyor. Lütfen bekleyin...'}
-                    {updateInfo.status === 'ready' && 'Tüm dosyalar doğrulandı. Değişikliklerin uygulanması için yeniden başlatın.'}
+                    {updateInfo.status === 'available' && 'Yeni bir surum bulundu.'}
+                    {updateInfo.status === 'downloading' && 'Dosyalar indiriliyor, lutfen bekleyin.'}
+                    {updateInfo.status === 'ready' && 'Indirme tamamlandi. Guncellemek icin yeniden baslatin.'}
+                    {updateInfo.status === 'installing' && 'Guncelleme uygulanirken uygulama yeniden baslatiliyor.'}
                   </p>
 
                   {updateInfo.status === 'downloading' && (
@@ -232,14 +241,29 @@ function App() {
                   <div className="flex flex-col gap-3">
                     {updateInfo.status === 'ready' ? (
                       <button
-                        onClick={() => (window as any).electron?.installUpdate()}
+                        onClick={handleInstallUpdate}
                         className="w-full bg-matrix-green text-black py-4 rounded-xl font-black text-sm hover:bg-white transition-all shadow-[0_0_30px_rgba(13,189,139,0.4)] active:scale-[0.98] uppercase tracking-widest"
                       >
-                        Sistemi Güncelle ve Başlat
+                        Guncelle ve yeniden baslat
                       </button>
+                    ) : updateInfo.status === 'installing' ? (
+                      <div className="flex flex-col items-center gap-4 py-2">
+                        <div className="relative w-16 h-16">
+                          <div className="absolute inset-0 rounded-full border-2 border-white/10" />
+                          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-matrix-green animate-spin" />
+                          <img
+                            src="/logo.png"
+                            alt="Fiskos"
+                            className="absolute inset-2 w-12 h-12 rounded-2xl object-cover"
+                          />
+                        </div>
+                        <div className="text-[11px] font-bold text-matrix-muted uppercase tracking-[0.18em]">
+                          Lutfen bekleyin
+                        </div>
+                      </div>
                     ) : (
                       <div className="text-[10px] font-bold text-matrix-green/40 uppercase tracking-[0.2em] animate-pulse">
-                        Giriş Engellendi
+                        Lutfen bekleyin
                       </div>
                     )}
                   </div>

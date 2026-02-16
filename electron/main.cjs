@@ -179,8 +179,20 @@ autoUpdater.on('error', (err) => {
     console.error('Updater error:', err);
 });
 
+autoUpdater.on('before-quit-for-update', () => {
+    app.isQuiting = true;
+    if (win) {
+        win.removeAllListeners('close');
+    }
+});
+
 ipcMain.on('install-update', () => {
-    autoUpdater.quitAndInstall();
+    app.isQuiting = true;
+    if (win) {
+        win.removeAllListeners('close');
+    }
+    // Silent install avoids the default NSIS progress window.
+    autoUpdater.quitAndInstall(true, true);
 });
 
 ipcMain.handle('get-app-version', () => {
