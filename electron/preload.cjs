@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('electron', {
     onCheckingForUpdate: (callback) => ipcRenderer.on('checking-for-update', () => callback()),
     onUpdateNotAvailable: (callback) => ipcRenderer.on('update-not-available', (_event, info) => callback(info)),
     installUpdate: () => ipcRenderer.send('install-update'),
-    checkForUpdates: () => ipcRenderer.send('check-for-updates'),
+    checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
     getAppVersion: () => ipcRenderer.invoke('get-app-version'),
     // Window Controls
     minimize: () => ipcRenderer.send('window-minimize'),

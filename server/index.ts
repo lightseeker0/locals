@@ -285,6 +285,13 @@ app.post('/api/themes', async (c) => {
     db.prepare('INSERT INTO user_themes (id, user_id, name, css_content, is_url, is_active) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, css_content=excluded.css_content, is_url=excluded.is_url, is_active=excluded.is_active').run(tid, uid, name, css_content, is_url ? 1 : 0, is_active ? 1 : 0);
     return c.json({ id: tid, status: 'saved' });
 });
+app.post('/api/themes/delete', async (c) => {
+    const uid = c.req.header('X-User-ID');
+    const { id } = await c.req.json() as { id?: string };
+    if (!uid || !id) return c.json({ error: 'Missing theme id' }, 400);
+    db.prepare('DELETE FROM user_themes WHERE id = ? AND user_id = ?').run(id, uid);
+    return c.json({ status: 'deleted' });
+});
 app.post('/api/themes/resolve-url', async (c) => {
     try {
         const { url } = await c.req.json() as { url?: string };

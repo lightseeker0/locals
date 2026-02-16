@@ -6,7 +6,7 @@ export interface ElectronAPI {
     onCheckingForUpdate: (callback: () => void) => void;
     onUpdateNotAvailable: (callback: (info: any) => void) => void;
     installUpdate: () => void;
-    checkForUpdates: () => void;
+    checkForUpdates: () => Promise<{ ok: boolean; reason?: string; updateInfo?: any }>;
     getAppVersion: () => Promise<string>;
     // Window Controls
     minimize: () => void;

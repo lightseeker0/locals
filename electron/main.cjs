@@ -165,9 +165,18 @@ ipcMain.handle('get-app-version', () => {
     return app.getVersion();
 });
 
-ipcMain.on('check-for-updates', () => {
-    if (!isDev) {
-        autoUpdater.checkForUpdates();
+ipcMain.handle('check-for-updates', async () => {
+    if (isDev) {
+        return { ok: false, reason: 'dev-mode' };
+    }
+
+    try {
+        const result = await autoUpdater.checkForUpdates();
+        return { ok: true, updateInfo: result?.updateInfo || null };
+    } catch (err) {
+        const message = err?.message || String(err);
+        if (win) win.webContents.send('update-error', message);
+        return { ok: false, reason: message };
     }
 });
 

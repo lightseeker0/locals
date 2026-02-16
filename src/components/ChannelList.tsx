@@ -75,10 +75,16 @@ export const ChannelList: React.FC = () => {
         });
     }, []);
 
-    const checkForUpdates = () => {
+    const checkForUpdates = async () => {
         if (!window.electron) return;
         setUpdateStatus('checking');
-        window.electron.checkForUpdates();
+        const result = await window.electron.checkForUpdates();
+        if (!result?.ok) {
+            setUpdateStatus('idle');
+            if (result?.reason && result.reason !== 'dev-mode') {
+                alert(`Update check failed: ${result.reason}`);
+            }
+        }
     };
 
     const currentServer = servers.find(s => s.id === selectedServerId);

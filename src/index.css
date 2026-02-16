@@ -44,8 +44,8 @@
 }
 
 /* BetterDiscord Compatibility Aliases & Shim */
-#app-mount,
-.appMount-3stXN7 {
+:root:not(.custom) #app-mount,
+:root:not(.custom) .appMount-3stXN7 {
   background: url('https://i.imgur.com/7SbtKvw.png') center/cover no-repeat fixed !important;
   color: var(--text-normal);
   height: 100vh;
@@ -136,8 +136,11 @@
   --color-discord-blurple: var(--discord-blurple);
 }
 
-body {
+:root:not(.custom) body {
   background: url('https://i.imgur.com/7SbtKvw.png') center/cover no-repeat fixed !important;
+}
+
+body {
   color: var(--color-matrix-text);
   overflow: hidden;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
