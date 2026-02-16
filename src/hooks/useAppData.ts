@@ -84,14 +84,12 @@ export const useAppData = () => {
 
     useEffect(() => {
         fetchSpaces();
-        const interval = setInterval(fetchSpaces, 120000);
-        return () => clearInterval(interval);
+        // Remove periodic polling as we use WebSockets for presence/updates
     }, [fetchSpaces]);
 
     useEffect(() => {
         fetchRoomsOrDMs();
-        const interval = setInterval(fetchRoomsOrDMs, 60000);
-        return () => clearInterval(interval);
+        // Remove periodic polling as we use WebSockets for presence/updates
     }, [fetchRoomsOrDMs]);
 
     return { refreshSpaces: fetchSpaces, refreshRooms: fetchRoomsOrDMs };

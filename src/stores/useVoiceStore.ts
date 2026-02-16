@@ -575,7 +575,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     },
 
     endCall: async (userId?: string) => {
-        const { localStream, peers, remoteStreams } = get();
+        const { localStream, peers, remoteStreams, activeCall } = get();
+        const roomId = activeCall?.roomId;
 
         // 1. IMMEDIATE UI CLEANUP (Fixes the "long leave time" symptom)
         set({
@@ -600,8 +601,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             Object.values(intervals).forEach((int: any) => clearInterval(int));
 
             // Notify others
-            const activeCall = get().activeCall;
-            if (activeCall) get().sendVoiceRoomUpdate(activeCall.roomId);
+            if (roomId) get().sendVoiceRoomUpdate(roomId);
 
             if (userId) ApiService.endCall(userId).catch(() => { });
 

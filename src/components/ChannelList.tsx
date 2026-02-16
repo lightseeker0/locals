@@ -115,21 +115,27 @@ export const ChannelList: React.FC = () => {
         remoteStreams,
         audioOutputDeviceId
     } = useVoiceStore();
-    // Poll voice participants periodically
+    // Real-time voice room updates
+    const { addVoiceRoomUpdateListener } = useVoiceStore();
     useEffect(() => {
         if (!user || !selectedServerId) return;
 
-        const poll = () => {
-            const voiceChannels = channels.filter(c => c.type === 'voice');
-            voiceChannels.forEach(channel => {
-                if (user?.id) fetchParticipants(channel.id, user.id);
+        // Initial fetch for visibility
+        const fetchAll = () => {
+            channels.filter(c => c.type === 'voice').forEach(channel => {
+                fetchParticipants(channel.id, user.id);
             });
         };
+        fetchAll();
 
-        poll();
-        const interval = setInterval(poll, 10000); // Check every 10 seconds for mesh health
-        return () => clearInterval(interval);
-    }, [selectedServerId, channels, user?.id, fetchParticipants]);
+        const unsubscribe = addVoiceRoomUpdateListener(() => {
+            // fetchParticipants is already called inside useVoiceStore when this event is received
+            // This listener here is just to force a potential re-render if needed, 
+            // though the store's state change should handle it.
+        });
+
+        return () => unsubscribe();
+    }, [selectedServerId, channels, user?.id, fetchParticipants, addVoiceRoomUpdateListener]);
 
 
 
