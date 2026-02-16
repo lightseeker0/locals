@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ApiService } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useVoiceStore } from '../stores/useVoiceStore';
 
 export interface ChatMessage {
     id: string;
@@ -11,13 +12,14 @@ export interface ChatMessage {
     display_name?: string;
     avatar_url?: string;
     reply_to_id?: string;
-    reply_to_content?: string; // Optional for UI convenience
+    reply_to_content?: string;
     reply_to_author?: string;
 }
 
 export const useChatMessages = (roomId: string) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const { user } = useAuthStore();
+    const { addMessageListener } = useVoiceStore();
 
     const fetchMessages = useCallback(async () => {
         if (!roomId) return;
@@ -31,30 +33,41 @@ export const useChatMessages = (roomId: string) => {
 
     useEffect(() => {
         fetchMessages();
-        const interval = setInterval(fetchMessages, 5000);
-        return () => clearInterval(interval);
-    }, [roomId, fetchMessages]);
+
+        // Subscribe to real-time message updates via WebSocket
+        const unsubscribe = addMessageListener((msg: any) => {
+            if (msg.room_id === roomId) {
+                setMessages(prev => {
+                    // Avoid duplicates
+                    if (prev.some(m => m.id === msg.id)) return prev;
+                    return [...prev, msg];
+                });
+            }
+        });
+
+        return () => unsubscribe();
+    }, [roomId, fetchMessages, addMessageListener]);
 
     const sendMessage = useCallback(async (content: string, replyToId?: string) => {
         if (!roomId || !user) return;
         try {
             await ApiService.sendMessage(roomId, user.id, content, replyToId);
-            await fetchMessages();
+            // We don't need to fetchMessages here anymore because the server 
+            // will broadcast the message back to us via WS, and our listener handles it.
+            // But for immediate UI feedback, we can leave it or trust the WS.
         } catch (error) {
             console.error("Failed to send message", error);
             throw error;
         }
-    }, [roomId, user, fetchMessages]);
+    }, [roomId, user]);
 
     const deleteMessage = useCallback(async (messageId: string) => {
         if (!user) return;
         try {
-            // Optimistic update
             setMessages(prev => prev.filter(msg => msg.id !== messageId));
             await ApiService.deleteMessage(messageId, user.id);
         } catch (error) {
             console.error("Failed to delete message", error);
-            // On failure, re-fetch to restore state
             fetchMessages();
             throw error;
         }

@@ -36,6 +36,10 @@ interface VoiceState {
     wsStatus: 'disconnected' | 'connecting' | 'connected';
     connectWS: (userId: string) => void;
     disconnectWS: () => void;
+    addMessageListener: (cb: (msg: any) => void) => () => void;
+    addPresenceListener: (cb: (update: any) => void) => () => void;
+    messageListeners: ((msg: any) => void)[];
+    presenceListeners: ((update: any) => void)[];
 }
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
@@ -58,6 +62,17 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     audioOutputDeviceId: localStorage.getItem('audioOutputDeviceId'),
     ws: null,
     wsStatus: 'disconnected',
+    messageListeners: [],
+    presenceListeners: [],
+
+    addMessageListener: (cb) => {
+        set(state => ({ messageListeners: [...state.messageListeners, cb] }));
+        return () => set(state => ({ messageListeners: state.messageListeners.filter(l => l !== cb) }));
+    },
+    addPresenceListener: (cb) => {
+        set(state => ({ presenceListeners: [...state.presenceListeners, cb] }));
+        return () => set(state => ({ presenceListeners: state.presenceListeners.filter(l => l !== cb) }));
+    },
 
     connectWS: (userId: string) => {
         const { ws, wsStatus } = get();
@@ -92,6 +107,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                     if (localStream && get().activeCall) {
                         (get() as any).handleIncomingSignal(get().activeCall!.id, userId, data, localStream);
                     }
+                } else if (data.type === 'message') {
+                    get().messageListeners.forEach(l => l(data.message));
+                } else if (data.type === 'presence') {
+                    get().presenceListeners.forEach(l => l(data));
                 }
             } catch (err) {
                 console.error('[WebRTC] WS Message Error:', err);

@@ -13,779 +13,227 @@ const app = new Hono();
 const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 const dbPath = path.join(process.cwd(), 'data', 'locals.db');
 
-// Ensure data directory exists
-if (!fs.existsSync(path.dirname(dbPath))) {
-    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-}
+if (!fs.existsSync(path.dirname(dbPath))) fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
-const db = new Database(dbPath, { verbose: (sql) => console.log(`[SQL] ${sql}`) });
-db.pragma('journal_mode = WAL'); // Enable Write-Ahead Logging for better concurrency
+const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
 
-// Initialize database schema if not exists
-const possibleSchemaPaths = [
-    path.join(process.cwd(), 'schema.sql'),
-    path.join(process.cwd(), '..', 'schema.sql'),
-    '/app/schema.sql',
-    '/app/server/schema.sql',
-    '/app_root/schema.sql'
-];
+const schemaPath = path.join(process.cwd(), 'schema.sql');
+if (fs.existsSync(schemaPath)) db.exec(fs.readFileSync(schemaPath, 'utf8'));
 
-let schemaPath = '';
-for (const p of possibleSchemaPaths) {
-    console.log(`[DEBUG] Checking for schema at: ${p}`);
-    if (fs.existsSync(p)) {
-        schemaPath = p;
-        break;
-    }
-}
-
-if (!schemaPath) {
-    console.error('[ERROR] Could not find schema.sql in any of the following locations:', possibleSchemaPaths);
-    process.exit(1);
-}
-
-console.log(`[INFO] Using schema from: ${schemaPath}`);
-const schema = fs.readFileSync(schemaPath, 'utf8');
-db.exec(schema);
-
-// Migration: Add session_token if it doesn't exist
+// Migration & Indexes
 try {
     const tableInfo = db.prepare("PRAGMA table_info(users)").all() as any[];
-    const hasSessionToken = tableInfo.some(col => col.name === 'session_token');
-    if (!hasSessionToken) {
-        console.log('[MIGRATION] Adding session_token column to users table...');
-        db.exec("ALTER TABLE users ADD COLUMN session_token TEXT;");
-    }
-} catch (err) {
-    console.error('[MIGRATION ERROR]', err);
-}
-
-// Migration: Add space_id to participants if it doesn't exist
-try {
-    const tableInfo = db.prepare("PRAGMA table_info(participants)").all() as any[];
-    const hasSpaceId = tableInfo.some(col => col.name === 'space_id');
-    if (!hasSpaceId) {
-        console.log('[MIGRATION] Adding space_id column to participants table...');
-        db.exec("ALTER TABLE participants ADD COLUMN space_id TEXT REFERENCES spaces(id);");
-    }
-} catch (err) {
-    console.error('[MIGRATION ERROR] Participants space_id:', err);
-}
-
-// Performance Indexes
-try {
+    if (!tableInfo.some(col => col.name === 'session_token')) db.exec("ALTER TABLE users ADD COLUMN session_token TEXT;");
     db.exec(`
         CREATE INDEX IF NOT EXISTS idx_messages_room_id_created ON messages(room_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_rooms_space_id ON rooms(space_id);
         CREATE INDEX IF NOT EXISTS idx_participants_user_id ON participants(user_id);
-        CREATE INDEX IF NOT EXISTS idx_call_participants_call_id ON call_participants(call_id);
-        CREATE INDEX IF NOT EXISTS idx_call_signals_call_id_id ON call_signals(call_id, id);
         CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen);
     `);
+} catch (err) { }
 
-    // Cleanup: Drop notification table if exists since it's no longer used
-    db.exec("DROP TABLE IF EXISTS notifications;");
-    console.log('[DB] Indexes applied and cleanup complete.');
-} catch (err) {
-    console.error('[DB ERROR] Failed to apply indexes:', err);
-}
+app.use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowHeaders: ['Content-Type', 'Authorization', 'X-User-ID'] }));
 
-app.use('*', cors({
-    origin: '*',
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-User-ID'],
-    exposeHeaders: ['Content-Type'],
-}));
-
-app.onError((err, c) => {
-    console.error(`[HONO ERROR] ${c.req.method} ${c.req.path}:`, err);
-    return c.json({ error: 'Internal Server Error', message: err.message }, 500);
-});
-
-// Serve static files from the 'dist' folder
-const distPath = fs.existsSync(path.join(process.cwd(), '..', 'dist'))
-    ? path.join(process.cwd(), '..', 'dist')
-    : path.join(process.cwd(), 'dist');
-
-app.use('/*', serveStatic({
-    root: distPath,
-    rewriteRequestPath: (path) => (path === '/' ? '/index.html' : path),
-}));
-
-// Fallback for SPA routing (serve index.html for unknown routes)
-app.get('*', async (c, next) => {
-    if (c.req.path.startsWith('/api')) {
-        return next();
-    }
-    const html = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
-    return c.html(html);
-});
-
-// Utility for hashing passwords (replication of Cloudflare logic)
-// ... (rest of the file remains same, but I'll update the whole block below for consistency)
+// Utils
 const hashPassword = async (password: string, salt: Uint8Array) => {
-    try {
-        const encoder = new TextEncoder();
-        const passwordKey = await crypto.subtle.importKey(
-            'raw',
-            encoder.encode(password),
-            { name: 'PBKDF2' },
-            false,
-            ['deriveBits']
-        );
-
-        const derivedBits = await crypto.subtle.deriveBits(
-            {
-                name: 'PBKDF2',
-                salt: salt as any,
-                iterations: 100000,
-                hash: 'SHA-256'
-            },
-            passwordKey,
-            256
-        );
-
-        return Buffer.from(derivedBits).toString('base64');
-    } catch (err) {
-        console.error('[HASH] Error hashing password:', err);
-        throw err;
-    }
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', encoder.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt as any, iterations: 100000, hash: 'SHA-256' }, key, 256);
+    return Buffer.from(bits).toString('base64');
 };
 
-// Utility to sanitize HTML and prevent XSS
-const sanitize = (text: string) => {
-    if (!text) return '';
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-};
-
-const isAdmin = (userId: string) => {
-    if (!userId) return false;
-    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as any;
-    if (!user) return false;
-    const adminUsernames = ['ds4d', 'Asuna', 'asuna'];
-    return adminUsernames.includes(user.username.toLowerCase());
-};
+const sanitize = (text: string) => text ? text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;') : '';
 
 const lastSeenCache = new Map<string, number>();
 const updateLastSeen = (userId: string) => {
     if (!userId) return;
     const now = Date.now();
-    const lastUpdate = lastSeenCache.get(userId) || 0;
-
-    // Only update DB if more than 30 seconds passed since last update for this user
-    if (now - lastUpdate > 30000) {
-        try {
-            db.prepare('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?').run(userId);
-            lastSeenCache.set(userId, now);
-        } catch (err) {
-            console.error(`[DB] Failed to update lastSeen for ${userId}:`, err);
-        }
+    if (now - (lastSeenCache.get(userId) || 0) > 30000) {
+        db.prepare('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?').run(userId);
+        lastSeenCache.set(userId, now);
     }
 };
 
-// Middleware to update last seen and validate session
-app.use('/api/*', async (c: Context, next: Next) => {
+const isAdmin = (userId: string) => {
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as any;
+    return ['ds4d', 'asuna'].includes(user?.username?.toLowerCase());
+};
+
+// Middleware
+app.use('/api/*', async (c, next) => {
     const userId = c.req.header('X-User-ID');
-    const authHeader = c.req.header('Authorization');
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-
-    // Public routes that don't need token validation
-    const publicRoutes = ['/api/auth/login', '/api/auth/register'];
-    const isPublic = publicRoutes.some(route => c.req.path === route);
-
-    if (userId && !isPublic) {
-        // Validate token if userId is provided
+    const auth = c.req.header('Authorization');
+    const token = auth?.startsWith('Bearer ') ? auth.substring(7) : null;
+    if (userId && !['/api/auth/login', '/api/auth/register'].some(r => c.req.path === r)) {
         const user = db.prepare('SELECT session_token FROM users WHERE id = ?').get(userId) as any;
-
-        if (!user) {
-            console.warn(`[AUTH] User ${userId} not found in database.`);
-            return c.json({ error: 'Unauthorized', message: 'User not found.' }, 401);
-        }
-
-        if (!user.session_token || user.session_token !== token) {
-            console.warn(`[AUTH] Unauthorized attempt for user ${userId}. Token mismatch. Provided: ${token ? token.slice(0, 8) + '...' : 'NONE'}, Stored: ${user.session_token ? user.session_token.slice(0, 8) + '...' : 'NONE'}`);
-            return c.json({ error: 'Unauthorized', message: 'Invalid or missing session token. Please re-login.' }, 401);
-        }
+        if (!user || user.session_token !== token) return c.json({ error: 'Unauthorized' }, 401);
     }
-
     if (userId) updateLastSeen(userId);
     await next();
 });
 
-// Global Error Handler
-app.onError((err, c) => {
-    console.error(`[CRITICAL ERROR] ${c.req.method} ${c.req.path}:`, err);
-    return c.json({
-        error: 'Internal Server Error',
-        message: err.message,
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    }, 500);
-});
-
-// --- Health Check ---
-app.get('/api/health', (c) => c.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() }));
-
-// --- WebSocket Signaling Registry ---
+// WebSocket
 const wsRegistry = new Map<string, any>();
+const broadcast = (data: any, excludeUserId?: string) => {
+    const payload = JSON.stringify(data);
+    wsRegistry.forEach((ws, id) => { if (id !== excludeUserId && ws.readyState === 1) ws.send(payload); });
+};
 
 app.get('/ws', upgradeWebSocket((c) => {
     const userId = c.req.query('userId');
-    if (!userId) {
-        return {
-            onOpen: () => console.warn('[WS] Connection attempt without userId'),
-            onClose: () => { }
-        };
-    }
-
+    if (!userId) return { onClose: () => { } };
     return {
-        onOpen(event, ws) {
-            console.log(`[WS] Connection opened for user: ${userId}`);
-            wsRegistry.set(userId, ws);
-            updateLastSeen(userId);
-        },
+        onOpen(event, ws) { wsRegistry.set(userId, ws); broadcast({ type: 'presence', userId, status: 'online' }, userId); },
         onMessage(event, ws) {
             try {
                 const data = JSON.parse(event.data.toString());
-                const { type, to, payload } = data;
-
-                if (type === 'signal' && to) {
-                    const targetWs = wsRegistry.get(to);
-                    if (targetWs) {
-                        targetWs.send(JSON.stringify({
-                            type: 'signal',
-                            from: userId,
-                            payload: payload
-                        }));
-                    } else {
-                        // Fallback: Store in DB if user is not currently connected via WS
-                        // This handles cases where a user is polling or just disconnected
-                        const callId = data.callId;
-                        if (callId) {
-                            db.prepare('INSERT INTO call_signals (call_id, sender_id, type, payload) VALUES (?, ?, ?, ?)')
-                                .run(callId, userId, payload.type || 'signal', JSON.stringify({ ...data, from: userId }));
-                        }
-                    }
-                } else if (type === 'heartbeat') {
-                    updateLastSeen(userId);
-                }
-            } catch (err) {
-                console.error('[WS] Message error:', err);
-            }
+                if (data.type === 'signal' && data.to) {
+                    const targetWs = wsRegistry.get(data.to);
+                    if (targetWs) targetWs.send(JSON.stringify({ type: 'signal', from: userId, payload: data.payload }));
+                } else if (data.type === 'heartbeat') updateLastSeen(userId);
+            } catch (err) { }
         },
-        onClose() {
-            console.log(`[WS] Connection closed for user: ${userId}`);
-            wsRegistry.delete(userId);
-        },
-        onError(err) {
-            console.error(`[WS] Error for user ${userId}:`, err);
-            wsRegistry.delete(userId);
-        }
+        onClose() { wsRegistry.delete(userId); broadcast({ type: 'presence', userId, status: 'offline' }, userId); }
     };
 }));
 
-// --- API Routes (Replicating [[path]].ts) ---
-
-app.get('/api/spaces', async (c: Context) => {
-    try {
-        const userId = c.req.header('X-User-ID');
-        let results;
-        if (userId) {
-            results = db.prepare(`
-                SELECT DISTINCT s.*,
-                    0 as unread_count,
-                    0 as mention_count
-                FROM spaces s 
-                LEFT JOIN rooms r ON s.id = r.space_id 
-                LEFT JOIN participants p ON r.id = p.room_id 
-                WHERE s.is_private = 0 OR s.owner_id = ? OR p.user_id = ? 
-                ORDER BY s.created_at DESC
-            `).all(userId, userId);
-        } else {
-            results = db.prepare(`SELECT *, 0 as unread_count, 0 as mention_count FROM spaces WHERE is_private = 0 ORDER BY created_at DESC`).all();
-        }
-        return c.json(results);
-    } catch (err) {
-        console.error('[SPACES] Error fetching spaces:', err);
-        throw err;
-    }
+// API Routes
+app.get('/api/spaces', (c) => {
+    const uid = c.req.header('X-User-ID');
+    const res = uid ? db.prepare('SELECT DISTINCT s.*, 0 as unread_count, 0 as mention_count FROM spaces s LEFT JOIN rooms r ON s.id = r.space_id LEFT JOIN participants p ON r.id = p.room_id WHERE s.is_private = 0 OR s.owner_id = ? OR p.user_id = ? ORDER BY s.created_at DESC').all(uid, uid) : db.prepare('SELECT *, 0 as unread_count, 0 as mention_count FROM spaces WHERE is_private = 0 ORDER BY created_at DESC').all();
+    return c.json(res);
 });
 
-app.get('/api/users/search', async (c: Context) => {
-    const query = c.req.query('q') || '';
-    const results = db.prepare('SELECT id, username, display_name, avatar_url FROM users WHERE username LIKE ? OR display_name LIKE ? LIMIT 10')
-        .all(`%${query}%`, `%${query}%`);
-    return c.json(results);
+app.get('/api/users/search', (c) => {
+    const q = c.req.query('q') || '';
+    return c.json(db.prepare('SELECT id, username, display_name, avatar_url FROM users WHERE username LIKE ? OR display_name LIKE ? LIMIT 10').all(`%${q}%`, `%${q}%`));
 });
 
-app.get('/api/users/list', async (c: Context) => {
-    const userId = c.req.header('X-User-ID');
-    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+app.get('/api/users/list', (c) => c.json(db.prepare('SELECT id, username, display_name, avatar_url, last_seen, custom_status FROM users ORDER BY last_seen DESC LIMIT 200').all()));
 
-    const spaceId = c.req.query('space_id');
-    let results;
+app.get('/api/rooms/:spaceId', (c) => c.json(db.prepare('SELECT *, 0 as unread_count, 0 as mention_count FROM rooms WHERE space_id = ? AND is_private = 0').all(c.req.param('spaceId'))));
 
-    if (spaceId) {
-        results = db.prepare(`
-            SELECT DISTINCT u.id, u.username, u.display_name, u.avatar_url, u.last_seen, u.is_banned, u.custom_status 
-            FROM users u
-            JOIN participants p ON u.id = p.user_id
-            JOIN rooms r ON p.room_id = r.id
-            WHERE r.space_id = ?
-            ORDER BY u.last_seen DESC LIMIT 200
-        `).all(spaceId);
-    } else {
-        results = db.prepare(`
-            SELECT id, username, display_name, avatar_url, last_seen, is_banned, custom_status 
-            FROM users 
-            ORDER BY last_seen DESC LIMIT 200
-        `).all();
-    }
-    return c.json(results);
-});
-
-app.get('/api/rooms/:spaceId', async (c: Context) => {
-    try {
-        const spaceId = c.req.param('spaceId');
-        const userId = c.req.header('X-User-ID');
-
-        let results;
-        if (userId) {
-            results = db.prepare(`
-                SELECT r.*,
-                    0 as unread_count,
-                    0 as mention_count
-                FROM rooms r 
-                WHERE r.space_id = ? AND r.is_private = 0
-            `).all(spaceId);
-        } else {
-            results = db.prepare('SELECT *, 0 as unread_count, 0 as mention_count FROM rooms WHERE space_id = ? AND is_private = 0').all(spaceId);
-        }
-        return c.json(results);
-    } catch (err) {
-        console.error('[ROOMS] Error fetching rooms:', err);
-        throw err;
-    }
-});
-
-app.post('/api/spaces/delete/:spaceId', async (c: Context) => {
-    const spaceId = c.req.param('spaceId');
-    const userId = c.req.header('X-User-ID');
-    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
-
-    const spaceOrder = db.prepare('SELECT owner_id FROM spaces WHERE id = ?').get(spaceId) as any;
-    if (!spaceOrder) return c.json({ error: 'Space not found' }, 404);
-
-    if (spaceOrder.owner_id !== userId && !isAdmin(userId)) {
-        return c.json({ error: 'Forbidden', message: 'Only owner or site admin can delete a space' }, 403);
-    }
-
-    try {
-        const deleteTx = db.transaction(() => {
-            // Delete rooms first (messages and participants will cascade if defined, otherwise cleanup manually)
-            const rooms = db.prepare('SELECT id FROM rooms WHERE space_id = ?').all(spaceId) as any[];
-            for (const room of rooms) {
-                db.prepare('DELETE FROM messages WHERE room_id = ?').run(room.id);
-                db.prepare('DELETE FROM participants WHERE room_id = ?').run(room.id);
-                db.prepare('DELETE FROM read_receipts WHERE room_id = ?').run(room.id);
-                db.prepare('DELETE FROM rooms WHERE id = ?').run(room.id);
-            }
-            db.prepare('DELETE FROM participants WHERE space_id = ?').run(spaceId); // Global space participants if any
-            db.prepare('DELETE FROM spaces WHERE id = ?').run(spaceId);
-        });
-
-        deleteTx();
-        console.log(`[SPACES] Space deleted: ${spaceId} by ${userId}`);
+app.post('/api/spaces/delete/:spaceId', (c) => {
+    const sid = c.req.param('spaceId'), uid = c.req.header('X-User-ID');
+    const owner = db.prepare('SELECT owner_id FROM spaces WHERE id = ?').get(sid) as any;
+    if (owner?.owner_id === uid || isAdmin(uid)) {
+        db.transaction(() => {
+            db.prepare('DELETE FROM messages WHERE room_id IN (SELECT id FROM rooms WHERE space_id = ?)').run(sid);
+            db.prepare('DELETE FROM rooms WHERE space_id = ?').run(sid);
+            db.prepare('DELETE FROM spaces WHERE id = ?').run(sid);
+        })();
         return c.json({ status: 'deleted' });
-    } catch (err: any) {
-        console.error('[SPACES] Delete error:', err);
-        return c.json({ error: 'Failed to delete space', message: err.message }, 500);
     }
+    return c.json({ error: 'Forbidden' }, 403);
 });
 
-app.get('/api/auth/me', async (c: Context) => {
-    const userId = c.req.header('X-User-ID');
-    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
-
-    const user = db.prepare('SELECT id, username, display_name, avatar_url, last_seen, is_banned, custom_status FROM users WHERE id = ?').get(userId);
-    if (!user) return c.json({ error: 'User not found' }, 404);
-
-    return c.json(user);
+app.get('/api/auth/me', (c) => {
+    const uid = c.req.header('X-User-ID');
+    return uid ? c.json(db.prepare('SELECT id, username, display_name, avatar_url, last_seen, is_banned, custom_status FROM users WHERE id = ?').get(uid)) : c.json({ error: 'Unauthorized' }, 401);
 });
 
-app.get('/api/dm/list', async (c: Context) => {
-    try {
-        const userId = c.req.header('X-User-ID');
-        if (!userId) return c.json({ error: 'Unauthorized' }, 401);
-        const results = db.prepare(`
-            SELECT r.*, u.username as other_username, u.display_name as other_display_name, u.avatar_url as other_avatar, u.last_seen,
-                (SELECT COUNT(*) FROM messages m 
-                 LEFT JOIN read_receipts rr ON rr.room_id = r.id AND rr.user_id = ?
-                 WHERE m.room_id = r.id AND m.user_id != ? AND (rr.updated_at IS NULL OR m.created_at > rr.updated_at)
-                ) as unread_count,
-                0 as mention_count
-            FROM rooms r
-            JOIN participants p ON r.id = p.room_id
-            JOIN participants p2 ON r.id = p2.room_id AND p2.user_id != p.user_id
-            JOIN users u ON p2.user_id = u.id
-            WHERE p.user_id = ? AND r.type = 'dm'
-        `).all(userId, userId, userId);
-        return c.json(results);
-    } catch (err) {
-        console.error('[DM] Error fetching DM list:', err);
-        throw err;
-    }
+app.get('/api/dm/list', (c) => {
+    const uid = c.req.header('X-User-ID');
+    return uid ? c.json(db.prepare('SELECT r.*, u.username as other_username, u.display_name as other_display_name, u.avatar_url as other_avatar, u.last_seen, 0 as unread_count FROM rooms r JOIN participants p ON r.id = p.room_id JOIN participants p2 ON r.id = p2.room_id AND p2.user_id != p.user_id JOIN users u ON p2.user_id = u.id WHERE p.user_id = ? AND r.type = \'dm\'').all(uid)) : c.json({ error: 'Unauthorized' }, 401);
 });
 
-app.post('/api/user/profile', async (c: Context) => {
-    const userId = c.req.header('X-User-ID');
-    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
-
-    try {
-        const { display_name, avatar_url, bio, custom_status } = await c.req.json();
-
-        db.prepare(`
-            UPDATE users 
-            SET display_name = COALESCE(?, display_name), 
-                avatar_url = COALESCE(?, avatar_url), 
-                bio = COALESCE(?, bio),
-                custom_status = COALESCE(?, custom_status) 
-            WHERE id = ?
-        `).run(display_name, avatar_url, bio, custom_status, userId);
-
-        console.log(`[USER] Profile updated for: ${userId}`);
-        return c.json({ status: 'updated' });
-    } catch (err: any) {
-        console.error(`[USER] Profile update error:`, err);
-        return c.json({ error: 'Failed to update profile', details: err.message }, 500);
-    }
+app.post('/api/user/profile', async (c) => {
+    const uid = c.req.header('X-User-ID');
+    const { display_name, avatar_url, bio, custom_status } = await c.req.json();
+    db.prepare('UPDATE users SET display_name = COALESCE(?, display_name), avatar_url = COALESCE(?, avatar_url), bio = COALESCE(?, bio), custom_status = COALESCE(?, custom_status) WHERE id = ?').run(display_name, avatar_url, bio, custom_status, uid);
+    return c.json({ status: 'updated' });
 });
 
-// --- Themes ---
-app.get('/api/themes', async (c: Context) => {
-    const userId = c.req.header('X-User-ID');
-    if (!userId) return c.json([]);
-    const themes = db.prepare('SELECT * FROM user_themes WHERE user_id = ?').all(userId);
-    return c.json(themes);
+app.get('/api/themes', (c) => c.json(db.prepare('SELECT * FROM user_themes WHERE user_id = ?').all(c.req.header('X-User-ID'))));
+app.post('/api/themes', async (c) => {
+    const uid = c.req.header('X-User-ID'), { id, name, css_content, is_url, is_active } = await c.req.json();
+    const tid = id || uuidv4();
+    db.prepare('INSERT INTO user_themes (id, user_id, name, css_content, is_url, is_active) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, css_content=excluded.css_content, is_url=excluded.is_url, is_active=excluded.is_active').run(tid, uid, name, css_content, is_url ? 1 : 0, is_active ? 1 : 0);
+    return c.json({ id: tid, status: 'saved' });
 });
 
-app.post('/api/themes', async (c: Context) => {
-    const userId = c.req.header('X-User-ID');
-    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
-    const { id, name, css_content, is_url, is_active } = await c.req.json();
-    const themeId = id || uuidv4();
-
-    db.prepare(`
-        INSERT INTO user_themes (id, user_id, name, css_content, is_url, is_active)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-            name = excluded.name,
-            css_content = excluded.css_content,
-            is_url = excluded.is_url,
-            is_active = excluded.is_active
-    `).run(themeId, userId, name, css_content, is_url ? 1 : 0, is_active ? 1 : 0);
-
-    return c.json({ id: themeId, status: 'saved' });
-});
-
-app.post('/api/themes/delete', async (c: Context) => {
-    const { id } = await c.req.json();
-    db.prepare('DELETE FROM user_themes WHERE id = ?').run(id);
-    return c.json({ status: 'deleted' });
-});
-
-// --- Reactions ---
-app.get('/api/reactions/:messageId', async (c: Context) => {
-    const messageId = c.req.param('messageId');
-    const results = db.prepare(`
-        SELECT r.*, u.username, u.display_name
-        FROM reactions r
-        JOIN users u ON r.user_id = u.id
-        WHERE r.message_id = ?
-    `).all(messageId);
-    return c.json(results);
-});
-
-app.post('/api/reactions', async (c: Context) => {
+app.get('/api/reactions/:messageId', (c) => c.json(db.prepare('SELECT r.*, u.username, u.display_name FROM reactions r JOIN users u ON r.user_id = u.id WHERE r.message_id = ?').all(c.req.param('messageId'))));
+app.post('/api/reactions', async (c) => {
     const { message_id, user_id, emoji } = await c.req.json();
-    const existing = db.prepare('SELECT id FROM reactions WHERE message_id = ? AND user_id = ? AND emoji = ?')
-        .get(message_id, user_id, emoji) as any;
-
-    if (existing) {
-        db.prepare('DELETE FROM reactions WHERE id = ?').run(existing.id);
-        return c.json({ status: 'removed' });
-    } else {
-        const id = uuidv4();
-        db.prepare('INSERT INTO reactions (id, message_id, user_id, emoji) VALUES (?, ?, ?, ?)')
-            .run(id, message_id, user_id, emoji);
-        return c.json({ id, status: 'added' });
-    }
+    const ex = db.prepare('SELECT id FROM reactions WHERE message_id=? AND user_id=? AND emoji=?').get(message_id, user_id, emoji) as any;
+    if (ex) { db.prepare('DELETE FROM reactions WHERE id=?').run(ex.id); return c.json({ status: 'removed' }); }
+    const id = uuidv4(); db.prepare('INSERT INTO reactions (id, message_id, user_id, emoji) VALUES (?, ?, ?, ?)').run(id, message_id, user_id, emoji);
+    return c.json({ id, status: 'added' });
 });
 
-
-
-// --- Typing (In-memory for simplicity) ---
-const typingState = new Map<string, Set<string>>(); // roomId -> Set of userIds
-
-app.post('/api/typing', async (c: Context) => {
+const typing = new Map<string, Set<string>>();
+app.post('/api/typing', async (c) => {
     const { room_id, user_id, is_typing } = await c.req.json();
-    if (!typingState.has(room_id)) typingState.set(room_id, new Set());
-
-    if (is_typing) {
-        typingState.get(room_id)!.add(user_id);
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-            typingState.get(room_id)?.delete(user_id);
-        }, 5000);
-    } else {
-        typingState.get(room_id)!.delete(user_id);
-    }
+    if (!typing.has(room_id)) typing.set(room_id, new Set());
+    if (is_typing) { typing.get(room_id)!.add(user_id); setTimeout(() => typing.get(room_id)?.delete(user_id), 5000); }
+    else typing.get(room_id)!.delete(user_id);
     return c.json({ status: 'ok' });
 });
-
-app.get('/api/typing', async (c: Context) => {
-    const roomId = c.req.query('room_id');
-    if (!roomId || !typingState.has(roomId)) return c.json([]);
-
-    const userIds = Array.from(typingState.get(roomId)!);
-    if (userIds.length === 0) return c.json([]);
-
-    const users = db.prepare(`SELECT id, username, display_name FROM users WHERE id IN (${userIds.map(() => '?').join(',')})`).all(...userIds);
-    return c.json(users);
+app.get('/api/typing', (c) => {
+    const rid = c.req.query('room_id');
+    const ids = Array.from(typing.get(rid!) || []);
+    return ids.length ? c.json(db.prepare(`SELECT id, username, display_name FROM users WHERE id IN(${ids.map(() => '?').join(',')})`).all(...ids)) : c.json([]);
 });
 
-app.get('/api/messages/:roomId', async (c: Context) => {
-    const roomId = c.req.param('roomId');
-    const results = db.prepare(`
-        SELECT m.*, u.username, u.display_name, u.avatar_url 
-        FROM messages m 
-        JOIN users u ON m.user_id = u.id 
-        WHERE m.room_id = ? 
-        ORDER BY m.created_at ASC LIMIT 100
-    `).all(roomId);
-    return c.json(results);
+app.get('/api/messages/:roomId', (c) => c.json(db.prepare('SELECT m.*, u.username, u.display_name, u.avatar_url FROM messages m JOIN users u ON m.user_id = u.id WHERE m.room_id = ? ORDER BY m.created_at ASC LIMIT 100').all(c.req.param('roomId'))));
+app.post('/api/messages/send', async (c) => {
+    const { room_id, user_id, content, reply_to_id } = await c.req.json(), id = uuidv4(), san = sanitize(content);
+    db.prepare('INSERT INTO messages (id, room_id, user_id, content, reply_to_id) VALUES (?, ?, ?, ?, ?)').run(id, room_id, user_id, san, reply_to_id || null);
+    const u = db.prepare('SELECT username, display_name, avatar_url FROM users WHERE id = ?').get(user_id) as any;
+    const msg = { id, room_id, user_id, content: san, reply_to_id, username: u?.username, display_name: u?.display_name, avatar_url: u?.avatar_url, created_at: new Date().toISOString() };
+    const parts = db.prepare('SELECT user_id FROM participants WHERE room_id = ?').all(room_id) as any[];
+    parts.forEach(p => wsRegistry.get(p.user_id)?.send(JSON.stringify({ type: 'message', message: msg })));
+    return c.json({ id, status: 'sent' });
 });
 
-app.post('/api/auth/register', async (c: Context) => {
-    try {
-        const { username, password } = await c.req.json();
-        console.log(`[AUTH] Registering user: ${username}`);
-
-        const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
-        if (existing) {
-            console.log(`[AUTH] Registration failed: User ${username} already exists`);
-            return c.json({ error: 'User exists' }, 400);
-        }
-
-        const id = uuidv4();
-        const salt = crypto.getRandomValues(new Uint8Array(16));
-        const passwordHash = await hashPassword(password, new Uint8Array(salt));
-        const saltStr = Buffer.from(salt).toString('base64');
-
-        const token = crypto.randomUUID();
-        db.prepare('INSERT INTO users (id, username, display_name, password_hash, session_token) VALUES (?, ?, ?, ?, ?)')
-            .run(id, username, username, `${saltStr}:${passwordHash}`, token);
-
-        // Auto-join first available space and its rooms
-        try {
-            const defaultSpace = db.prepare('SELECT id FROM spaces LIMIT 1').get() as any;
-            if (defaultSpace) {
-                console.log(`[AUTH] Auto-joining user ${username} to space ${defaultSpace.id}`);
-                db.prepare('INSERT INTO participants (space_id, user_id, role) VALUES (?, ?, ?)')
-                    .run(defaultSpace.id, id, 'member');
-
-                const rooms = db.prepare('SELECT id FROM rooms WHERE space_id = ?').all(defaultSpace.id) as any[];
-                for (const room of rooms) {
-                    db.prepare('INSERT OR IGNORE INTO participants (room_id, user_id, space_id) VALUES (?, ?, ?)')
-                        .run(room.id, id, defaultSpace.id);
-                }
-            }
-        } catch (autoJoinErr) {
-            console.error(`[AUTH] Auto-join failed (ignoring):`, autoJoinErr);
-        }
-
-        console.log(`[AUTH] User registered successfully: ${username} (${id})`);
-        return c.json({ id, username, session_token: token, status: 'registered' });
-    } catch (err: any) {
-        console.error(`[AUTH] Registration error:`, err);
-        return c.json({ error: 'Internal server error', details: err.message }, 500);
-    }
+app.post('/api/auth/register', async (c) => {
+    const { username, password } = await c.req.json();
+    if (db.prepare('SELECT id FROM users WHERE username=?').get(username)) return c.json({ error: 'Exists' }, 400);
+    const id = uuidv4(), salt = crypto.getRandomValues(new Uint8Array(16)), hash = await hashPassword(password, salt), token = crypto.randomUUID();
+    db.prepare('INSERT INTO users (id, username, display_name, password_hash, session_token) VALUES (?, ?, ?, ?, ?)').run(id, username, username, `${Buffer.from(salt).toString('base64')}:${hash}`, token);
+    return c.json({ id, username, session_token: token });
+});
+app.post('/api/auth/login', async (c) => {
+    const { username, password } = await c.req.json(), user = db.prepare('SELECT * FROM users WHERE username=?').get(username) as any;
+    if (!user) return c.json({ error: 'Forbidden' }, 401);
+    const [s, h] = user.password_hash.split(':');
+    if (await hashPassword(password, Buffer.from(s, 'base64')) !== h) return c.json({ error: 'Forbidden' }, 401);
+    const token = crypto.randomUUID(); db.prepare('UPDATE users SET session_token=? WHERE id=?').run(token, user.id);
+    const { password_hash, session_token, ...safe } = user;
+    return c.json({ ...safe, session_token: token });
 });
 
-app.post('/api/auth/login', async (c: Context) => {
-    try {
-        const { username, password } = await c.req.json();
-        console.log(`[AUTH] Login attempt for: ${username}`);
-
-        const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as any;
-        if (!user || !user.password_hash) {
-            console.log(`[AUTH] Login failed: User ${username} not found`);
-            return c.json({ error: 'Invalid credentials' }, 401);
-        }
-
-        const [saltStr, hash] = user.password_hash.split(':');
-        const salt = Buffer.from(saltStr, 'base64');
-        const calculatedHash = await hashPassword(password, new Uint8Array(salt));
-
-        console.log(`[AUTH] Comparing hashes for ${username}:`);
-        console.log(`[AUTH] Stored: ${hash}`);
-        console.log(`[AUTH] Calc'd: ${calculatedHash}`);
-
-        if (calculatedHash !== hash) {
-            console.log(`[AUTH] Login failed: Incorrect password for ${username}`);
-            return c.json({ error: 'Invalid credentials' }, 401);
-        }
-
-        if (user.is_banned) {
-            console.log(`[AUTH] Login failed: User ${username} is banned`);
-            return c.json({ error: 'This account has been banned' }, 403);
-        }
-
-        const token = crypto.randomUUID();
-        db.prepare('UPDATE users SET session_token = ? WHERE id = ?').run(token, user.id);
-
-        updateLastSeen(user.id);
-        const { password_hash, session_token, ...safeUser } = user;
-        console.log(`[AUTH] Login successful: ${username}`);
-        return c.json({ ...safeUser, session_token: token });
-    } catch (err: any) {
-        console.error(`[AUTH] Login error:`, err);
-        return c.json({ error: 'Internal server error', details: err.message }, 500);
-    }
+app.get('/api/voice/participants/:roomId', (c) => {
+    const rid = c.req.param('roomId'), call = db.prepare('SELECT id FROM calls WHERE room_id=? AND status=\'active\' ORDER BY created_at DESC LIMIT 1').get(rid) as any;
+    return call ? c.json(db.prepare('SELECT u.id, u.username, u.display_name, u.avatar_url FROM call_participants cp JOIN users u ON cp.user_id=u.id WHERE cp.call_id=? AND u.last_seen > datetime(\'now\', \'-45 seconds\')').all(call.id)) : c.json([]);
 });
-
-app.post('/api/messages/send', async (c: Context) => {
-    const { room_id, user_id, content, reply_to_id } = await c.req.json();
-    const sanitizedContent = sanitize(content);
-    const id = uuidv4();
-    db.prepare('INSERT INTO messages (id, room_id, user_id, content, reply_to_id) VALUES (?, ?, ?, ?, ?)')
-        .run(id, room_id, user_id, sanitizedContent, reply_to_id || null);
-
-    updateLastSeen(user_id);
-    return c.json({ id, status: 'sent', content: sanitizedContent });
-});
-
-app.get('/api/voice/participants/:roomId', async (c: Context) => {
-    const roomId = c.req.param('roomId');
-    const call = db.prepare('SELECT id FROM calls WHERE room_id = ? AND status = \'active\' ORDER BY created_at DESC LIMIT 1').get(roomId) as any;
-
-    if (!call) return c.json([]);
-
-    // Get participants seen in the last 45 seconds (Zombie filter)
-    const participants = db.prepare(`
-        SELECT u.id, u.username, u.display_name, u.avatar_url 
-        FROM call_participants cp
-        JOIN users u ON cp.user_id = u.id
-        WHERE cp.call_id = ? AND u.last_seen > datetime('now', '-45 seconds')
-    `).all(call.id);
-
-    return c.json(participants);
-});
-
-app.post('/api/voice/call', async (c: Context) => {
-    const { room_id } = await c.req.json();
-    const userId = c.req.header('X-User-ID');
-    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
-
-    let call = db.prepare('SELECT id FROM calls WHERE room_id = ? AND status = \'active\' ORDER BY created_at DESC LIMIT 1').get(room_id) as any;
-
-    if (!call) {
-        const id = uuidv4();
-        db.prepare('INSERT INTO calls (id, room_id, caller_id) VALUES (?, ?, ?)')
-            .run(id, room_id, userId);
-        call = { id };
-    }
-
-    // Add user to participants
-    db.prepare('INSERT OR IGNORE INTO call_participants (call_id, user_id) VALUES (?, ?)')
-        .run(call.id, userId);
-
+app.post('/api/voice/call', async (c) => {
+    const { room_id } = await c.req.json(), uid = c.req.header('X-User-ID');
+    let call = db.prepare('SELECT id FROM calls WHERE room_id=? AND status=\'active\' ORDER BY created_at DESC LIMIT 1').get(room_id) as any;
+    if (!call) { const id = uuidv4(); db.prepare('INSERT INTO calls (id, room_id, caller_id) VALUES (?, ?, ?)').run(id, room_id, uid); call = { id }; }
+    db.prepare('INSERT OR IGNORE INTO call_participants (call_id, user_id) VALUES (?, ?)').run(call.id, uid);
     return c.json({ id: call.id, status: 'joined' });
 });
-
-app.post('/api/voice/signal', async (c: Context) => {
-    const { call_id, type, payload } = await c.req.json();
-    const userId = c.req.header('X-User-ID');
-
-    const parsedPayload = typeof payload === 'string' ? JSON.parse(payload) : payload;
-    console.log(`[SIGNAL] From: ${userId}, To: ${parsedPayload.to}, Type: ${type}`);
-
-    db.prepare('INSERT INTO call_signals (call_id, sender_id, type, payload) VALUES (?, ?, ?, ?)')
-        .run(call_id, userId, type, JSON.stringify(payload));
-    return c.json({ status: 'sent' });
-});
-
-app.post('/api/voice/poll', async (c: Context) => {
-    const { call_id, last_signal_id } = await c.req.json();
-    const userId = c.req.header('X-User-ID');
-
-    // Heartbeat: Update last seen
-    if (userId) {
-        updateLastSeen(userId);
-    }
-
-    const results = db.prepare('SELECT * FROM call_signals WHERE call_id = ? AND id > ? AND sender_id != ? ORDER BY id ASC')
-        .all(call_id, last_signal_id || 0, userId);
-
-    return c.json(results);
-});
-
-
-app.post('/api/voice/end', async (c: Context) => {
-    const userId = c.req.header('X-User-ID');
-    if (userId) {
-        // Find what calls this user was in before we delete them
-        const userCalls = db.prepare('SELECT call_id FROM call_participants WHERE user_id = ?').all(userId) as any[];
-
-        // Remove from participants
-        db.prepare('DELETE FROM call_participants WHERE user_id = ?').run(userId);
-
-        // Check each call they were in
-        for (const { call_id } of userCalls) {
-            const remaining = db.prepare('SELECT COUNT(*) as count FROM call_participants WHERE call_id = ?').get(call_id) as any;
-            if (remaining && remaining.count === 0) {
-                console.log(`[VOICE] Call ${call_id} is now empty. Cleaning up signals and ending call.`);
-                db.prepare('UPDATE calls SET status = \'ended\' WHERE id = ?').run(call_id);
-                db.prepare('DELETE FROM call_signals WHERE call_id = ?').run(call_id);
-            }
-        }
+app.post('/api/voice/end', (c) => {
+    const uid = c.req.header('X-User-ID');
+    if (uid) {
+        const cs = db.prepare('SELECT call_id FROM call_participants WHERE user_id=?').all(uid) as any[];
+        db.prepare('DELETE FROM call_participants WHERE user_id=?').run(uid);
+        cs.forEach(({ call_id }) => { if ((db.prepare('SELECT COUNT(*) as c FROM call_participants WHERE call_id=?').get(call_id) as any).c === 0) db.prepare('UPDATE calls SET status=\'ended\' WHERE id=?').run(call_id); });
     }
     return c.json({ status: 'ended' });
 });
 
-// Periodic Cleanup Task: Run every 15 minutes to purge abandoned signals and stale participants
+const dist = path.join(process.cwd(), 'dist');
+if (fs.existsSync(dist)) app.use('/*', serveStatic({ root: dist, rewriteRequestPath: (p) => p === '/' ? '/index.html' : p }));
+
 setInterval(() => {
-    try {
-        // 1. Purge old signals (TTL 30 minutes)
-        const signalsResult = db.prepare("DELETE FROM call_signals WHERE created_at < datetime('now', '-30 minutes')").run();
+    db.prepare("DELETE FROM call_signals WHERE created_at < datetime('now', '-30 minutes')").run();
+    db.prepare("DELETE FROM call_participants WHERE user_id IN (SELECT id FROM users WHERE last_seen < datetime('now', '-10 minutes'))").run();
+}, 600000);
 
-        // 2. Clear participants table for users not seen in > 10 minutes (safety measure)
-        const participantsResult = db.prepare(`
-            DELETE FROM call_participants 
-            WHERE user_id IN (SELECT id FROM users WHERE last_seen < datetime('now', '-10 minutes'))
-        `).run();
-
-        if (signalsResult.changes > 0 || participantsResult.changes > 0) {
-            console.log(`[CLEANUP] Purged ${signalsResult.changes} signals and ${participantsResult.changes} stale participants.`);
-        }
-    } catch (err) {
-        console.error('[CLEANUP ERROR] Background cleanup failed:', err);
-    }
-}, 900000); // 15 minutes
-
-
-// Start the server
 const port = Number(process.env.PORT) || 3000;
-console.log(`[SERVER] Starting on http://0.0.0.0:${port}`);
-
-const server = serve({
-    fetch: app.fetch,
-    port,
-    hostname: '0.0.0.0'
-});
-
+const server = serve({ fetch: app.fetch, port, hostname: '0.0.0.0' });
 injectWebSocket(server);
+console.log(`[SERVER] Running on port ${port}`);

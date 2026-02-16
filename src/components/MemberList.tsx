@@ -5,6 +5,7 @@ import { useAppStore } from '../stores/appStore';
 import { UserMinus, Ban } from 'lucide-react';
 import { useI18nStore } from '../stores/i18nStore';
 import { useChatMessages } from '../hooks/useChatMessages';
+import { useVoiceStore } from '../stores/useVoiceStore';
 import { clsx } from 'clsx';
 
 export const MemberList: React.FC = () => {
@@ -19,30 +20,36 @@ export const MemberList: React.FC = () => {
     const isAdmin = user?.username?.toLowerCase() === adminUsername.toLowerCase();
     const isOwner = currentServer?.owner_id === user?.id;
 
+    const { addPresenceListener } = useVoiceStore();
+
     useEffect(() => {
         if (!user) return;
 
         const fetchUsers = async () => {
             try {
-                // If no server selected (Home), maybe fetch friends or hide list?
-                // For now, attempting to fetch list even if global (might need backend support)
                 const data = await ApiService.fetchUserList(user.id, selectedServerId);
-                // Ensure data is array
-                if (Array.isArray(data)) {
-                    setMembers(data);
-                } else {
-                    console.error("User list is not an array:", data);
-                    setMembers([]);
-                }
-            } catch (err) {
-                console.error('Failed to fetch users:', err);
-            }
+                if (Array.isArray(data)) setMembers(data);
+            } catch (err) { console.error('Failed to fetch users:', err); }
         };
 
         fetchUsers();
-        const interval = setInterval(fetchUsers, 10000);
-        return () => clearInterval(interval);
-    }, [user, selectedServerId]);
+
+        // Real-time presence updates
+        const unsubscribe = addPresenceListener((update: any) => {
+            setMembers(prev => prev.map(m => {
+                if (m.id === update.userId) {
+                    return { ...m, last_seen: update.status === 'online' ? new Date().toISOString() : '2000-01-01' }; // Simple online/offline toggle
+                }
+                return m;
+            }));
+        });
+
+        const interval = setInterval(fetchUsers, 60000 * 5); // 5 minute fallback
+        return () => {
+            clearInterval(interval);
+            unsubscribe();
+        };
+    }, [user, selectedServerId, addPresenceListener]);
 
     const handleKick = async (targetId: string) => {
         if (!selectedServerId || !user || !confirm('Kick this user?')) return;

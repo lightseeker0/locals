@@ -14,6 +14,7 @@ import { useThemeStore } from './stores/themeStore';
 import { useAppStore } from './stores/appStore';
 import { useSwipe } from './hooks/useSwipe';
 import { useVoiceSignaling } from './hooks/useVoiceSignaling';
+import { useVoiceStore } from './stores/useVoiceStore';
 import { VoiceCallOverlay } from './components/VoiceCallOverlay';
 import { clsx } from 'clsx';
 
@@ -21,10 +22,18 @@ const MainFramework = () => {
   const { user } = useAuthStore();
   const { currentBuiltInTheme } = useThemeStore();
   const { isSettingsOpen, setSettingsOpen, isUserListOpen, isMobileMenuOpen, setMobileMenuOpen } = useAppStore();
+  const { connectWS, disconnectWS } = useVoiceStore();
   const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   useAppData();
   useVoiceSignaling();
+
+  useEffect(() => {
+    if (user?.id) {
+      connectWS(user.id);
+    }
+    return () => disconnectWS();
+  }, [user?.id, connectWS, disconnectWS]);
 
   useEffect(() => {
     // Show theme announcement once

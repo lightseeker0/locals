@@ -2,10 +2,12 @@ import { useEffect, useCallback } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
 import { ApiService } from '../services/api';
+import { useVoiceStore } from '../stores/useVoiceStore';
 
 export const useAppData = () => {
     const { setServers, setChannels, selectedServerId } = useAppStore();
     const { user, isLoading } = useAuthStore();
+    const { addPresenceListener } = useVoiceStore();
 
     const fetchSpaces = useCallback(async () => {
         if (!user || isLoading) return;
@@ -29,10 +31,7 @@ export const useAppData = () => {
         const currentIdAtStart = selectedServerId;
         try {
             if (currentIdAtStart) {
-                // Fetch rooms for space
                 const rooms = await ApiService.fetchRooms(currentIdAtStart, user.id);
-
-                // CRITICAL: Only update if we are still on the same server
                 const { selectedServerId: latestServerId } = useAppStore.getState();
                 if (latestServerId !== currentIdAtStart) return;
 
@@ -45,16 +44,13 @@ export const useAppData = () => {
                 }));
                 setChannels(mappedChannels);
 
-                // Auto-select first channel if none selected for this space
                 const { selectedChannelId, setSelectedChannel } = useAppStore.getState();
                 if (mappedChannels.length > 0 && !selectedChannelId) {
                     const firstTextChannel = mappedChannels.find((c: any) => c.type === 'text') || mappedChannels[0];
                     setSelectedChannel(firstTextChannel.id);
                 }
             } else {
-                // Fetch DMs (Home view)
                 const dms = await ApiService.fetchDMs(user.id);
-
                 const { selectedServerId: latestServerId } = useAppStore.getState();
                 if (latestServerId !== null) return;
 
@@ -74,14 +70,27 @@ export const useAppData = () => {
     }, [selectedServerId, user, setChannels]);
 
     useEffect(() => {
+        if (!user) return;
+        const unsubscribe = addPresenceListener((update: any) => {
+            setChannels(useAppStore.getState().channels.map(c => {
+                if (c.type === 'dm' && c.id.includes(update.userId)) {
+                    return { ...c, last_seen: update.status === 'online' ? new Date().toISOString() : '2000-01-01' };
+                }
+                return c;
+            }));
+        });
+        return () => unsubscribe();
+    }, [user, addPresenceListener, setChannels]);
+
+    useEffect(() => {
         fetchSpaces();
-        const interval = setInterval(fetchSpaces, 30000);
+        const interval = setInterval(fetchSpaces, 120000);
         return () => clearInterval(interval);
     }, [fetchSpaces]);
 
     useEffect(() => {
         fetchRoomsOrDMs();
-        const interval = setInterval(fetchRoomsOrDMs, 10000); // Polling for DMs/Rooms
+        const interval = setInterval(fetchRoomsOrDMs, 60000);
         return () => clearInterval(interval);
     }, [fetchRoomsOrDMs]);
 
