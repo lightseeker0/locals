@@ -32,7 +32,8 @@ autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
-autoUpdater.allowPrerelease = true;
+// Only beta builds should receive beta updates.
+autoUpdater.allowPrerelease = app.getVersion().includes('-beta.');
 
 autoUpdater.on('error', (err) => {
     log.error('Auto-updater error:', err);

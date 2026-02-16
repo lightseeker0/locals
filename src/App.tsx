@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TitleBar } from './components/TitleBar';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
@@ -126,6 +126,7 @@ function App() {
   const { initElectronListener } = useThemeStore();
   const [debugStatus, setDebugStatus] = useState('Initializing...');
   const [updateInfo, setUpdateInfo] = useState<{ status: 'available' | 'downloading' | 'ready' | 'installing', progress?: number } | null>(null);
+  const appVersionRef = useRef('');
 
   const handleInstallUpdate = () => {
     setUpdateInfo({ status: 'installing' });
@@ -140,6 +141,12 @@ function App() {
     // Auto-update listeners
     const el = (window as any).electron;
     if (el) {
+      el.getAppVersion?.().then((v: string) => {
+        appVersionRef.current = v || '';
+      }).catch(() => {
+        appVersionRef.current = '';
+      });
+
       el.onUpdateAvailable?.(() => {
         setUpdateInfo({ status: 'available' });
       });
@@ -148,8 +155,19 @@ function App() {
         setUpdateInfo({ status: 'downloading', progress: progress.percent });
       });
 
-      el.onUpdateDownloaded?.(() => {
+      el.onUpdateDownloaded?.((info: any) => {
+        if (info?.version && appVersionRef.current && info.version === appVersionRef.current) {
+          return;
+        }
         setUpdateInfo({ status: 'ready' });
+      });
+
+      el.onUpdateNotAvailable?.(() => {
+        setUpdateInfo(null);
+      });
+
+      el.onUpdateError?.(() => {
+        setUpdateInfo(null);
       });
     }
 
