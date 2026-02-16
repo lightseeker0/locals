@@ -9,9 +9,12 @@ CREATE TABLE IF NOT EXISTS users (
     custom_status TEXT,
     last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_banned BOOLEAN DEFAULT 0,
+    role TEXT DEFAULT 'member', -- 'admin', 'member'
     session_token TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 
 -- Spaces (Servers) Table
 CREATE TABLE IF NOT EXISTS spaces (
@@ -54,6 +57,9 @@ CREATE TABLE IF NOT EXISTS participants (
     PRIMARY KEY (room_id, user_id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_participants_room_user ON participants(room_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_participants_user_id ON participants(user_id);
+
 -- Voice Calls (Signaling)
 CREATE TABLE IF NOT EXISTS calls (
     id TEXT PRIMARY KEY,
@@ -94,6 +100,8 @@ CREATE TABLE IF NOT EXISTS messages (
     is_pinned BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_messages_room_id_created ON messages(room_id, created_at);
 
 CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,

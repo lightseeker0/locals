@@ -45,7 +45,7 @@ projects.txt
 
 # Database
 *.sqlite
-*.db
+*.db*
 
 # Old projects
 cloudflarepages-cleaner

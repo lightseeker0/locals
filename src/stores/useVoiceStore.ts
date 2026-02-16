@@ -21,6 +21,8 @@ interface VoiceState {
     sfuRoom: Room | null;
     localAudioTrack: LocalAudioTrack | null;
     analyserIntervals: Record<string, ReturnType<typeof setInterval>>;
+    audioContexts: Record<string, AudioContext>;
+    lastSpeakingUpdate: number;
     messageListeners: ((msg: any) => void)[];
     presenceListeners: ((update: any) => void)[];
     typingListeners: ((update: any) => void)[];
@@ -74,6 +76,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     sfuRoom: null,
     localAudioTrack: null,
     analyserIntervals: {},
+    audioContexts: {},
+    lastSpeakingUpdate: 0,
     messageListeners: [],
     presenceListeners: [],
     typingListeners: [],
@@ -101,7 +105,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         if (ws || wsStatus === 'connecting') return;
 
         set({ wsStatus: 'connecting' });
-        const socket = new WebSocket(`${ApiService.getWsUrl()}?userId=${userId}`);
+        const token = useAuthStore.getState().user?.session_token;
+        const socket = new WebSocket(`${ApiService.getWsUrl()}?userId=${userId}&token=${token}`);
         let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
         socket.onopen = () => {
@@ -367,10 +372,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             remoteStreams: {},
             roomParticipants: {},
             speakingUsers: {},
-            analyserIntervals: {}
+            analyserIntervals: {},
+            audioContexts: {}
         });
 
         Object.values(intervals).forEach((interval) => clearInterval(interval));
+        Object.values(get().audioContexts).forEach((ctx) => ctx.close().catch(() => { }));
 
         try {
             await get().disconnectSfu();
@@ -464,8 +471,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     setupAudioAnalyser: (stream: MediaStream, targetUserId: string) => {
         try {
-            const existingInterval = get().analyserIntervals[targetUserId];
-            if (existingInterval) clearInterval(existingInterval);
+            const { analyserIntervals, audioContexts } = get();
+            if (analyserIntervals[targetUserId]) clearInterval(analyserIntervals[targetUserId]);
+            if (audioContexts[targetUserId]) audioContexts[targetUserId].close().catch(() => { });
 
             const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
             const audioContext = new AudioContextClass();
@@ -488,7 +496,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
                 const average = sum / dataArray.length;
 
-                const { micSensitivityThreshold, autoMicSensitivity } = get();
+                const { micSensitivityThreshold, autoMicSensitivity, lastSpeakingUpdate } = get();
                 const baseThreshold = micSensitivityThreshold;
                 const dynamicThreshold = isLocalUserAnalyser && autoMicSensitivity
                     ? (() => {
@@ -512,13 +520,20 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 });
 
                 if (isLocalUserAnalyser && changed) {
-                    const roomId = get().activeCall?.roomId;
-                    if (roomId) get().sendVoiceSpeakingState(roomId, isSpeaking);
+                    const now = Date.now();
+                    if (now - lastSpeakingUpdate > 200) {
+                        const roomId = get().activeCall?.roomId;
+                        if (roomId) {
+                            get().sendVoiceSpeakingState(roomId, isSpeaking);
+                            set({ lastSpeakingUpdate: now });
+                        }
+                    }
                 }
             }, 100);
 
             set((state) => ({
-                analyserIntervals: { ...state.analyserIntervals, [targetUserId]: interval }
+                analyserIntervals: { ...state.analyserIntervals, [targetUserId]: interval },
+                audioContexts: { ...state.audioContexts, [targetUserId]: audioContext }
             }));
         } catch (err) {
             console.error(`[Voice] Analyser setup failed for ${targetUserId}:`, err);

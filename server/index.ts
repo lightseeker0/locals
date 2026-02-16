@@ -32,6 +32,7 @@ if (fs.existsSync(schemaPath)) db.exec(fs.readFileSync(schemaPath, 'utf8'));
 try {
     const tableInfo = db.prepare("PRAGMA table_info(users)").all() as any[];
     if (!tableInfo.some(col => col.name === 'session_token')) db.exec("ALTER TABLE users ADD COLUMN session_token TEXT;");
+    if (!tableInfo.some(col => col.name === 'role')) db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'member';");
     // SFU-only cleanup: remove legacy mesh signaling storage if it exists.
     db.exec(`
         DROP INDEX IF EXISTS idx_call_signals_call_id_id;
@@ -54,7 +55,7 @@ app.use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 
 const hashPassword = async (password: string, salt: Uint8Array) => {
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey('raw', encoder.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']);
-    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt as any, iterations: 100000, hash: 'SHA-256' }, key, 256);
+    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt as any, iterations: 600000, hash: 'SHA-256' }, key, 256);
     return Buffer.from(bits).toString('base64');
 };
 
@@ -132,8 +133,22 @@ const updateLastSeen = (userId?: string) => {
 
 const isAdmin = (userId?: string) => {
     if (!userId) return false;
-    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as any;
-    return ['ds4d', 'asuna'].includes(user?.username?.toLowerCase());
+    const user = db.prepare('SELECT role FROM users WHERE id = ?').get(userId) as any;
+    return user?.role === 'admin';
+};
+
+const checkMembership = (userId: string, roomId?: string, spaceId?: string) => {
+    if (!userId) return false;
+    if (isAdmin(userId)) return true;
+    if (roomId) {
+        return !!db.prepare('SELECT 1 FROM participants WHERE room_id = ? AND user_id = ?').get(roomId, userId);
+    }
+    if (spaceId) {
+        // Space root check (special case for space_root_... rooms)
+        const sid = spaceId.startsWith('space_root_') ? spaceId.substring(11) : spaceId;
+        return !!db.prepare('SELECT 1 FROM participants WHERE (space_id = ? OR room_id = ?) AND user_id = ?').get(sid, 'space_root_' + sid, userId);
+    }
+    return false;
 };
 
 // Middleware
@@ -158,7 +173,16 @@ const broadcast = (data: any, excludeUserId?: string) => {
 
 app.get('/ws', upgradeWebSocket((c) => {
     const userId = c.req.query('userId');
-    if (!userId) return { onClose: () => { } };
+    const token = c.req.query('token');
+
+    if (!userId || !token) return { onClose: () => { } };
+
+    // Security: Validate session token before allowing WS connection
+    const user = db.prepare('SELECT session_token FROM users WHERE id = ?').get(userId) as any;
+    if (!user || user.session_token !== token) {
+        return { onClose: () => { } };
+    }
+
     return {
         onOpen(event, ws) { wsRegistry.set(userId, ws); broadcast({ type: 'presence', userId, status: 'online' }, userId); },
         onMessage(event, ws) {
@@ -229,9 +253,11 @@ app.get('/api/rooms/:spaceId', (c) => c.json(db.prepare('SELECT *, 0 as unread_c
 app.post('/api/spaces', async (c) => {
     const uid = c.req.header('X-User-ID');
     const { name, icon_url } = await c.req.json();
+    if (!name || name.trim().length < 2 || name.length > 50) return c.json({ error: 'Invalid name length (2-50)' }, 400);
     const spaceId = uuidv4();
+    const sanitizedName = sanitize(name);
     db.transaction(() => {
-        db.prepare('INSERT INTO spaces (id, name, icon_url, owner_id) VALUES (?, ?, ?, ?)').run(spaceId, name, icon_url, uid);
+        db.prepare('INSERT INTO spaces (id, name, icon_url, owner_id) VALUES (?, ?, ?, ?)').run(spaceId, sanitizedName, icon_url, uid);
         db.prepare('INSERT INTO participants (room_id, user_id, space_id, role) VALUES (?, ?, ?, ?)').run('space_root_' + spaceId, uid, spaceId, 'owner');
         // Create default rooms
         const generalId = uuidv4(), voiceId = uuidv4();
@@ -246,15 +272,20 @@ app.post('/api/spaces', async (c) => {
 
 app.post('/api/rooms', async (c) => {
     const { space_id, name, type } = await c.req.json();
+    const uid = c.req.header('X-User-ID');
+    if (!uid || !checkMembership(uid, undefined, space_id)) return c.json({ error: 'Forbidden' }, 403);
+    if (!name || name.trim().length < 2 || name.length > 50) return c.json({ error: 'Invalid name length (2-50)' }, 400);
+
     const id = uuidv4();
-    db.prepare('INSERT INTO rooms (id, space_id, name, type) VALUES (?, ?, ?, ?)').run(id, space_id, name, type || 'text');
+    const sanitizedName = sanitize(name);
+    db.prepare('INSERT INTO rooms (id, space_id, name, type) VALUES (?, ?, ?, ?)').run(id, space_id, sanitizedName, type || 'text');
     return c.json({ id, status: 'created' });
 });
 
 app.post('/api/invites', async (c) => {
     const uid = c.req.header('X-User-ID');
     const { space_id } = await c.req.json();
-    const code = Math.random().toString(36).substring(2, 9).toUpperCase();
+    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
     db.prepare('INSERT INTO invitations (code, space_id, created_by) VALUES (?, ?, ?)').run(code, space_id, uid);
     return c.json({ code });
 });
@@ -303,7 +334,17 @@ app.get('/api/dm/list', (c) => {
 app.post('/api/user/profile', async (c) => {
     const uid = c.req.header('X-User-ID');
     const { display_name, avatar_url, bio, custom_status } = await c.req.json();
-    db.prepare('UPDATE users SET display_name = COALESCE(?, display_name), avatar_url = COALESCE(?, avatar_url), bio = COALESCE(?, bio), custom_status = COALESCE(?, custom_status) WHERE id = ?').run(display_name, avatar_url, bio, custom_status, uid);
+
+    // Validation
+    if (display_name && (display_name.length < 2 || display_name.length > 50)) return c.json({ error: 'Invalid display name length' }, 400);
+    if (bio && bio.length > 200) return c.json({ error: 'Bio too long' }, 400);
+    if (custom_status && custom_status.length > 100) return c.json({ error: 'Status too long' }, 400);
+
+    const sDname = display_name ? sanitize(display_name) : display_name;
+    const sBio = bio ? sanitize(bio) : bio;
+    const sStatus = custom_status ? sanitize(custom_status) : custom_status;
+
+    db.prepare('UPDATE users SET display_name = COALESCE(?, display_name), avatar_url = COALESCE(?, avatar_url), bio = COALESCE(?, bio), custom_status = COALESCE(?, custom_status) WHERE id = ?').run(sDname, avatar_url, sBio, sStatus, uid);
     return c.json({ status: 'updated' });
 });
 
@@ -354,9 +395,16 @@ app.get('/api/typing', (c) => {
     return ids.length ? c.json(db.prepare(`SELECT id, username, display_name FROM users WHERE id IN(${ids.map(() => '?').join(',')})`).all(...ids)) : c.json([]);
 });
 
-app.get('/api/messages/:roomId', (c) => c.json(db.prepare('SELECT m.*, u.username, u.display_name, u.avatar_url FROM messages m JOIN users u ON m.user_id = u.id WHERE m.room_id = ? ORDER BY m.created_at ASC LIMIT 200').all(c.req.param('roomId'))));
+app.get('/api/messages/:roomId', (c) => {
+    const rid = c.req.param('roomId'), uid = c.req.header('X-User-ID');
+    if (!uid || !checkMembership(uid, rid)) return c.json({ error: 'Forbidden' }, 403);
+    return c.json(db.prepare('SELECT m.*, u.username, u.display_name, u.avatar_url FROM messages m JOIN users u ON m.user_id = u.id WHERE m.room_id = ? ORDER BY m.created_at ASC LIMIT 200').all(rid));
+});
+
 app.post('/api/messages/send', async (c) => {
     const { room_id, user_id, content, reply_to_id } = await c.req.json(), id = uuidv4(), san = sanitize(content);
+    if (!user_id || !checkMembership(user_id, room_id)) return c.json({ error: 'Forbidden' }, 403);
+
     db.prepare('INSERT INTO messages (id, room_id, user_id, content, reply_to_id) VALUES (?, ?, ?, ?, ?)').run(id, room_id, user_id, san, reply_to_id || null);
     const u = db.prepare('SELECT username, display_name, avatar_url FROM users WHERE id = ?').get(user_id) as any;
     const msg = { id, room_id, user_id, content: san, reply_to_id, username: u?.username, display_name: u?.display_name, avatar_url: u?.avatar_url, created_at: new Date().toISOString() };
@@ -383,11 +431,14 @@ app.post('/api/auth/login', async (c) => {
 });
 
 app.get('/api/voice/participants/:roomId', (c) => {
-    const rid = c.req.param('roomId'), call = db.prepare('SELECT id FROM calls WHERE room_id=? AND status=\'active\' ORDER BY created_at DESC LIMIT 1').get(rid) as any;
+    const rid = c.req.param('roomId'), uid = c.req.header('X-User-ID'), call = db.prepare('SELECT id FROM calls WHERE room_id=? AND status=\'active\' ORDER BY created_at DESC LIMIT 1').get(rid) as any;
+    if (!uid || !checkMembership(uid, rid)) return c.json({ error: 'Forbidden' }, 403);
     return call ? c.json(db.prepare('SELECT u.id, u.username, u.display_name, u.avatar_url FROM call_participants cp JOIN users u ON cp.user_id=u.id WHERE cp.call_id=? AND u.last_seen > datetime(\'now\', \'-45 seconds\')').all(call.id)) : c.json([]);
 });
 app.post('/api/voice/call', async (c) => {
     const { room_id } = await c.req.json(), uid = c.req.header('X-User-ID');
+    if (!uid || !checkMembership(uid, room_id)) return c.json({ error: 'Forbidden' }, 403);
+
     let call = db.prepare('SELECT id FROM calls WHERE room_id=? AND status=\'active\' ORDER BY created_at DESC LIMIT 1').get(room_id) as any;
     if (!call) { const id = uuidv4(); db.prepare('INSERT INTO calls (id, room_id, caller_id) VALUES (?, ?, ?)').run(id, room_id, uid); call = { id }; }
     db.prepare('INSERT OR IGNORE INTO call_participants (call_id, user_id) VALUES (?, ?)').run(call.id, uid);
@@ -456,8 +507,8 @@ if (distDir) {
 }
 
 setInterval(() => {
-    db.prepare("DELETE FROM call_participants WHERE user_id IN (SELECT id FROM users WHERE last_seen < datetime('now', '-10 minutes'))").run();
-}, 600000);
+    db.prepare("DELETE FROM call_participants WHERE user_id IN (SELECT id FROM users WHERE last_seen < datetime('now', '-2 minutes'))").run();
+}, 60000);
 
 const port = Number(process.env.PORT) || 3000;
 const server = serve({ fetch: app.fetch, port, hostname: '0.0.0.0' });
