@@ -12,22 +12,9 @@ export interface ElectronAPI {
     minimize: () => void;
     maximize: () => void;
     close: () => void;
-    startResize: (edge: ResizeEdge, screenX: number, screenY: number) => Promise<boolean>;
-    moveResize: (screenX: number, screenY: number) => void;
-    endResize: () => void;
     // Error Handling
     onUpdateError: (callback: (message: string) => void) => void;
 }
-
-export type ResizeEdge =
-    | 'top'
-    | 'right'
-    | 'bottom'
-    | 'left'
-    | 'top-left'
-    | 'top-right'
-    | 'bottom-left'
-    | 'bottom-right';
 
 declare global {
     interface Window {

@@ -8,6 +8,9 @@ export const VoiceCallOverlay: React.FC = () => {
     const { activeCall, callStatus, isMuted, isDeafened, toggleMute, toggleDeafen, endCall } = useVoiceStore();
     const { user } = useAuthStore();
 
+    // WebRTC Signaling poll is now handled globally via useVoiceSignaling hook in App.tsx
+
+
     if (callStatus === 'idle' || !activeCall) return null;
 
     return (

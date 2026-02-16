@@ -1,4 +1,4 @@
--- Voice Calls (SFU-ready)
+-- Voice Calls (Signaling)
 CREATE TABLE IF NOT EXISTS calls (
     id TEXT PRIMARY KEY,
     room_id TEXT REFERENCES rooms(id),
@@ -7,9 +7,11 @@ CREATE TABLE IF NOT EXISTS calls (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS call_participants (
+CREATE TABLE IF NOT EXISTS call_signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     call_id TEXT REFERENCES calls(id),
-    user_id TEXT REFERENCES users(id),
-    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (call_id, user_id)
+    sender_id TEXT REFERENCES users(id),
+    type TEXT NOT NULL, -- 'offer', 'answer', 'candidate', 'end'
+    payload TEXT NOT NULL, -- JSON string
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

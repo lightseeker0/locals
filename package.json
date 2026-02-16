@@ -1,7 +1,7 @@
 {
   "name": "fiskos",
   "private": true,
-  "version": "0.0.45",
+  "version": "0.0.33",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -15,16 +15,18 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
+    "buffer": "^6.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "electron-log": "^5.4.3",
     "electron-updater": "^6.7.3",
     "esbuild-wasm": "^0.27.3",
-    "livekit-client": "^2.17.1",
+    "global": "^4.4.0",
     "lucide-react": "^0.563.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.13.0",
+    "simple-peer": "^9.11.1",
     "tailwind-merge": "^3.4.0",
     "zustand": "^5.0.11"
   },
@@ -34,6 +36,7 @@
     "@types/node": "^24.10.13",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@types/simple-peer": "^9.11.9",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.24",
     "concurrently": "^9.2.1",

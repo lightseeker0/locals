@@ -1,42 +1,40 @@
 import { create } from 'zustand';
-import { Room, RoomEvent, Track, createLocalAudioTrack, type LocalAudioTrack } from 'livekit-client';
 import { ApiService } from '../services/api';
 import { useAuthStore } from './authStore';
+// @ts-ignore
+import SimplePeer from 'simple-peer/simplepeer.min.js';
 
 interface VoiceState {
-    activeCall: { id: string; roomId: string } | null;
+    activeCall: { id: string, roomId: string } | null;
     callStatus: 'idle' | 'joining' | 'calling' | 'connected' | 'ended';
     localStream: MediaStream | null;
-    remoteStreams: Record<string, MediaStream>;
+    remoteStreams: Record<string, MediaStream>; // userId -> stream
+    isMuted: boolean;
+    peers: Record<string, any>; // userId -> SimplePeer
+    pendingPeers: Set<string>; // IDs we are currently connecting to
+    lastSignalId: number;
     roomParticipants: Record<string, any[]>;
     speakingUsers: Record<string, boolean>;
-    isMuted: boolean;
-    isDeafened: boolean;
     audioInputDeviceId: string | null;
     audioOutputDeviceId: string | null;
-    micSensitivityThreshold: number;
-    autoMicSensitivity: boolean;
-    ws: WebSocket | null;
-    wsStatus: 'disconnected' | 'connecting' | 'connected';
-    sfuRoom: Room | null;
-    localAudioTrack: LocalAudioTrack | null;
-    analyserIntervals: Record<string, ReturnType<typeof setInterval>>;
-    messageListeners: ((msg: any) => void)[];
-    presenceListeners: ((update: any) => void)[];
-    typingListeners: ((update: any) => void)[];
-    voiceRoomUpdateListeners: ((update: any) => void)[];
     startCall: (roomId: string, user: any) => Promise<void>;
     joinCall: (callId: string, user: any) => Promise<void>;
     endCall: (userId?: string) => Promise<void>;
     toggleMute: () => void;
-    toggleDeafen: () => void;
+    pollSignals: (userId: string) => Promise<void>;
     fetchParticipants: (roomId: string, userId: string) => Promise<void>;
+    removePeer: (targetId: string) => void;
     setAudioInputDevice: (deviceId: string) => void;
     setAudioOutputDevice: (deviceId: string) => void;
-    setMicSensitivityThreshold: (threshold: number) => void;
-    setAutoMicSensitivity: (enabled: boolean) => void;
-    connectSfu: (roomId: string, user: any) => Promise<void>;
-    disconnectSfu: () => Promise<void>;
+    playJoinSound: () => void;
+    isDeafened: boolean;
+    toggleDeafen: () => void;
+    isPolling: boolean;
+    processedSignalIds: Set<number>;
+    processedSignalHashes: Set<string>;
+    pollingBackoff: number;
+    ws: WebSocket | null;
+    wsStatus: 'disconnected' | 'connecting' | 'connected';
     connectWS: (userId: string) => void;
     disconnectWS: () => void;
     addMessageListener: (cb: (msg: any) => void) => () => void;
@@ -45,71 +43,74 @@ interface VoiceState {
     addVoiceRoomUpdateListener: (cb: (update: any) => void) => () => void;
     sendTyping: (roomId: string, isTyping: boolean) => void;
     sendVoiceRoomUpdate: (roomId: string) => void;
-    sendVoiceSpeakingState: (roomId: string, isSpeaking: boolean) => void;
-    setupAudioAnalyser: (stream: MediaStream, targetUserId: string) => void;
-    playJoinSound: () => void;
+    messageListeners: ((msg: any) => void)[];
+    presenceListeners: ((update: any) => void)[];
+    typingListeners: ((update: any) => void)[];
+    voiceRoomUpdateListeners: ((update: any) => void)[];
 }
-
-const DEFAULT_MIC_THRESHOLD = 15;
-const clampThreshold = (value: number) => Math.min(80, Math.max(5, Math.round(value)));
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
     activeCall: null,
     callStatus: 'idle',
     localStream: null,
     remoteStreams: {},
-    roomParticipants: {},
-    speakingUsers: {},
     isMuted: false,
     isDeafened: false,
+    peers: {},
+    pendingPeers: new Set(),
+    lastSignalId: 0,
+    roomParticipants: {},
+    speakingUsers: {},
+    isPolling: false,
+    processedSignalIds: new Set(),
+    processedSignalHashes: new Set(),
+    pollingBackoff: 0,
     audioInputDeviceId: localStorage.getItem('audioInputDeviceId'),
     audioOutputDeviceId: localStorage.getItem('audioOutputDeviceId'),
-    micSensitivityThreshold: (() => {
-        const saved = Number(localStorage.getItem('micSensitivityThreshold') || String(DEFAULT_MIC_THRESHOLD));
-        return Number.isFinite(saved) ? clampThreshold(saved) : DEFAULT_MIC_THRESHOLD;
-    })(),
-    autoMicSensitivity: localStorage.getItem('autoMicSensitivity') !== '0',
     ws: null,
     wsStatus: 'disconnected',
-    sfuRoom: null,
-    localAudioTrack: null,
-    analyserIntervals: {},
     messageListeners: [],
     presenceListeners: [],
     typingListeners: [],
     voiceRoomUpdateListeners: [],
 
     addMessageListener: (cb) => {
-        set((state) => ({ messageListeners: [...state.messageListeners, cb] }));
-        return () => set((state) => ({ messageListeners: state.messageListeners.filter((l) => l !== cb) }));
+        set(state => ({ messageListeners: [...state.messageListeners, cb] }));
+        return () => set(state => ({ messageListeners: state.messageListeners.filter(l => l !== cb) }));
     },
     addPresenceListener: (cb) => {
-        set((state) => ({ presenceListeners: [...state.presenceListeners, cb] }));
-        return () => set((state) => ({ presenceListeners: state.presenceListeners.filter((l) => l !== cb) }));
+        set(state => ({ presenceListeners: [...state.presenceListeners, cb] }));
+        return () => set(state => ({ presenceListeners: state.presenceListeners.filter(l => l !== cb) }));
     },
     addTypingListener: (cb) => {
-        set((state) => ({ typingListeners: [...state.typingListeners, cb] }));
-        return () => set((state) => ({ typingListeners: state.typingListeners.filter((l) => l !== cb) }));
+        set(state => ({ typingListeners: [...state.typingListeners, cb] }));
+        return () => set(state => ({ typingListeners: state.typingListeners.filter(l => l !== cb) }));
     },
     addVoiceRoomUpdateListener: (cb) => {
-        set((state) => ({ voiceRoomUpdateListeners: [...state.voiceRoomUpdateListeners, cb] }));
-        return () => set((state) => ({ voiceRoomUpdateListeners: state.voiceRoomUpdateListeners.filter((l) => l !== cb) }));
+        set(state => ({ voiceRoomUpdateListeners: [...state.voiceRoomUpdateListeners, cb] }));
+        return () => set(state => ({ voiceRoomUpdateListeners: state.voiceRoomUpdateListeners.filter(l => l !== cb) }));
     },
 
     connectWS: (userId: string) => {
         const { ws, wsStatus } = get();
         if (ws || wsStatus === 'connecting') return;
 
+        console.log('[WebRTC] Connecting to signaling WebSocket...');
         set({ wsStatus: 'connecting' });
-        const socket = new WebSocket(`${ApiService.getWsUrl()}?userId=${userId}`);
-        let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+        const wsUrl = ApiService.getWsUrl();
+        const socket = new WebSocket(`${wsUrl}?userId=${userId}`);
+        let heartbeatInterval: any;
 
         socket.onopen = () => {
+            console.log('[WebRTC] WebSocket connected.');
             set({ ws: socket, wsStatus: 'connected' });
+
+            // Heartbeat every 20 seconds
             heartbeatInterval = setInterval(() => {
                 if (socket.readyState === WebSocket.OPEN) {
                     socket.send(JSON.stringify({ type: 'heartbeat' }));
-                } else if (heartbeatInterval) {
+                } else {
                     clearInterval(heartbeatInterval);
                 }
             }, 20000);
@@ -118,47 +119,47 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         socket.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-
-                if (data.type === 'message') {
-                    get().messageListeners.forEach((l) => l(data.message));
-                } else if (data.type === 'presence') {
-                    get().presenceListeners.forEach((l) => l(data));
-                } else if (data.type === 'typing') {
-                    get().typingListeners.forEach((l) => l(data));
-                } else if (data.type === 'voice_room_update') {
-                    get().voiceRoomUpdateListeners.forEach((l) => l(data));
-                    const authUser = useAuthStore.getState().user;
-                    if (authUser && data.room_id) {
-                        get().fetchParticipants(data.room_id, authUser.id);
+                if (data.type === 'signal') {
+                    const localStream = get().localStream;
+                    if (localStream && get().activeCall) {
+                        (get() as any).handleIncomingSignal(get().activeCall!.id, userId, data, localStream);
                     }
-                } else if (data.type === 'voice_speaking') {
-                    if (!data.user_id) return;
-                    set((state) => ({
-                        speakingUsers: { ...state.speakingUsers, [data.user_id]: !!data.is_speaking }
-                    }));
+                } else if (data.type === 'message') {
+                    get().messageListeners.forEach(l => l(data.message));
+                } else if (data.type === 'presence') {
+                    get().presenceListeners.forEach(l => l(data));
+                } else if (data.type === 'typing') {
+                    get().typingListeners.forEach(l => l(data));
+                } else if (data.type === 'voice_room_update') {
+                    get().voiceRoomUpdateListeners.forEach(l => l(data));
+                    const roomId = data.room_id;
+                    const authUser = useAuthStore.getState().user;
+                    if (authUser) get().fetchParticipants(roomId, authUser.id);
                 }
             } catch (err) {
-                console.error('[Voice] WS message error:', err);
+                console.error('[WebRTC] WS Message Error:', err);
             }
         };
 
         socket.onclose = () => {
+            console.log('[WebRTC] WebSocket closed.');
             if (heartbeatInterval) clearInterval(heartbeatInterval);
             set({ ws: null, wsStatus: 'disconnected' });
+            // Reconnect if call is still active
             if (get().activeCall) {
                 setTimeout(() => get().connectWS(userId), 3000);
             }
         };
 
         socket.onerror = (err) => {
-            console.error('[Voice] WS error:', err);
+            console.error('[WebRTC] WebSocket error:', err);
         };
     },
 
     disconnectWS: () => {
         const { ws } = get();
         if (ws) {
-            ws.onclose = null;
+            ws.onclose = null; // Prevent auto-reconnect
             ws.close();
         }
         set({ ws: null, wsStatus: 'disconnected' });
@@ -178,109 +179,36 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         }
     },
 
-    sendVoiceSpeakingState: (room_id: string, is_speaking: boolean) => {
-        const { ws } = get();
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'voice_speaking', room_id, is_speaking }));
-        }
-    },
+    // Helper for sending signals with retries
+    sendSignalWithRetry: async (callId: string, userId: string, type: string, payload: any, attempts = 5) => {
+        const { ws, wsStatus } = get();
 
-    connectSfu: async (roomId: string, user: any) => {
-        await get().disconnectSfu();
-
-        const tokenResponse = await ApiService.getVoiceToken(
-            roomId,
-            user.id,
-            user.display_name || user.username || user.id
-        );
-
-        const room = new Room({
-            adaptiveStream: true,
-            dynacast: true
-        });
-
-        room.on(RoomEvent.TrackSubscribed, (track: any, _pub: any, participant: any) => {
-            if (track.kind !== Track.Kind.Audio || !track.mediaStreamTrack) return;
-            const remoteStream = new MediaStream([track.mediaStreamTrack]);
-            set((state) => ({
-                remoteStreams: { ...state.remoteStreams, [participant.identity]: remoteStream }
-            }));
-            get().setupAudioAnalyser(remoteStream, participant.identity);
-        });
-
-        const removeParticipant = (identity: string) => {
-            set((state) => {
-                const nextStreams = { ...state.remoteStreams };
-                const nextSpeaking = { ...state.speakingUsers };
-                const interval = state.analyserIntervals[identity];
-                if (interval) clearInterval(interval);
-                const nextIntervals = { ...state.analyserIntervals };
-                delete nextIntervals[identity];
-                delete nextStreams[identity];
-                delete nextSpeaking[identity];
-                return {
-                    remoteStreams: nextStreams,
-                    speakingUsers: nextSpeaking,
-                    analyserIntervals: nextIntervals
-                };
-            });
-        };
-
-        room.on(RoomEvent.TrackUnsubscribed, (_track: any, _pub: any, participant: any) => {
-            removeParticipant(participant.identity);
-        });
-
-        room.on(RoomEvent.ParticipantDisconnected, (participant: any) => {
-            removeParticipant(participant.identity);
-        });
-
-        room.on(RoomEvent.ActiveSpeakersChanged, (participants: any[]) => {
-            set((state) => {
-                const nextSpeaking: Record<string, boolean> = { ...state.speakingUsers };
-                Object.keys(nextSpeaking).forEach((id) => {
-                    nextSpeaking[id] = false;
-                });
-                participants.forEach((p) => {
-                    if (p?.identity) nextSpeaking[p.identity] = true;
-                });
-                return { speakingUsers: nextSpeaking };
-            });
-        });
-
-        await room.connect(tokenResponse.url, tokenResponse.token);
-
-        const localAudioTrackInstance = await createLocalAudioTrack({
-            deviceId: get().audioInputDeviceId || undefined,
-            channelCount: 1,
-            sampleRate: 48000,
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false
-        });
-
-        await room.localParticipant.publishTrack(localAudioTrackInstance);
-        const localStream = new MediaStream([localAudioTrackInstance.mediaStreamTrack]);
-        get().setupAudioAnalyser(localStream, user.id);
-
-        set({
-            sfuRoom: room,
-            localAudioTrack: localAudioTrackInstance,
-            localStream,
-            callStatus: 'connected'
-        });
-    },
-
-    disconnectSfu: async () => {
-        const { sfuRoom, localAudioTrack } = get();
-
-        if (localAudioTrack) {
-            try { localAudioTrack.stop(); } catch { }
-        }
-        if (sfuRoom) {
-            try { sfuRoom.disconnect(); } catch { }
+        // Try WebSocket first
+        if (ws && wsStatus === 'connected') {
+            try {
+                ws.send(JSON.stringify({
+                    type: 'signal',
+                    to: payload.to,
+                    signal: payload.signal // Pass the actual signal data correctly
+                }));
+                return; // Sent successfully
+            } catch (err) {
+                console.warn('[WebRTC] WS Send failed, falling back to HTTP:', err);
+            }
         }
 
-        set({ sfuRoom: null, localAudioTrack: null });
+        // Fallback to HTTP Polling endpoint (which still exists as a bridge or if WS isn't up yet)
+        for (let i = 0; i < attempts; i++) {
+            try {
+                await ApiService.sendSignal(callId, userId, type, payload);
+                return;
+            } catch (err: any) {
+                console.warn(`[WebRTC] Signal send failed (Attempt ${i + 1}/${attempts}):`, err.message);
+                if (i === attempts - 1) throw err;
+                // Exponential backoff: 1000ms, 2000ms, 4000ms...
+                await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+            }
+        }
     },
 
     startCall: async (roomId: string, user: any) => {
@@ -289,148 +217,458 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         if (activeCall?.roomId === roomId || get().callStatus === 'joining') return;
         if (activeCall) await get().endCall(userId);
 
-        set((state) => ({
-            callStatus: 'joining',
-            activeCall: { id: `pending-${Date.now()}`, roomId },
-            roomParticipants: {
-                ...state.roomParticipants,
-                [roomId]: state.roomParticipants[roomId]?.length
-                    ? state.roomParticipants[roomId]
-                    : [{
-                        id: user.id,
-                        username: user.username,
-                        display_name: user.display_name,
-                        avatar_url: user.avatar_url
-                    }]
-            }
-        }));
-        get().playJoinSound();
+        set({ callStatus: 'joining' });
+        (get() as any).playJoinSound();
 
         try {
+            const { audioInputDeviceId } = get();
+            console.log(`[WebRTC] Starting call in room ${roomId} (Device: ${audioInputDeviceId || 'default'})`);
+
+            const constraints = {
+                audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
+                video: false
+            };
+
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            console.log("[WebRTC] Local stream acquired, tracks:", stream.getAudioTracks().map(t => `${t.label} (enabled: ${t.enabled})`));
+
+            (get() as any).setupAudioAnalyser(stream, userId);
+
+            set({ localStream: stream, callStatus: 'calling' });
+
             const response = await ApiService.createCall(roomId, userId);
-            set({
-                activeCall: { id: response.id, roomId },
-                callStatus: 'calling'
-            });
-            await get().connectSfu(roomId, user);
+            const callId = response.id;
+            const status = response.status;
+
+            set({ activeCall: { id: callId, roomId } });
+
+            // REGRESSION FIX: Eager initiation for the initiator (from commit 114f282)
+            // This reduces delay on slow networks by starting the mesh before the next poll.
+            if (status === 'joined') {
+                const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
+                for (const p of participants) {
+                    if (p.id !== userId && userId < p.id) {
+                        (get() as any).initiatePeerConnection(callId, userId, p.id, stream);
+                    }
+                }
+            }
+
             await get().fetchParticipants(roomId, userId);
-            get().sendVoiceRoomUpdate(roomId);
+            get().sendVoiceRoomUpdate(roomId); // Notify others
+
         } catch (err) {
-            console.error('[Voice] Failed to start call:', err);
-            await get().endCall(userId);
+            console.error('[WebRTC] Failed to start call/join logic:', err);
+            get().endCall(userId);
         }
     },
 
     joinCall: async (callId: string, user: any) => {
         const userId = user.id;
-        const roomId = Object.keys(get().roomParticipants).find((rid) =>
-            get().roomParticipants[rid]?.some((p) => p.id === userId)
+        // Search available room data for this user to find the roomId
+        const roomId = Object.keys(get().roomParticipants).find(rid =>
+            get().roomParticipants[rid]?.some(p => p.id === userId)
         ) || '';
 
-        set((state) => ({
-            callStatus: 'calling',
-            activeCall: { id: callId, roomId },
-            roomParticipants: roomId ? {
-                ...state.roomParticipants,
-                [roomId]: state.roomParticipants[roomId]?.length
-                    ? state.roomParticipants[roomId]
-                    : [{
-                        id: user.id,
-                        username: user.username,
-                        display_name: user.display_name,
-                        avatar_url: user.avatar_url
-                    }]
-            } : state.roomParticipants
-        }));
-        get().playJoinSound();
+        set({ callStatus: 'calling' });
+        (get() as any).playJoinSound();
 
         try {
-            if (!roomId) throw new Error('Room ID could not be resolved for SFU join');
-            set({ activeCall: { id: callId, roomId } });
-            await get().connectSfu(roomId, user);
-            await get().fetchParticipants(roomId, userId);
+            const { audioInputDeviceId } = get();
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
+                video: false
+            });
+            (get() as any).setupAudioAnalyser(stream, userId);
+
+            set({
+                localStream: stream,
+                activeCall: { id: callId, roomId: roomId }
+            });
+
+            // Mesh initiation
+            if (roomId) await get().fetchParticipants(roomId, userId);
         } catch (err) {
-            console.error('[Voice] joinCall failed:', err);
-            await get().endCall(userId);
+            console.error('[WebRTC] joinCall failed:', err);
+            get().endCall(userId);
+        }
+    },
+
+    initiatePeerConnection: (callId: string, userId: string, targetId: string, stream: MediaStream) => {
+        const { peers, pendingPeers } = get();
+        if (peers[targetId] || pendingPeers.has(targetId)) return;
+
+        console.log(`[WebRTC] Initiating P2P with ${targetId}`);
+        const newPending = new Set(pendingPeers);
+        newPending.add(targetId);
+        set({ pendingPeers: newPending });
+
+        try {
+            const peer = new SimplePeer({
+                initiator: true,
+                trickle: true,
+                stream: stream,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' },
+                        { urls: 'stun:stun.services.mozilla.com' },
+                        { urls: 'stun:stun.stunprotocol.org' },
+                        { urls: 'stun:stun.ekiga.net' }
+                    ]
+                }
+            });
+
+            peer.on('signal', async (data: any) => {
+                console.log(`[WebRTC] Outgoing signal to ${targetId}: ${data.type || 'ice'}`);
+                try {
+                    await (get() as any).sendSignalWithRetry(callId, userId, data.type || 'signal', {
+                        signal: data,
+                        to: targetId,
+                        from: userId
+                    });
+                } catch (err) {
+                    console.error(`[WebRTC] Critical: Failed to send signal to ${targetId} after retries:`, err);
+                }
+            });
+
+            peer.on('connect', () => {
+                console.log(`[WebRTC] Connected with ${targetId}. Signaling state stable.`);
+                set(state => {
+                    const nextPending = new Set(state.pendingPeers);
+                    nextPending.delete(targetId);
+                    return { callStatus: 'connected', pendingPeers: nextPending };
+                });
+                const roomId = get().activeCall?.roomId;
+                if (roomId) get().fetchParticipants(roomId, userId);
+            });
+
+            peer.on('stream', (remoteStream: MediaStream) => {
+                console.log(`[WebRTC] Remote stream FROM ${targetId} received. Tracks:`, remoteStream.getAudioTracks().length);
+                set(state => ({
+                    remoteStreams: { ...state.remoteStreams, [targetId]: remoteStream }
+                }));
+                (get() as any).setupAudioAnalyser(remoteStream, targetId);
+            });
+
+            peer.on('error', (err: any) => {
+                console.error(`[WebRTC] Peer error with ${targetId}:`, err);
+                get().removePeer(targetId);
+            });
+
+            peer.on('close', () => {
+                console.log(`[WebRTC] Peer closed with ${targetId}`);
+                get().removePeer(targetId);
+            });
+
+            set(state => ({
+                peers: { ...state.peers, [targetId]: peer }
+            }));
+        } catch (e) {
+            console.error(`[WebRTC] Failed to create peer for ${targetId}:`, e);
+            set(state => {
+                const nextPending = new Set(state.pendingPeers);
+                nextPending.delete(targetId);
+                return { pendingPeers: nextPending };
+            });
+        }
+    },
+
+    removePeer: (targetId: string) => {
+        set(state => {
+            const newPeers = { ...state.peers };
+            const newStreams = { ...state.remoteStreams };
+            if (newPeers[targetId]) {
+                try { newPeers[targetId].destroy(); } catch (e) { }
+                delete newPeers[targetId];
+            }
+            delete newStreams[targetId];
+
+            const pending = new Set(state.pendingPeers);
+            pending.delete(targetId);
+
+            const hasConnectedPeers = Object.values(newPeers).some((p: any) => p.connected);
+
+            return {
+                peers: newPeers,
+                remoteStreams: newStreams,
+                pendingPeers: pending,
+                callStatus: hasConnectedPeers ? 'connected' : 'calling'
+            };
+        });
+    },
+
+    handleIncomingSignal: async (callId: string, userId: string, signalData: any, stream: MediaStream, signalId?: number) => {
+        // 1. Database ID based deduplication (Level 1)
+        if (signalId && get().processedSignalIds.has(signalId)) {
+            return;
+        }
+
+        const fromId = signalData.from;
+        const payload = signalData.signal;
+
+        // 2. Content based deduplication (Level 2)
+        // This prevents the same SDP/ICE candidate from being processed twice even if it has a new ID
+        const payloadString = typeof payload === 'string' ? payload : JSON.stringify(payload);
+        const signalKey = `${fromId}:${payload.type || 'ice'}:${payloadString}`;
+
+        if (get().processedSignalHashes.has(signalKey)) {
+            console.log(`[WebRTC] Skipping duplicate signal by content from ${fromId}`);
+            return;
+        }
+
+        if (signalId) {
+            set(state => {
+                const nextProcessed = new Set(state.processedSignalIds);
+                nextProcessed.add(signalId);
+                return { processedSignalIds: nextProcessed };
+            });
+        }
+
+        set(state => {
+            const nextHashes = new Set(state.processedSignalHashes);
+            nextHashes.add(signalKey);
+            // Limit size to prevent memory leak
+            if (nextHashes.size > 200) {
+                const first = nextHashes.values().next().value;
+                if (first !== undefined) nextHashes.delete(first);
+            }
+            return { processedSignalHashes: nextHashes };
+        });
+
+        // Critical: always fetch the absolutely freshest state to avoid processing the same signal twice
+        const { peers, pendingPeers } = get();
+        let peer = peers[fromId];
+
+        if (!peer && !pendingPeers.has(fromId)) {
+            console.log(`[WebRTC] Discovered joiner signal from ${fromId}. Handshaking...`);
+            const nextPending = new Set(pendingPeers);
+            nextPending.add(fromId);
+            set({ pendingPeers: nextPending });
+
+            try {
+                peer = new SimplePeer({
+                    initiator: false,
+                    trickle: true,
+                    stream: stream,
+                    config: {
+                        iceServers: [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:global.stun.twilio.com:3478' },
+                            { urls: 'stun:stun.services.mozilla.com' },
+                            { urls: 'stun:stun.stunprotocol.org' },
+                            { urls: 'stun:stun.ekiga.net' }
+                        ]
+                    }
+                });
+
+                peer.on('signal', async (data: any) => {
+                    console.log(`[WebRTC] Outgoing (joiner) signal to ${fromId}: ${data.type || 'ice'}`);
+                    try {
+                        await (get() as any).sendSignalWithRetry(callId, userId, data.type || 'signal', {
+                            signal: data,
+                            to: fromId,
+                            from: userId
+                        });
+                    } catch (err) {
+                        console.error(`[WebRTC] Critical: Failed to send joiner signal to ${fromId} after retries:`, err);
+                    }
+                });
+
+                peer.on('connect', () => {
+                    console.log(`[WebRTC] Peer Connection ESTABLISHED with ${fromId}`);
+                    set(state => {
+                        const nextP = new Set(state.pendingPeers);
+                        nextP.delete(fromId);
+                        return { callStatus: 'connected', pendingPeers: nextP };
+                    });
+                });
+
+                peer.on('stream', (remoteStream: MediaStream) => {
+                    console.log(`[WebRTC] Remote stream received from ${fromId}.`);
+                    set(state => ({
+                        remoteStreams: { ...state.remoteStreams, [fromId]: remoteStream }
+                    }));
+                    (get() as any).setupAudioAnalyser(remoteStream, fromId);
+                });
+
+                peer.on('error', (err: any) => {
+                    console.error(`[WebRTC] Peer ${fromId} error:`, err);
+                    get().removePeer(fromId);
+                });
+
+                peer.on('close', () => {
+                    console.log(`[WebRTC] Peer ${fromId} closed.`);
+                    get().removePeer(fromId);
+                });
+
+                set(state => ({
+                    peers: { ...state.peers, [fromId]: peer }
+                }));
+            } catch (e) {
+                console.error(`[WebRTC] Failed to create joiner peer:`, e);
+                set(state => {
+                    const nextP = new Set(state.pendingPeers);
+                    nextP.delete(fromId);
+                    return { pendingPeers: nextP };
+                });
+                return;
+            }
+        }
+
+        if (peer) {
+            try {
+                // If it's an offer/answer, check if we're already connected or stable to avoid InvalidStateError
+                if (payload.type === 'answer' || payload.type === 'offer') {
+                    if (peer.connected) return;
+                    // @ts-ignore - internal _pc check for signaling state
+                    if (peer._pc?.signalingState === 'stable' && payload.type === 'answer') return;
+                }
+                peer.signal(payload);
+            } catch (e: any) {
+                if (e.message?.includes('stable')) {
+                    console.warn(`[WebRTC] Signal ignored: Peer ${fromId} is already stable.`);
+                } else {
+                    console.error(`[WebRTC] Signal application failed for ${fromId}:`, e);
+                }
+            }
+        }
+    },
+
+    pollSignals: async (userId: string) => {
+        const { activeCall, localStream, isPolling } = get();
+        if (!activeCall || !localStream || isPolling) return;
+
+        set({ isPolling: true });
+        try {
+            const lastSignalId = get().lastSignalId || 0;
+            const signals: any[] = await ApiService.pollSignals(activeCall.id, userId, lastSignalId);
+
+            if (signals && Array.isArray(signals) && signals.length > 0) {
+                set({ pollingBackoff: 0 }); // Reset backoff on success
+                const highestId = Math.max(...signals.map(s => s.id));
+                set({ lastSignalId: highestId });
+
+                for (const signal of signals) {
+                    try {
+                        const data = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : signal.payload;
+                        if (data.to === userId) {
+                            await (get() as any).handleIncomingSignal(activeCall.id, userId, data, localStream, signal.id);
+                        }
+                    } catch (parseErr) {
+                        console.error('[WebRTC] Signal parse error:', parseErr, signal);
+                    }
+                }
+            }
+        } catch (err: any) {
+            // Log 502/504 as warnings and increment backoff
+            if (err.status === 502 || err.status === 504 || err.message?.includes('502') || err.message?.includes('504')) {
+                const currentBackoff = get().pollingBackoff;
+                const nextBackoff = Math.min(currentBackoff + 1000, 5000); // Caps at 5s extra
+                console.warn(`[WebRTC] Server temporarily unavailable. Increasing backoff to ${nextBackoff}ms.`);
+                set({ pollingBackoff: nextBackoff });
+            } else {
+                console.error('[WebRTC] Polling error:', err);
+            }
+        } finally {
+            set({ isPolling: false });
         }
     },
 
     endCall: async (userId?: string) => {
-        const { localStream, remoteStreams, activeCall } = get();
+        const { localStream, peers, remoteStreams, activeCall } = get();
         const roomId = activeCall?.roomId;
-        const intervals = { ...get().analyserIntervals };
 
+        // 1. IMMEDIATE UI CLEANUP (Fixes the "long leave time" symptom)
         set({
             activeCall: null,
             callStatus: 'idle',
             localStream: null,
             remoteStreams: {},
+            peers: {},
+            pendingPeers: new Set(),
+            lastSignalId: 0,
+            processedSignalIds: new Set(),
+            processedSignalHashes: new Set(),
             roomParticipants: {},
             speakingUsers: {},
             analyserIntervals: {}
-        });
+        } as any);
 
-        Object.values(intervals).forEach((interval) => clearInterval(interval));
-
+        // 2. BACKGROUND RESOURCE CLEANUP
         try {
-            await get().disconnectSfu();
+            // Stop analysers
+            const intervals = (get() as any).analyserIntervals || {};
+            Object.values(intervals).forEach((int: any) => clearInterval(int));
 
-            if (roomId) {
-                get().sendVoiceRoomUpdate(roomId);
-                get().sendVoiceSpeakingState(roomId, false);
-            }
+            // Notify others
+            if (roomId) get().sendVoiceRoomUpdate(roomId);
+
             if (userId) ApiService.endCall(userId).catch(() => { });
 
+            // Stop local tracks
             if (localStream) {
-                localStream.getTracks().forEach((t) => t.stop());
+                localStream.getTracks().forEach((t: any) => t.stop());
             }
 
-            Object.values(remoteStreams).forEach((stream) => {
-                stream.getTracks().forEach((t) => t.stop());
+            // Stop remote tracks
+            Object.values(remoteStreams).forEach(stream => {
+                stream.getTracks().forEach(t => t.stop());
             });
-        } catch (err) {
-            console.error('[Voice] endCall cleanup error:', err);
+
+            // Destroy peers
+            Object.values(peers).forEach((p: any) => {
+                try { p.destroy(); } catch (e) { }
+            });
+        } catch (e) {
+            console.error('[WebRTC] endCall cleanup error:', e);
         }
     },
 
     fetchParticipants: async (roomId: string, userId: string) => {
+        const { activeCall, localStream } = get();
+        // We want to fetch to see who is in rooms even if we aren't, 
+        // but we only proceed to mesh logic if we have a local stream and active call.
+
         try {
             const participants = await ApiService.fetchVoiceParticipants(roomId, userId);
-            set((state) => ({
+
+            // Update UI list
+            set(state => ({
                 roomParticipants: { ...state.roomParticipants, [roomId]: participants ?? [] }
             }));
+
+            // MESH LOGIC: Ensure every participant has a P2P connection
+            // CRITICAL FIX: Only initiate mesh if this is our ACTIVE call room.
+            // Prevents cross-room signaling artifacts from background polls.
+            if (localStream && activeCall && activeCall.roomId === roomId) {
+                for (const p of participants) {
+                    if (p.id === userId) continue;
+
+                    // ALWAYS use get() to check latest state during the loop
+                    const currentPeers = get().peers;
+                    const currentPending = get().pendingPeers;
+
+                    if (!currentPeers[p.id] && !currentPending.has(p.id)) {
+                        // Deterministic rule: smaller ID initiates connection to avoid double-initiation
+                        if (userId < p.id) {
+                            console.log(`[WebRTC] Mesh: Discovered ${p.id} in room ${roomId}. Initiating P2P...`);
+                            (get() as any).initiatePeerConnection(activeCall.id, userId, p.id, localStream);
+                        }
+                    }
+                }
+            }
         } catch (err) {
-            console.error('[Voice] Participant fetch failed:', err);
+            console.error('[WebRTC] Participant poll failed:', err);
         }
     },
 
     toggleMute: () => {
-        const { localStream, localAudioTrack, isMuted } = get();
-        if (!localStream) return;
-
-        const nextMuted = !isMuted;
-        localStream.getAudioTracks().forEach((track) => {
-            track.enabled = !nextMuted;
-        });
-
-        if (localAudioTrack) {
-            if (nextMuted) localAudioTrack.mute();
-            else localAudioTrack.unmute();
-        }
-
-        set({ isMuted: nextMuted });
-
-        if (nextMuted) {
-            const me = useAuthStore.getState().user;
-            const roomId = get().activeCall?.roomId;
-            if (me?.id) {
-                set((state) => ({
-                    speakingUsers: { ...state.speakingUsers, [me.id]: false }
-                }));
-            }
-            if (roomId) {
-                get().sendVoiceSpeakingState(roomId, false);
-            }
+        const { localStream, isMuted } = get();
+        if (localStream) {
+            localStream.getAudioTracks().forEach((track: any) => {
+                track.enabled = isMuted;
+            });
+            set({ isMuted: !isMuted });
         }
     },
 
@@ -451,34 +689,20 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         set({ audioOutputDeviceId: deviceId });
     },
 
-    setMicSensitivityThreshold: (threshold: number) => {
-        const clamped = clampThreshold(threshold);
-        localStorage.setItem('micSensitivityThreshold', String(clamped));
-        set({ micSensitivityThreshold: clamped });
-    },
-
-    setAutoMicSensitivity: (enabled: boolean) => {
-        localStorage.setItem('autoMicSensitivity', enabled ? '1' : '0');
-        set({ autoMicSensitivity: enabled });
-    },
-
     setupAudioAnalyser: (stream: MediaStream, targetUserId: string) => {
         try {
-            const existingInterval = get().analyserIntervals[targetUserId];
-            if (existingInterval) clearInterval(existingInterval);
-
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            // Guard: AudioContext must be resumed after user gesture for some browsers,
+            // though Electron is usually more lenient.
+            const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
             const audioContext = new AudioContextClass();
+
             const analyser = audioContext.createAnalyser();
             const source = audioContext.createMediaStreamSource(stream);
             source.connect(analyser);
             analyser.fftSize = 512;
-
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            const localUserId = useAuthStore.getState().user?.id;
-            const isLocalUserAnalyser = !!localUserId && targetUserId === localUserId;
-            let noiseFloor = 8;
-            let lastSpeaking = false;
+
+            console.log(`[WebRTC] AudioAnalyser setup for ${targetUserId}`);
 
             const interval = setInterval(() => {
                 if (audioContext.state === 'suspended') audioContext.resume();
@@ -488,40 +712,22 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
                 const average = sum / dataArray.length;
 
-                const { micSensitivityThreshold, autoMicSensitivity } = get();
-                const baseThreshold = micSensitivityThreshold;
-                const dynamicThreshold = isLocalUserAnalyser && autoMicSensitivity
-                    ? (() => {
-                        if (!lastSpeaking) noiseFloor = (noiseFloor * 0.92) + (average * 0.08);
-                        return Math.min(80, Math.max(5, Math.max(baseThreshold, noiseFloor + 6)));
-                    })()
-                    : baseThreshold;
+                // Threshold adjustment for sensitivity
+                const isSpeaking = average > 15;
 
-                const onThreshold = dynamicThreshold;
-                const offThreshold = Math.max(3, dynamicThreshold * 0.75);
-                const isSpeaking = lastSpeaking ? average > offThreshold : average > onThreshold;
-                lastSpeaking = isSpeaking;
-
-                let changed = false;
-                set((state) => {
-                    if (state.speakingUsers[targetUserId] === isSpeaking) return {};
-                    changed = true;
-                    return {
-                        speakingUsers: { ...state.speakingUsers, [targetUserId]: isSpeaking }
-                    };
+                set(state => {
+                    if (state.speakingUsers[targetUserId] !== isSpeaking) {
+                        return { speakingUsers: { ...state.speakingUsers, [targetUserId]: isSpeaking } };
+                    }
+                    return {};
                 });
-
-                if (isLocalUserAnalyser && changed) {
-                    const roomId = get().activeCall?.roomId;
-                    if (roomId) get().sendVoiceSpeakingState(roomId, isSpeaking);
-                }
             }, 100);
 
-            set((state) => ({
-                analyserIntervals: { ...state.analyserIntervals, [targetUserId]: interval }
-            }));
-        } catch (err) {
-            console.error(`[Voice] Analyser setup failed for ${targetUserId}:`, err);
+            set(state => ({
+                analyserIntervals: { ...((state as any).analyserIntervals || {}), [targetUserId]: interval }
+            } as any));
+        } catch (e) {
+            console.error(`[WebRTC] Analyser setup failed for ${targetUserId}:`, e);
         }
     },
 
@@ -530,6 +736,6 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const audio = new Audio('assets/sounds/join.webm');
             audio.volume = 0.5;
             audio.play().catch(() => { });
-        } catch { }
+        } catch (e) { }
     }
 }));

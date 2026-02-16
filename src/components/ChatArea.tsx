@@ -17,13 +17,11 @@ export const ChatArea: React.FC = () => {
     const { selectedChannelId, channels, setMobileMenuOpen } = useAppStore();
     const { user } = useAuthStore();
     const { t } = useI18nStore();
-    const { startCall } = useVoiceStore();
+    const { startCall, activeCall } = useVoiceStore();
     const currentChannel = channels.find(c => c.id === selectedChannelId);
     const { messages, sendMessage, deleteMessage } = useChatMessages(selectedChannelId || '');
     const { typingUsers, setTyping } = useTypingIndicator(selectedChannelId || '');
     const [showPinned, setShowPinned] = useState(false);
-    const [messageSearch, setMessageSearch] = useState('');
-    const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
     const [inputValue, setInputValue] = useState('');
     const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
@@ -33,15 +31,6 @@ export const ChatArea: React.FC = () => {
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const typingTimeoutRef = useRef<any>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
-    const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const GROUP_WINDOW_MS = 3 * 60 * 1000;
-
-    const parseMessageTime = (value?: string) => {
-        if (!value) return 0;
-        const normalized = value.includes('T') ? value : value.replace(' ', 'T') + 'Z';
-        const time = new Date(normalized).getTime();
-        return Number.isFinite(time) ? time : 0;
-    };
 
     const searchGifs = async (query: string) => {
         if (!query) return;
@@ -120,22 +109,6 @@ export const ChatArea: React.FC = () => {
         }
     };
 
-    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key !== 'Enter') return;
-        const query = messageSearch.trim().toLowerCase();
-        if (!query) return;
-
-        const target = [...messages].reverse().find((m) => (m.content || '').toLowerCase().includes(query));
-        if (!target) return;
-
-        const el = messageRefs.current[target.id];
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            setHighlightedMessageId(target.id);
-            setTimeout(() => setHighlightedMessageId((prev) => (prev === target.id ? null : prev)), 1800);
-        }
-    };
-
 
     if (!selectedChannelId) {
         return (
@@ -186,18 +159,14 @@ export const ChatArea: React.FC = () => {
                     {isDM ? <AtSign size={18} className="text-matrix-green" /> : <Hash size={18} className="text-matrix-green" />}
                     <h3 className="font-black text-[var(--text-normal)] text-[14px] md:text-[15px] tracking-tight truncate max-w-[120px] md:max-w-none">{currentChannel?.title}</h3>
                     <div className="h-4 w-[1px] bg-white/10 mx-1 md:block hidden" />
-                    <div className="text-matrix-muted text-[11px] font-bold uppercase tracking-widest opacity-40 truncate md:block hidden" />
+                    <div className="text-matrix-muted text-[11px] font-bold uppercase tracking-widest opacity-40 truncate md:block hidden">
+                        {isDM ? 'Private Conversation' : 'General Room'}
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-6 text-matrix-muted">
                     <div className="relative group lg:block hidden">
-                        <input
-                            className="bg-matrix-darker border border-white/5 text-[12px] font-bold rounded-xl px-4 py-2 text-white w-48 transition-all focus:w-72 focus:border-matrix-green/30 outline-none placeholder:text-white/10"
-                            placeholder="Mesaj ara..."
-                            value={messageSearch}
-                            onChange={(e) => setMessageSearch(e.target.value)}
-                            onKeyDown={handleSearchKeyDown}
-                        />
+                        <input className="bg-matrix-darker border border-white/5 text-[12px] font-bold rounded-xl px-4 py-2 text-white w-48 transition-all focus:w-72 focus:border-matrix-green/30 outline-none placeholder:text-white/10" placeholder="Search message..." />
                         <Search size={14} className="absolute right-4 top-2.5 opacity-20 group-focus-within:opacity-100 group-focus-within:text-matrix-green" />
                     </div>
                     <div className="flex items-center gap-3 md:gap-4">
@@ -223,26 +192,18 @@ export const ChatArea: React.FC = () => {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar flex flex-col-reverse gap-0.5 relative z-10" ref={scrollRef}>
+            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8 space-y-8 custom-scrollbar flex flex-col-reverse relative z-10" ref={scrollRef}>
+                <div className="h-2" />
 
-                {messages.slice().reverse().map((msg: ChatMessage, index, arr) => {
-                    const nextMsg = arr[index + 1];
-                    const sameAuthor = !!nextMsg && nextMsg.user_id === msg.user_id;
-                    const withinGroupWindow = sameAuthor && Math.abs(parseMessageTime(msg.created_at) - parseMessageTime(nextMsg.created_at)) <= GROUP_WINDOW_MS;
-                    const showMeta = !sameAuthor || !withinGroupWindow;
-                    return (
+                {messages.slice().reverse().map((msg: ChatMessage) => (
                     <MessageItem
                         key={msg.id}
                         message={msg}
-                        showMeta={showMeta}
-                        highlighted={highlightedMessageId === msg.id}
-                        bindRef={(el) => { messageRefs.current[msg.id] = el; }}
                         onReply={() => setReplyingTo(msg)}
                         onImageClick={(url) => setLightboxImage(url)}
                         onDelete={() => deleteMessage(msg.id)}
                     />
-                    );
-                })}
+                ))}
 
                 {/* Welcome Banner */}
                 {messages.length < 50 && (
@@ -261,6 +222,25 @@ export const ChatArea: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Voice Join Prompt */}
+            {currentChannel?.type === 'voice' && activeCall?.roomId !== selectedChannelId && (
+                <div className="mx-4 md:mx-8 mb-4 p-6 bg-matrix-green/10 border border-matrix-green/20 rounded-3xl flex flex-col items-center gap-4 animate-in slide-in-from-bottom-4 duration-500">
+                    <div className="w-16 h-16 bg-matrix-green/20 rounded-2xl flex items-center justify-center">
+                        <Phone size={32} className="text-matrix-green" />
+                    </div>
+                    <div className="text-center">
+                        <h4 className="text-lg font-black text-white mb-1">Voice Channel Selected</h4>
+                        <p className="text-sm text-matrix-muted font-bold uppercase tracking-widest opacity-60">You are viewing the chat for this channel.</p>
+                    </div>
+                    <button
+                        onClick={() => user && startCall(selectedChannelId || '', user)}
+                        className="bg-matrix-green text-matrix-darker px-8 py-3 rounded-2xl font-black hover:shadow-[0_0_20px_rgba(0,255,102,0.4)] transition-all active:scale-95"
+                    >
+                        Join Voice Call
+                    </button>
+                </div>
+            )}
 
             {/* Input Area */}
             <div className="px-4 md:px-8 pb-4 md:pb-8 pb-safe-lg shrink-0 relative z-20">
@@ -406,7 +386,7 @@ export const ChatArea: React.FC = () => {
         </div>
     );
 };
-const MessageItem = ({ message, showMeta, highlighted, bindRef, onReply, onImageClick, onDelete }: { message: ChatMessage, showMeta: boolean, highlighted: boolean, bindRef: (el: HTMLDivElement | null) => void, onReply: () => void, onImageClick: (url: string) => void, onDelete: () => void }) => {
+const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: ChatMessage, onReply: () => void, onImageClick: (url: string) => void, onDelete: () => void }) => {
     const { user } = useAuthStore();
     const { t } = useI18nStore();
     const { reactions, toggleReaction } = useReactions(message.id);
@@ -451,44 +431,33 @@ const MessageItem = ({ message, showMeta, highlighted, bindRef, onReply, onImage
                 </div>
             );
         }
-        return <p className={clsx("m-0 text-[15px] leading-[1.35] whitespace-pre-wrap break-words font-medium text-white/90")}>{content}</p>;
+        return <p className={clsx("text-[15px] leading-relaxed whitespace-pre-wrap break-words font-medium text-white/90")}>{content}</p>;
     };
 
     return (
-        <div
-            ref={bindRef}
-            className={clsx(
-                "group flex flex-col animate-in slide-in-from-bottom-2 duration-300 items-start hover:bg-white/[0.02] -mx-4 px-4 py-0 transition-colors rounded-lg",
-                showMeta ? "pt-2" : "pt-0",
-                highlighted && "bg-matrix-green/10"
-            )}
-        >
+        <div className="group flex flex-col mb-4 animate-in slide-in-from-bottom-2 duration-300 items-start hover:bg-white/[0.02] -mx-4 px-4 py-1 transition-colors">
             <div className="flex w-full gap-4 flex-row items-start">
-                {showMeta ? (
-                    <div className={clsx(
-                        "w-11 h-11 rounded-full flex items-center justify-center shrink-0 border border-white/5 shadow-lg font-black text-base bg-matrix-green/10 text-matrix-green"
-                    )}>
-                        {message.avatar_url ? (
-                            <img src={message.avatar_url} className="w-full h-full rounded-full object-cover" />
-                        ) : (
-                            (message.display_name || message.username || '?')[0].toUpperCase()
-                        )}
-                    </div>
-                ) : (
-                    <div className="w-11 shrink-0" />
-                )}
+                {/* Avatar */}
+                <div className={clsx(
+                    "w-11 h-11 rounded-full flex items-center justify-center shrink-0 border border-white/5 shadow-lg font-black text-base bg-matrix-green/10 text-matrix-green"
+                )}>
+                    {message.avatar_url ? (
+                        <img src={message.avatar_url} className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                        (message.display_name || message.username || '?')[0].toUpperCase()
+                    )}
+                </div>
 
                 <div className="flex-1 flex flex-col min-w-0">
-                    {showMeta && (
-                        <div className="flex items-baseline gap-2 mb-0.5 px-0 flex-row">
-                            <span className={clsx("text-[15px] font-black tracking-tight", isMe ? "text-matrix-green" : "text-white")}>
-                                {message.display_name || message.username}
-                            </span>
-                            <span className="text-[11px] font-bold opacity-30 uppercase tracking-widest text-matrix-muted">
-                                {format(new Date(message.created_at || Date.now()), 'HH:mm')}
-                            </span>
-                        </div>
-                    )}
+                    {/* Username & Time - Header Style Line */}
+                    <div className="flex items-baseline gap-2 mb-0.5 px-0 flex-row">
+                        <span className={clsx("text-[15px] font-black tracking-tight", isMe ? "text-matrix-green" : "text-white")}>
+                            {message.display_name || message.username}
+                        </span>
+                        <span className="text-[11px] font-bold opacity-30 uppercase tracking-widest text-matrix-muted">
+                            {format(new Date(message.created_at || Date.now()), 'HH:mm')}
+                        </span>
+                    </div>
 
                     {/* Content - No Bubble, just text */}
                     <div className="relative group/content">

@@ -154,7 +154,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
                     FROM messages m 
                     JOIN users u ON m.user_id = u.id 
                     WHERE m.room_id = ? 
-                    ORDER BY m.created_at ASC LIMIT 200
+                    ORDER BY m.created_at ASC LIMIT 100
                 `).bind(roomId).all();
                 return Response.json(results, { headers: corsHeaders });
             }
@@ -590,6 +590,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
                 await env.DB.prepare('DELETE FROM call_participants WHERE user_id = ? AND call_id != ?').bind(userIdHeader, call.id).run();
 
                 return Response.json({ id: call.id, status: 'joined' }, { headers: corsHeaders });
+            }
+
+            if (path === '/voice/signal') {
+                const { call_id, type, payload } = body;
+                const signalId = crypto.randomUUID();
+                await env.DB.prepare('INSERT INTO call_signals (call_id, sender_id, type, payload) VALUES (?, ?, ?, ?)')
+                    .bind(call_id, userIdHeader, type, JSON.stringify(payload)).run();
+                return Response.json({ status: 'sent' }, { headers: corsHeaders });
+            }
+
+            if (path === '/voice/poll') {
+                const { call_id, last_signal_id } = body;
+                const { results } = await env.DB.prepare('SELECT * FROM call_signals WHERE call_id = ? AND id > ? AND sender_id != ? ORDER BY id ASC')
+                    .bind(call_id, last_signal_id || 0, userIdHeader).all();
+                return Response.json(results, { headers: corsHeaders });
             }
 
             if (path === '/voice/end') {
