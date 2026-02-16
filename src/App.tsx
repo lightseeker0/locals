@@ -15,7 +15,6 @@ import { useAppStore } from './stores/appStore';
 import { useSwipe } from './hooks/useSwipe';
 import { useVoiceSignaling } from './hooks/useVoiceSignaling';
 import { useVoiceStore } from './stores/useVoiceStore';
-import { VoiceCallOverlay } from './components/VoiceCallOverlay';
 import { clsx } from 'clsx';
 
 const MainFramework = () => {
@@ -109,7 +108,6 @@ const MainFramework = () => {
 
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
         <ThemeAnnouncementModal isOpen={showAnnouncement} onClose={() => setShowAnnouncement(false)} />
-        <VoiceCallOverlay />
       </div>
     </div>
   );
