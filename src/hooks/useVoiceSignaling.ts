@@ -19,7 +19,8 @@ export const useVoiceSignaling = () => {
 
             const tick = async () => {
                 if (cancelled) return;
-                await pollSignals(user.id);
+                const keepPolling = await pollSignals(user.id);
+                if (!keepPolling) return;
                 const backoff = useVoiceStore.getState().pollingBackoff || 0;
                 timeout = setTimeout(tick, 1200 + backoff);
             };

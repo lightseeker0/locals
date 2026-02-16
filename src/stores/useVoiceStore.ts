@@ -21,7 +21,7 @@ interface VoiceState {
     joinCall: (callId: string, user: any) => Promise<void>;
     endCall: (userId?: string) => Promise<void>;
     toggleMute: () => void;
-    pollSignals: (userId: string) => Promise<void>;
+    pollSignals: (userId: string) => Promise<boolean>;
     fetchParticipants: (roomId: string, userId: string) => Promise<void>;
     removePeer: (targetId: string) => void;
     setAudioInputDevice: (deviceId: string) => void;
@@ -35,6 +35,8 @@ interface VoiceState {
     pollingBackoff: number;
     ws: WebSocket | null;
     wsStatus: 'disconnected' | 'connecting' | 'connected';
+    httpPollSupported: boolean;
+    httpSignalSupported: boolean;
     connectWS: (userId: string) => void;
     disconnectWS: () => void;
     addMessageListener: (cb: (msg: any) => void) => () => void;
@@ -69,6 +71,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     audioOutputDeviceId: localStorage.getItem('audioOutputDeviceId'),
     ws: null,
     wsStatus: 'disconnected',
+    httpPollSupported: true,
+    httpSignalSupported: true,
     messageListeners: [],
     presenceListeners: [],
     typingListeners: [],
@@ -182,6 +186,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     // Helper for sending signals with retries
     sendSignalWithRetry: async (callId: string, userId: string, type: string, payload: any, attempts = 5) => {
         const { ws, wsStatus } = get();
+        const isNotFound = (err: any) => err?.status === 404 || String(err?.message || '').includes('404');
         let sentViaWs = false;
 
         // Try WebSocket first (low latency)
@@ -199,15 +204,21 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         }
 
         // Also persist via HTTP so polling fallback can recover dropped WS packets.
-        try {
-            await ApiService.sendSignal(callId, userId, type, payload);
-            return;
-        } catch (err: any) {
-            if (sentViaWs) {
-                // WS already sent; caller may still succeed from live relay.
+        if (get().httpSignalSupported) {
+            try {
+                await ApiService.sendSignal(callId, userId, type, payload);
                 return;
+            } catch (err: any) {
+                if (isNotFound(err)) {
+                    set({ httpSignalSupported: false });
+                    if (sentViaWs) return;
+                }
+                if (sentViaWs) {
+                    // WS already sent; caller may still succeed from live relay.
+                    return;
+                }
+                console.warn('[WebRTC] HTTP signal persist failed, retrying:', err.message);
             }
-            console.warn('[WebRTC] HTTP signal persist failed, retrying:', err.message);
         }
 
         // HTTP retry path when both WS and first HTTP attempt failed.
@@ -216,6 +227,11 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 await ApiService.sendSignal(callId, userId, type, payload);
                 return;
             } catch (err: any) {
+                if (isNotFound(err)) {
+                    set({ httpSignalSupported: false });
+                    if (sentViaWs) return;
+                    throw err;
+                }
                 console.warn(`[WebRTC] Signal send failed (Attempt ${i + 1}/${attempts}):`, err.message);
                 if (i === attempts - 1) throw err;
                 // Exponential backoff: 1000ms, 2000ms, 4000ms...
@@ -549,7 +565,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     pollSignals: async (userId: string) => {
         const { activeCall, localStream, isPolling } = get();
-        if (!activeCall || !localStream || isPolling) return;
+        if (!activeCall || !localStream || isPolling) return true;
+        if (!get().httpPollSupported) return false;
 
         set({ isPolling: true });
         try {
@@ -572,7 +589,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                     }
                 }
             }
+            return true;
         } catch (err: any) {
+            if (err?.status === 404 || String(err?.message || '').includes('404')) {
+                console.warn('[WebRTC] /voice/poll endpoint unavailable. Disabling HTTP polling fallback.');
+                set({ httpPollSupported: false });
+                return false;
+            }
             // Log 502/504 as warnings and increment backoff
             if (err.status === 502 || err.status === 504 || err.message?.includes('502') || err.message?.includes('504')) {
                 const currentBackoff = get().pollingBackoff;
@@ -582,6 +605,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             } else {
                 console.error('[WebRTC] Polling error:', err);
             }
+            return true;
         } finally {
             set({ isPolling: false });
         }
