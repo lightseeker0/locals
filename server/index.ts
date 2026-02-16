@@ -91,8 +91,30 @@ app.get('/ws', upgradeWebSocket((c) => {
                 const data = JSON.parse(event.data.toString());
                 if (data.type === 'signal' && data.to) {
                     const targetWs = wsRegistry.get(data.to);
-                    if (targetWs) targetWs.send(JSON.stringify({ type: 'signal', from: userId, payload: data.payload }));
-                } else if (data.type === 'heartbeat') updateLastSeen(userId);
+                    if (targetWs) targetWs.send(JSON.stringify({
+                        type: 'signal',
+                        from: userId,
+                        signal: data.signal // Correctly pass the signal payload
+                    }));
+                } else if (data.type === 'heartbeat') {
+                    updateLastSeen(userId);
+                } else if (data.type === 'typing') {
+                    // Broadcast typing status to room members
+                    const { room_id, is_typing } = data;
+                    const participants = db.prepare('SELECT user_id FROM participants WHERE room_id = ?').all(room_id) as any[];
+                    participants.forEach(p => {
+                        if (p.user_id !== userId) {
+                            wsRegistry.get(p.user_id)?.send(JSON.stringify({ type: 'typing', room_id, user_id: userId, is_typing }));
+                        }
+                    });
+                } else if (data.type === 'voice_room_update') {
+                    // Broadcast room update to all participants in that room
+                    const { room_id } = data;
+                    const participants = db.prepare('SELECT user_id FROM participants WHERE room_id = ?').all(room_id) as any[];
+                    participants.forEach(p => {
+                        wsRegistry.get(p.user_id)?.send(JSON.stringify({ type: 'voice_room_update', room_id }));
+                    });
+                }
             } catch (err) { }
         },
         onClose() { wsRegistry.delete(userId); broadcast({ type: 'presence', userId, status: 'offline' }, userId); }

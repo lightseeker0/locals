@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ApiService } from '../services/api';
+import { useAuthStore } from './authStore';
 // @ts-ignore
 import SimplePeer from 'simple-peer/simplepeer.min.js';
 
@@ -38,8 +39,14 @@ interface VoiceState {
     disconnectWS: () => void;
     addMessageListener: (cb: (msg: any) => void) => () => void;
     addPresenceListener: (cb: (update: any) => void) => () => void;
+    addTypingListener: (cb: (update: any) => void) => () => void;
+    addVoiceRoomUpdateListener: (cb: (update: any) => void) => () => void;
+    sendTyping: (roomId: string, isTyping: boolean) => void;
+    sendVoiceRoomUpdate: (roomId: string) => void;
     messageListeners: ((msg: any) => void)[];
     presenceListeners: ((update: any) => void)[];
+    typingListeners: ((update: any) => void)[];
+    voiceRoomUpdateListeners: ((update: any) => void)[];
 }
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
@@ -64,6 +71,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     wsStatus: 'disconnected',
     messageListeners: [],
     presenceListeners: [],
+    typingListeners: [],
+    voiceRoomUpdateListeners: [],
 
     addMessageListener: (cb) => {
         set(state => ({ messageListeners: [...state.messageListeners, cb] }));
@@ -72,6 +81,14 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     addPresenceListener: (cb) => {
         set(state => ({ presenceListeners: [...state.presenceListeners, cb] }));
         return () => set(state => ({ presenceListeners: state.presenceListeners.filter(l => l !== cb) }));
+    },
+    addTypingListener: (cb) => {
+        set(state => ({ typingListeners: [...state.typingListeners, cb] }));
+        return () => set(state => ({ typingListeners: state.typingListeners.filter(l => l !== cb) }));
+    },
+    addVoiceRoomUpdateListener: (cb) => {
+        set(state => ({ voiceRoomUpdateListeners: [...state.voiceRoomUpdateListeners, cb] }));
+        return () => set(state => ({ voiceRoomUpdateListeners: state.voiceRoomUpdateListeners.filter(l => l !== cb) }));
     },
 
     connectWS: (userId: string) => {
@@ -111,6 +128,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                     get().messageListeners.forEach(l => l(data.message));
                 } else if (data.type === 'presence') {
                     get().presenceListeners.forEach(l => l(data));
+                } else if (data.type === 'typing') {
+                    get().typingListeners.forEach(l => l(data));
+                } else if (data.type === 'voice_room_update') {
+                    get().voiceRoomUpdateListeners.forEach(l => l(data));
+                    const roomId = data.room_id;
+                    const authUser = useAuthStore.getState().user;
+                    if (authUser) get().fetchParticipants(roomId, authUser.id);
                 }
             } catch (err) {
                 console.error('[WebRTC] WS Message Error:', err);
@@ -141,6 +165,20 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         set({ ws: null, wsStatus: 'disconnected' });
     },
 
+    sendTyping: (room_id: string, is_typing: boolean) => {
+        const { ws } = get();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'typing', room_id, is_typing }));
+        }
+    },
+
+    sendVoiceRoomUpdate: (room_id: string) => {
+        const { ws } = get();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'voice_room_update', room_id }));
+        }
+    },
+
     // Helper for sending signals with retries
     sendSignalWithRetry: async (callId: string, userId: string, type: string, payload: any, attempts = 5) => {
         const { ws, wsStatus } = get();
@@ -150,9 +188,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             try {
                 ws.send(JSON.stringify({
                     type: 'signal',
-                    callId,
                     to: payload.to,
-                    payload: payload
+                    signal: payload.signal // Pass the actual signal data correctly
                 }));
                 return; // Sent successfully
             } catch (err) {
@@ -217,6 +254,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             }
 
             await get().fetchParticipants(roomId, userId);
+            get().sendVoiceRoomUpdate(roomId); // Notify others
 
         } catch (err) {
             console.error('[WebRTC] Failed to start call/join logic:', err);
@@ -561,7 +599,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const intervals = (get() as any).analyserIntervals || {};
             Object.values(intervals).forEach((int: any) => clearInterval(int));
 
-            // Inform server
+            // Notify others
+            const activeCall = get().activeCall;
+            if (activeCall) get().sendVoiceRoomUpdate(activeCall.roomId);
+
             if (userId) ApiService.endCall(userId).catch(() => { });
 
             // Stop local tracks

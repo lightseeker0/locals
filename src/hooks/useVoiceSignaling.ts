@@ -8,20 +8,13 @@ import { useAuthStore } from '../stores/authStore';
  * an unrendered component.
  */
 export const useVoiceSignaling = () => {
-    const { activeCall, fetchParticipants } = useVoiceStore();
+    const { activeCall } = useVoiceStore();
     const { user } = useAuthStore();
 
     useEffect(() => {
         if (activeCall && user?.id) {
             console.log(`[WebRTC] Voice call active: ${activeCall.id}. Signal relay active via global WS.`);
-
-            // Reduce polling frequency as WebSockets handle the actual signaling
-            // This is kept just to ensure we know who is in the room for Mesh initiation
-            const interval = setInterval(() => {
-                fetchParticipants(activeCall.roomId, user.id);
-            }, 30000);
-
-            return () => clearInterval(interval);
+            return () => { };
         }
-    }, [activeCall?.id, user?.id, fetchParticipants]);
+    }, [activeCall?.id, user?.id]);
 };
