@@ -544,7 +544,7 @@ export const ChannelList: React.FC = () => {
 
             {/* v0.0.27 Version Tag */}
             <div className="absolute bottom-[64px] right-4 pointer-events-none select-none">
-                <span className="text-[9px] font-black text-matrix-muted/20 uppercase tracking-[0.2em]">v0.0.27</span>
+                <span className="text-[9px] font-black text-matrix-muted/20 uppercase tracking-[0.2em]">v0.0.28</span>
             </div>
 
             {renderUserControls()}
