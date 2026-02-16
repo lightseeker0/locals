@@ -182,8 +182,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     // Helper for sending signals with retries
     sendSignalWithRetry: async (callId: string, userId: string, type: string, payload: any, attempts = 5) => {
         const { ws, wsStatus } = get();
+        let sentViaWs = false;
 
-        // Try WebSocket first
+        // Try WebSocket first (low latency)
         if (ws && wsStatus === 'connected') {
             try {
                 ws.send(JSON.stringify({
@@ -191,13 +192,25 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                     to: payload.to,
                     signal: payload.signal // Pass the actual signal data correctly
                 }));
-                return; // Sent successfully
+                sentViaWs = true;
             } catch (err) {
                 console.warn('[WebRTC] WS Send failed, falling back to HTTP:', err);
             }
         }
 
-        // Fallback to HTTP Polling endpoint (which still exists as a bridge or if WS isn't up yet)
+        // Also persist via HTTP so polling fallback can recover dropped WS packets.
+        try {
+            await ApiService.sendSignal(callId, userId, type, payload);
+            return;
+        } catch (err: any) {
+            if (sentViaWs) {
+                // WS already sent; caller may still succeed from live relay.
+                return;
+            }
+            console.warn('[WebRTC] HTTP signal persist failed, retrying:', err.message);
+        }
+
+        // HTTP retry path when both WS and first HTTP attempt failed.
         for (let i = 0; i < attempts; i++) {
             try {
                 await ApiService.sendSignal(callId, userId, type, payload);
