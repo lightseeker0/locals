@@ -226,8 +226,28 @@ app.post('/api/voice/end', (c) => {
     return c.json({ status: 'ended' });
 });
 
-const dist = path.join(process.cwd(), 'dist');
-if (fs.existsSync(dist)) app.use('/*', serveStatic({ root: dist, rewriteRequestPath: (p) => p === '/' ? '/index.html' : p }));
+const potentialDistPaths = [
+    path.join(process.cwd(), 'dist'),
+    path.join(process.cwd(), '..', 'dist'),
+];
+let distDir = '';
+for (const p of potentialDistPaths) {
+    if (fs.existsSync(path.join(p, 'index.html'))) {
+        distDir = p;
+        break;
+    }
+}
+
+if (distDir) {
+    app.use('/*', serveStatic({ root: path.relative(process.cwd(), distDir) }));
+    app.get('*', async (c, next) => {
+        if (c.req.path.startsWith('/api') || c.req.path === '/ws') return next();
+        try {
+            const html = fs.readFileSync(path.join(distDir, 'index.html'), 'utf-8');
+            return c.html(html);
+        } catch (e) { return next(); }
+    });
+}
 
 setInterval(() => {
     db.prepare("DELETE FROM call_signals WHERE created_at < datetime('now', '-30 minutes')").run();
