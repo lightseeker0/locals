@@ -36,7 +36,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const [isUrl, setIsUrl] = useState(false);
 
     // Voice settings
-    const { audioInputDeviceId, setAudioInputDevice, audioOutputDeviceId, setAudioOutputDevice } = useVoiceStore();
+    const {
+        audioInputDeviceId,
+        setAudioInputDevice,
+        audioOutputDeviceId,
+        setAudioOutputDevice,
+        micSensitivityThreshold,
+        autoMicSensitivity,
+        setMicSensitivityThreshold,
+        setAutoMicSensitivity
+    } = useVoiceStore();
     const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
     const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
     const [isTestingMic, setIsTestingMic] = useState(false);
@@ -563,6 +572,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                                     style={{ width: `${micLevel}%` }}
                                                 />
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white/5 border border-white/5 p-6 rounded-2xl space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-white font-bold">Microphone Sensitivity</h3>
+                                                <p className="text-[11px] text-matrix-muted uppercase tracking-widest mt-1">
+                                                    Auto mode tracks background noise and updates threshold.
+                                                </p>
+                                            </div>
+                                            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={autoMicSensitivity}
+                                                    onChange={(e) => setAutoMicSensitivity(e.target.checked)}
+                                                    className="accent-matrix-green"
+                                                />
+                                                <span className="text-xs font-bold text-matrix-muted uppercase tracking-widest">
+                                                    Auto
+                                                </span>
+                                            </label>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black text-matrix-muted uppercase tracking-widest">
+                                                    Manual Threshold
+                                                </span>
+                                                <span className="text-xs font-mono font-bold text-matrix-green">
+                                                    {micSensitivityThreshold}
+                                                </span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min={5}
+                                                max={80}
+                                                step={1}
+                                                value={micSensitivityThreshold}
+                                                onChange={(e) => setMicSensitivityThreshold(Number(e.target.value))}
+                                                disabled={autoMicSensitivity}
+                                                className="w-full accent-matrix-green disabled:opacity-50"
+                                            />
                                         </div>
                                     </div>
 

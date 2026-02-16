@@ -14,7 +14,6 @@ import { useAppData } from './hooks/useAppData';
 import { useThemeStore } from './stores/themeStore';
 import { useAppStore } from './stores/appStore';
 import { useSwipe } from './hooks/useSwipe';
-import { useVoiceSignaling } from './hooks/useVoiceSignaling';
 import { useVoiceStore } from './stores/useVoiceStore';
 import { clsx } from 'clsx';
 
@@ -26,7 +25,6 @@ const MainFramework = () => {
   const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   useAppData();
-  useVoiceSignaling();
 
   useEffect(() => {
     if (user?.id) {

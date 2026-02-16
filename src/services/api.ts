@@ -198,14 +198,6 @@ export class ApiService {
         return this.post('/voice/call', { room_id: roomId }, userId);
     }
 
-    static async sendSignal(callId: string, userId: string, type: string, payload: any) {
-        return this.post('/voice/signal', { call_id: callId, type, payload }, userId);
-    }
-
-    static async pollSignals(callId: string, userId: string, lastSignalId: number) {
-        return this.post('/voice/poll', { call_id: callId, last_signal_id: lastSignalId }, userId);
-    }
-
     static async fetchVoiceParticipants(roomId: string, userId: string) {
         return this.get(`/voice/participants/${roomId}`, userId);
     }

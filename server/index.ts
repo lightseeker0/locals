@@ -32,6 +32,12 @@ if (fs.existsSync(schemaPath)) db.exec(fs.readFileSync(schemaPath, 'utf8'));
 try {
     const tableInfo = db.prepare("PRAGMA table_info(users)").all() as any[];
     if (!tableInfo.some(col => col.name === 'session_token')) db.exec("ALTER TABLE users ADD COLUMN session_token TEXT;");
+    // SFU-only cleanup: remove legacy mesh signaling storage if it exists.
+    db.exec(`
+        DROP INDEX IF EXISTS idx_call_signals_call_id_id;
+        DROP INDEX IF EXISTS idx_call_signals_created_at;
+        DROP TABLE IF EXISTS call_signals;
+    `);
     db.exec(`
         CREATE INDEX IF NOT EXISTS idx_messages_room_id_created ON messages(room_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_rooms_space_id ON rooms(space_id);
@@ -39,8 +45,6 @@ try {
         CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen);
         CREATE INDEX IF NOT EXISTS idx_calls_room_status_created ON calls(room_id, status, created_at);
         CREATE INDEX IF NOT EXISTS idx_call_participants_call_id ON call_participants(call_id);
-        CREATE INDEX IF NOT EXISTS idx_call_signals_call_id_id ON call_signals(call_id, id);
-        CREATE INDEX IF NOT EXISTS idx_call_signals_created_at ON call_signals(created_at);
     `);
 } catch (err) { }
 
@@ -160,14 +164,7 @@ app.get('/ws', upgradeWebSocket((c) => {
         onMessage(event, ws) {
             try {
                 const data = JSON.parse(event.data.toString());
-                if (data.type === 'signal' && data.to) {
-                    const targetWs = wsRegistry.get(data.to);
-                    if (targetWs) targetWs.send(JSON.stringify({
-                        type: 'signal',
-                        from: userId,
-                        signal: data.signal // Correctly pass the signal payload
-                    }));
-                } else if (data.type === 'heartbeat') {
+                if (data.type === 'heartbeat') {
                     updateLastSeen(userId);
                 } else if (data.type === 'typing') {
                     // Broadcast typing status to room members
@@ -184,6 +181,27 @@ app.get('/ws', upgradeWebSocket((c) => {
                     const participants = db.prepare('SELECT user_id FROM participants WHERE room_id = ?').all(room_id) as any[];
                     participants.forEach(p => {
                         wsRegistry.get(p.user_id)?.send(JSON.stringify({ type: 'voice_room_update', room_id }));
+                    });
+                } else if (data.type === 'voice_speaking') {
+                    const { room_id, is_speaking } = data;
+                    if (!room_id) return;
+
+                    const activeCall = db.prepare('SELECT id FROM calls WHERE room_id=? AND status=\'active\' ORDER BY created_at DESC LIMIT 1').get(room_id) as any;
+                    if (!activeCall?.id) return;
+
+                    const senderInCall = db.prepare('SELECT 1 as ok FROM call_participants WHERE call_id = ? AND user_id = ?').get(activeCall.id, userId) as any;
+                    if (!senderInCall?.ok) return;
+
+                    const participants = db.prepare('SELECT user_id FROM call_participants WHERE call_id = ?').all(activeCall.id) as any[];
+                    participants.forEach((p) => {
+                        if (p.user_id !== userId) {
+                            wsRegistry.get(p.user_id)?.send(JSON.stringify({
+                                type: 'voice_speaking',
+                                room_id,
+                                user_id: userId,
+                                is_speaking: !!is_speaking
+                            }));
+                        }
                     });
                 }
             } catch (err) { }
@@ -376,45 +394,6 @@ app.post('/api/voice/call', async (c) => {
     return c.json({ id: call.id, status: 'joined' });
 });
 
-app.post('/api/voice/signal', async (c) => {
-    const uid = c.req.header('X-User-ID');
-    if (!uid) return c.json({ error: 'Unauthorized' }, 401);
-
-    const { call_id, type, payload } = await c.req.json();
-    if (!call_id || !payload) return c.json({ error: 'Missing call_id/payload' }, 400);
-
-    db.prepare('INSERT INTO call_signals (call_id, sender_id, type, payload) VALUES (?, ?, ?, ?)')
-        .run(call_id, uid, type || 'signal', JSON.stringify(payload));
-
-    // Best-effort real-time relay through WS as well (fallback remains pollable via DB).
-    if (payload?.to) {
-        const targetWs = wsRegistry.get(payload.to);
-        if (targetWs && targetWs.readyState === 1) {
-            targetWs.send(JSON.stringify({
-                type: 'signal',
-                from: uid,
-                signal: payload.signal
-            }));
-        }
-    }
-
-    return c.json({ status: 'queued' });
-});
-
-app.post('/api/voice/poll', async (c) => {
-    const uid = c.req.header('X-User-ID');
-    if (!uid) return c.json({ error: 'Unauthorized' }, 401);
-
-    const { call_id, last_signal_id } = await c.req.json();
-    if (!call_id) return c.json({ error: 'Missing call_id' }, 400);
-
-    const rows = db.prepare(
-        'SELECT id, call_id, sender_id, type, payload, created_at FROM call_signals WHERE call_id = ? AND id > ? AND sender_id != ? ORDER BY id ASC LIMIT 200'
-    ).all(call_id, Number(last_signal_id || 0), uid);
-
-    return c.json(rows);
-});
-
 app.post('/api/voice/end', (c) => {
     const uid = c.req.header('X-User-ID');
     if (uid) {
@@ -477,7 +456,6 @@ if (distDir) {
 }
 
 setInterval(() => {
-    db.prepare("DELETE FROM call_signals WHERE created_at < datetime('now', '-30 minutes')").run();
     db.prepare("DELETE FROM call_participants WHERE user_id IN (SELECT id FROM users WHERE last_seen < datetime('now', '-10 minutes'))").run();
 }, 600000);
 
