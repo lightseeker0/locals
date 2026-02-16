@@ -46,7 +46,7 @@ const hashPassword = async (password: string, salt: Uint8Array) => {
 const sanitize = (text: string) => text ? text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;') : '';
 
 const lastSeenCache = new Map<string, number>();
-const updateLastSeen = (userId: string) => {
+const updateLastSeen = (userId?: string) => {
     if (!userId) return;
     const now = Date.now();
     if (now - (lastSeenCache.get(userId) || 0) > 30000) {
@@ -55,7 +55,8 @@ const updateLastSeen = (userId: string) => {
     }
 };
 
-const isAdmin = (userId: string) => {
+const isAdmin = (userId?: string) => {
+    if (!userId) return false;
     const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as any;
     return ['ds4d', 'asuna'].includes(user?.username?.toLowerCase());
 };
@@ -117,7 +118,7 @@ app.get('/api/rooms/:spaceId', (c) => c.json(db.prepare('SELECT *, 0 as unread_c
 app.post('/api/spaces/delete/:spaceId', (c) => {
     const sid = c.req.param('spaceId'), uid = c.req.header('X-User-ID');
     const owner = db.prepare('SELECT owner_id FROM spaces WHERE id = ?').get(sid) as any;
-    if (owner?.owner_id === uid || isAdmin(uid)) {
+    if (uid && (owner?.owner_id === uid || isAdmin(uid))) {
         db.transaction(() => {
             db.prepare('DELETE FROM messages WHERE room_id IN (SELECT id FROM rooms WHERE space_id = ?)').run(sid);
             db.prepare('DELETE FROM rooms WHERE space_id = ?').run(sid);
