@@ -20,9 +20,9 @@ export const useVoiceSignaling = () => {
 
             const { callStatus, pollingBackoff } = useVoiceStore.getState();
 
-            // Fast polling (333ms) during handshake, slow polling (2000ms) once connected
-            // Add extra backoff if server is currently failing (502/504)
-            const interval = (callStatus === 'connected' ? 2000 : 333) + pollingBackoff;
+            // Adaptive polling: 1000ms during handshake, 3000ms once connected
+            // This drastically reduces server overhead and prevents 502/504 storms.
+            const interval = (callStatus === 'connected' ? 3000 : 1000) + pollingBackoff;
 
             try {
                 await pollSignals(user.id);

@@ -615,12 +615,12 @@ app.get('/api/voice/participants/:roomId', async (c: Context) => {
 
     if (!call) return c.json([]);
 
-    // Get participants seen in the last 2 minutes
+    // Get participants seen in the last 45 seconds (Zombie filter)
     const participants = db.prepare(`
         SELECT u.id, u.username, u.display_name, u.avatar_url 
         FROM call_participants cp
         JOIN users u ON cp.user_id = u.id
-        WHERE cp.call_id = ? AND u.last_seen > datetime('now', '-2 minutes')
+        WHERE cp.call_id = ? AND u.last_seen > datetime('now', '-45 seconds')
     `).all(call.id);
 
     return c.json(participants);
@@ -697,19 +697,25 @@ app.post('/api/voice/end', async (c: Context) => {
     return c.json({ status: 'ended' });
 });
 
-// Periodic Cleanup Task: Run every hour to purge abandoned signals
+// Periodic Cleanup Task: Run every 15 minutes to purge abandoned signals and stale participants
 setInterval(() => {
     try {
-        console.log('[CLEANUP] Purging old voice signals...');
-        // Delete signals older than 2 hours
-        const result = db.prepare("DELETE FROM call_signals WHERE created_at < datetime('now', '-2 hours')").run();
-        if (result.changes > 0) {
-            console.log(`[CLEANUP] Deleted ${result.changes} old signals.`);
+        // 1. Purge old signals (TTL 30 minutes)
+        const signalsResult = db.prepare("DELETE FROM call_signals WHERE created_at < datetime('now', '-30 minutes')").run();
+
+        // 2. Clear participants table for users not seen in > 10 minutes (safety measure)
+        const participantsResult = db.prepare(`
+            DELETE FROM call_participants 
+            WHERE user_id IN (SELECT id FROM users WHERE last_seen < datetime('now', '-10 minutes'))
+        `).run();
+
+        if (signalsResult.changes > 0 || participantsResult.changes > 0) {
+            console.log(`[CLEANUP] Purged ${signalsResult.changes} signals and ${participantsResult.changes} stale participants.`);
         }
     } catch (err) {
-        console.error('[CLEANUP ERROR] Signal purge failed:', err);
+        console.error('[CLEANUP ERROR] Background cleanup failed:', err);
     }
-}, 3600000); // 1 hour
+}, 900000); // 15 minutes
 
 
 // Start the server

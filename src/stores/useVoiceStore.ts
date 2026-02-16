@@ -166,7 +166,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:global.stun.twilio.com:3478' }
+                        { urls: 'stun:global.stun.twilio.com:3478' },
+                        { urls: 'stun:stun.services.mozilla.com' },
+                        { urls: 'stun:stun.stunprotocol.org' },
+                        { urls: 'stun:stun.ekiga.net' }
                     ]
                 }
             });
@@ -306,7 +309,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
                     config: {
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' },
-                            { urls: 'stun:global.stun.twilio.com:3478' }
+                            { urls: 'stun:global.stun.twilio.com:3478' },
+                            { urls: 'stun:stun.services.mozilla.com' },
+                            { urls: 'stun:stun.stunprotocol.org' },
+                            { urls: 'stun:stun.ekiga.net' }
                         ]
                     }
                 });
