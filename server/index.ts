@@ -115,6 +115,56 @@ app.get('/api/users/list', (c) => c.json(db.prepare('SELECT id, username, displa
 
 app.get('/api/rooms/:spaceId', (c) => c.json(db.prepare('SELECT *, 0 as unread_count, 0 as mention_count FROM rooms WHERE space_id = ? AND is_private = 0').all(c.req.param('spaceId'))));
 
+app.post('/api/spaces', async (c) => {
+    const uid = c.req.header('X-User-ID');
+    const { name, icon_url } = await c.req.json();
+    const spaceId = uuidv4();
+    db.transaction(() => {
+        db.prepare('INSERT INTO spaces (id, name, icon_url, owner_id) VALUES (?, ?, ?, ?)').run(spaceId, name, icon_url, uid);
+        db.prepare('INSERT INTO participants (room_id, user_id, space_id, role) VALUES (?, ?, ?, ?)').run('space_root_' + spaceId, uid, spaceId, 'owner');
+        // Create default rooms
+        const generalId = uuidv4(), voiceId = uuidv4();
+        db.prepare('INSERT INTO rooms (id, space_id, name, type) VALUES (?, ?, ?, ?)').run(generalId, spaceId, 'general', 'text');
+        db.prepare('INSERT INTO rooms (id, space_id, name, type) VALUES (?, ?, ?, ?)').run(voiceId, spaceId, 'ses', 'voice');
+        // Add owner to default rooms
+        db.prepare('INSERT INTO participants (room_id, user_id, space_id) VALUES (?, ?, ?)').run(generalId, uid, spaceId);
+        db.prepare('INSERT INTO participants (room_id, user_id, space_id) VALUES (?, ?, ?)').run(voiceId, uid, spaceId);
+    })();
+    return c.json({ id: spaceId, status: 'created' });
+});
+
+app.post('/api/rooms', async (c) => {
+    const { space_id, name, type } = await c.req.json();
+    const id = uuidv4();
+    db.prepare('INSERT INTO rooms (id, space_id, name, type) VALUES (?, ?, ?, ?)').run(id, space_id, name, type || 'text');
+    return c.json({ id, status: 'created' });
+});
+
+app.post('/api/invites', async (c) => {
+    const uid = c.req.header('X-User-ID');
+    const { space_id } = await c.req.json();
+    const code = Math.random().toString(36).substring(2, 9).toUpperCase();
+    db.prepare('INSERT INTO invitations (code, space_id, created_by) VALUES (?, ?, ?)').run(code, space_id, uid);
+    return c.json({ code });
+});
+
+app.post('/api/invites/join', async (c) => {
+    const uid = c.req.header('X-User-ID');
+    const { code } = await c.req.json();
+    const invite = db.prepare('SELECT space_id FROM invitations WHERE code = ?').get(code) as any;
+    if (!invite) return c.json({ error: 'Invalid code' }, 404);
+
+    db.transaction(() => {
+        db.prepare('INSERT OR IGNORE INTO participants (room_id, user_id, space_id) VALUES (?, ?, ?)').run('space_root_' + invite.space_id, uid, invite.space_id);
+        const rooms = db.prepare('SELECT id FROM rooms WHERE space_id = ? AND is_private = 0').all(invite.space_id) as any[];
+        rooms.forEach(r => {
+            db.prepare('INSERT OR IGNORE INTO participants (room_id, user_id, space_id) VALUES (?, ?, ?)').run(r.id, uid, invite.space_id);
+        });
+        db.prepare('UPDATE invitations SET uses = uses + 1 WHERE code = ?').run(code);
+    })();
+    return c.json({ space_id: invite.space_id, status: 'joined' });
+});
+
 app.post('/api/spaces/delete/:spaceId', (c) => {
     const sid = c.req.param('spaceId'), uid = c.req.header('X-User-ID');
     const owner = db.prepare('SELECT owner_id FROM spaces WHERE id = ?').get(sid) as any;
