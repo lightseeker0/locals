@@ -19,7 +19,7 @@ import { clsx } from 'clsx';
 
 const MainFramework = () => {
   const { user } = useAuthStore();
-  const { currentBuiltInTheme } = useThemeStore();
+  const { currentBuiltInTheme, hasActiveCustomTheme } = useThemeStore();
   const { isSettingsOpen, setSettingsOpen, isUserListOpen, isMobileMenuOpen, setMobileMenuOpen } = useAppStore();
   const { connectWS, disconnectWS } = useVoiceStore();
   const [showAnnouncement, setShowAnnouncement] = useState(false);
@@ -45,8 +45,14 @@ const MainFramework = () => {
 
   useEffect(() => {
     // Apply theme
-    document.documentElement.className = currentBuiltInTheme;
-    document.documentElement.setAttribute('data-theme', currentBuiltInTheme);
+    document.documentElement.classList.remove('roundmoled', 'custom');
+    if (hasActiveCustomTheme) {
+      document.documentElement.classList.add('custom');
+      document.documentElement.setAttribute('data-theme', 'custom');
+    } else {
+      document.documentElement.classList.add(currentBuiltInTheme);
+      document.documentElement.setAttribute('data-theme', currentBuiltInTheme);
+    }
 
     // Add electron class for CSS targeting
     if (!!(window as any).electron) {
@@ -54,7 +60,7 @@ const MainFramework = () => {
     } else {
       document.documentElement.classList.remove('electron');
     }
-  }, [currentBuiltInTheme]);
+  }, [currentBuiltInTheme, hasActiveCustomTheme]);
 
   useSwipe({
     onSwipeRight: () => setMobileMenuOpen(true),
@@ -68,7 +74,7 @@ const MainFramework = () => {
       <div
         data-layout-v3="true"
         className="flex flex-col h-screen bg-transparent text-gray-100 font-sans overflow-hidden selection:bg-matrix-green selection:text-black app-323596 da-app layer__960e4 baseLayer__960e4 app-1q1i1E bg-1Qv_K9"
-        data-theme={currentBuiltInTheme}
+        data-theme={hasActiveCustomTheme ? 'custom' : currentBuiltInTheme}
       >
         {isElectron && <TitleBar />}
 

@@ -19,6 +19,7 @@ export interface Theme {
 interface ThemeState {
     themes: Theme[];
     localThemes: string[];
+    hasActiveCustomTheme: boolean;
     currentBuiltInTheme: 'roundmoled';
     builtInThemes: { id: string; name: string; class: string }[];
     fetchThemes: (userId: string) => Promise<void>;
@@ -35,6 +36,7 @@ export const useThemeStore = create<ThemeState>()(
         (set, get) => ({
             themes: [],
             localThemes: [],
+            hasActiveCustomTheme: false,
             currentBuiltInTheme: 'roundmoled',
             builtInThemes: [
                 { id: 'roundmoled', name: 'Roundmoled V2', class: 'roundmoled' }
@@ -65,6 +67,8 @@ export const useThemeStore = create<ThemeState>()(
             applyThemes: async () => {
                 const revision = ++themeApplyRevision;
                 const { themes, localThemes, currentBuiltInTheme } = get();
+                const hasActiveCustomTheme = themes.some(t => !!t.is_active) || localThemes.length > 0;
+                set({ hasActiveCustomTheme });
 
                 // Clear existing custom themes
                 document.querySelectorAll('link[data-custom-theme], style[data-custom-theme]').forEach(el => el.remove());
@@ -112,9 +116,11 @@ export const useThemeStore = create<ThemeState>()(
                     document.head.appendChild(style);
                 });
 
-                // Apply built-in theme
-                document.documentElement.classList.remove('dark', 'light-mode');
-                document.documentElement.classList.add(currentBuiltInTheme);
+                // Apply built-in theme only when no custom theme is active.
+                document.documentElement.classList.remove('dark', 'light-mode', currentBuiltInTheme);
+                if (!hasActiveCustomTheme) {
+                    document.documentElement.classList.add(currentBuiltInTheme);
+                }
             },
             initElectronListener: () => {
                 if (typeof window !== 'undefined' && (window as any).electron?.onThemeUpdate) {
