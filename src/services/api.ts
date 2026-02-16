@@ -1,14 +1,40 @@
 import { useAuthStore } from '../stores/authStore';
 
 export class ApiService {
-    private static baseUrl = '/api';
+    private static baseUrl = ApiService.resolveApiBaseUrl();
+
+    private static resolveApiBaseUrl() {
+        const configured = import.meta.env.VITE_API_URL?.trim();
+        if (configured) {
+            return configured.replace(/\/$/, '');
+        }
+
+        // Electron production uses file://, so relative /api would fail there.
+        if (window.location.protocol === 'file:') {
+            return 'https://fiskos.xyz/api';
+        }
+
+        return '/api';
+    }
 
     static getWsUrl() {
-        // In local development, we might use a full URL in VITE_API_URL
-        // but for production/tunnels, we want to derive from the current location
-        const host = window.location.host;
+        const configured = import.meta.env.VITE_API_URL?.trim();
+
+        if (configured) {
+            try {
+                const apiUrl = new URL(configured);
+                apiUrl.protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+                apiUrl.pathname = '/ws';
+                apiUrl.search = '';
+                apiUrl.hash = '';
+                return apiUrl.toString();
+            } catch {
+                // Ignore malformed env and fallback below.
+            }
+        }
+
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        return `${protocol}//${host}/ws`;
+        return `${protocol}//${window.location.host}/ws`;
     }
 
     private static getHeaders(userId?: string) {
