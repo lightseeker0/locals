@@ -44,6 +44,66 @@ const hashPassword = async (password: string, salt: Uint8Array) => {
 };
 
 const sanitize = (text: string) => text ? text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;') : '';
+const extractBetterDiscordDownloadUrl = (html: string) => {
+    const match = html.match(/href="(\/Download\?id=\d+)"/i) || html.match(/https:\/\/betterdiscord\.app\/Download\?id=\d+/i);
+    if (!match) return null;
+    const href = match[1] || match[0];
+    return href.startsWith('http') ? href : `https://betterdiscord.app${href}`;
+};
+const looksLikeCss = (text: string) => {
+    const sample = text.slice(0, 2000);
+    if (/<html[\s>]/i.test(sample)) return false;
+    return /@import|:root|body\s*\{|html\s*\{|[#.][a-z0-9_-]+\s*\{/i.test(sample);
+};
+const resolveThemeCssFromUrl = async (rawUrl: string): Promise<{ css_content: string; resolved_url: string }> => {
+    const input = (rawUrl || '').trim();
+    if (!input) throw new Error('Theme URL is required');
+    let currentUrl: URL;
+    try {
+        currentUrl = new URL(input);
+    } catch {
+        throw new Error('Invalid URL format');
+    }
+    if (!['http:', 'https:'].includes(currentUrl.protocol)) {
+        throw new Error('Only http/https theme URLs are supported');
+    }
+
+    // Follow a few resolver hops (e.g., BetterDiscord page -> Download endpoint -> CSS).
+    for (let hop = 0; hop < 4; hop++) {
+        const res = await fetch(currentUrl.toString(), {
+            redirect: 'follow',
+            headers: {
+                'Accept': 'text/css,text/plain,text/html;q=0.8,*/*;q=0.5',
+                'User-Agent': 'Locals-ThemeResolver/1.0'
+            }
+        });
+
+        if (!res.ok) {
+            throw new Error(`Theme URL returned ${res.status}`);
+        }
+
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        const finalUrl = new URL(res.url || currentUrl.toString());
+        const body = await res.text();
+
+        if (contentType.includes('text/css') || looksLikeCss(body)) {
+            return { css_content: body, resolved_url: finalUrl.toString() };
+        }
+
+        // BetterDiscord theme pages are HTML; extract their actual /Download?id=... link.
+        if (finalUrl.hostname.endsWith('betterdiscord.app') && contentType.includes('text/html')) {
+            const downloadUrl = extractBetterDiscordDownloadUrl(body);
+            if (downloadUrl) {
+                currentUrl = new URL(downloadUrl);
+                continue;
+            }
+        }
+
+        throw new Error('URL did not return CSS content. Use a direct .css/raw URL or BetterDiscord download link.');
+    }
+
+    throw new Error('Could not resolve theme URL');
+};
 
 const lastSeenCache = new Map<string, number>();
 const updateLastSeen = (userId?: string) => {
@@ -224,6 +284,15 @@ app.post('/api/themes', async (c) => {
     const tid = id || uuidv4();
     db.prepare('INSERT INTO user_themes (id, user_id, name, css_content, is_url, is_active) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, css_content=excluded.css_content, is_url=excluded.is_url, is_active=excluded.is_active').run(tid, uid, name, css_content, is_url ? 1 : 0, is_active ? 1 : 0);
     return c.json({ id: tid, status: 'saved' });
+});
+app.post('/api/themes/resolve-url', async (c) => {
+    try {
+        const { url } = await c.req.json() as { url?: string };
+        const resolved = await resolveThemeCssFromUrl(url || '');
+        return c.json(resolved);
+    } catch (err: any) {
+        return c.json({ error: err?.message || 'Failed to resolve theme URL' }, 400);
+    }
 });
 
 app.get('/api/reactions/:messageId', (c) => c.json(db.prepare('SELECT r.*, u.username, u.display_name FROM reactions r JOIN users u ON r.user_id = u.id WHERE r.message_id = ?').all(c.req.param('messageId'))));

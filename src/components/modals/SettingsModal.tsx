@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { useThemeStore } from '../../stores/themeStore';
+import { ApiService } from '../../services/api';
 import { useI18nStore } from '../../stores/i18nStore';
 import {
     X, User, Palette, Sparkles, Plus,
@@ -93,17 +94,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const handleImportTheme = async () => {
         if (!user || !newThemeName || !newThemeContent) return;
         try {
+            const trimmedContent = newThemeContent.trim();
+            let cssToSave = trimmedContent;
+            let asUrl = isUrl;
+
+            if (isUrl) {
+                const resolved = await ApiService.resolveThemeUrl(trimmedContent);
+                cssToSave = `/* Source URL: ${resolved.resolved_url} */\n${resolved.css_content}`;
+                asUrl = false;
+            }
+
             await saveTheme(user.id, {
                 name: newThemeName,
-                css_content: newThemeContent,
-                is_url: isUrl,
+                css_content: cssToSave,
+                is_url: asUrl,
                 is_active: true
             });
             setNewThemeName('');
             setNewThemeContent('');
             setShowImport(false);
-        } catch (error) {
-            alert('Failed to import theme');
+        } catch (error: any) {
+            alert(error?.message || 'Failed to import theme');
         }
     };
 
@@ -414,7 +425,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                             </div>
 
                                             <textarea
-                                                placeholder={isUrl ? "https://betterdiscord.app/theme/Example.css" : ".app-mount { background: red; }"}
+                                                placeholder={isUrl ? "https://betterdiscord.app/Download?id=174 or raw .css URL" : ".app-mount { background: red; }"}
                                                 value={newThemeContent}
                                                 onChange={e => setNewThemeContent(e.target.value)}
                                                 rows={4}

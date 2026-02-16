@@ -43,9 +43,10 @@ export class ApiService {
         // Add Bearer token and User ID from auth store
         const user = useAuthStore.getState().user;
         const token = user?.session_token;
+        const resolvedUserId = userId || user?.id;
 
-        if (userId && token) {
-            headers['X-User-ID'] = userId;
+        if (resolvedUserId && token) {
+            headers['X-User-ID'] = resolvedUserId;
             headers['Authorization'] = `Bearer ${token}`;
         } else if (userId) {
             // Warn if we are sending a userId but have no token
@@ -186,6 +187,10 @@ export class ApiService {
 
     static async deleteTheme(userId: string, id: string) {
         return this.post('/themes/delete', { id }, userId);
+    }
+
+    static async resolveThemeUrl(url: string): Promise<{ css_content: string; resolved_url: string }> {
+        return this.post('/themes/resolve-url', { url });
     }
 
     // --- Voice Chat ---

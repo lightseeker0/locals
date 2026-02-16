@@ -6,6 +6,8 @@ import '../styles/roundmoled.css'; // Native integration
 import { persist } from 'zustand/middleware';
 import { ApiService } from '../services/api';
 
+let themeApplyRevision = 0;
+
 export interface Theme {
     id: string;
     name: string;
@@ -24,7 +26,7 @@ interface ThemeState {
     deleteTheme: (userId: string, id: string) => Promise<void>;
     toggleTheme: (userId: string, id: string) => Promise<void>;
     setBuiltInTheme: (theme: 'roundmoled') => void;
-    applyThemes: () => void;
+    applyThemes: () => Promise<void>;
     initElectronListener: () => void;
 }
 
@@ -40,7 +42,7 @@ export const useThemeStore = create<ThemeState>()(
             fetchThemes: async (userId: string) => {
                 const themes = await ApiService.fetchThemes(userId);
                 set({ themes });
-                get().applyThemes();
+                await get().applyThemes();
             },
             saveTheme: async (userId: string, theme: Omit<Theme, 'id'> & { id?: string }) => {
                 await ApiService.saveTheme(userId, theme);
@@ -58,31 +60,48 @@ export const useThemeStore = create<ThemeState>()(
             },
             setBuiltInTheme: (theme) => {
                 set({ currentBuiltInTheme: theme });
-                get().applyThemes();
+                void get().applyThemes();
             },
-            applyThemes: () => {
+            applyThemes: async () => {
+                const revision = ++themeApplyRevision;
                 const { themes, localThemes, currentBuiltInTheme } = get();
 
                 // Clear existing custom themes
                 document.querySelectorAll('link[data-custom-theme], style[data-custom-theme]').forEach(el => el.remove());
 
                 // Apply active custom themes from DB
-                themes.forEach(theme => {
-                    if (theme.is_active) {
-                        if (theme.is_url) {
+                for (const theme of themes) {
+                    if (!theme.is_active) continue;
+                    if (revision !== themeApplyRevision) return;
+
+                    if (theme.is_url) {
+                        try {
+                            const resolved = await ApiService.resolveThemeUrl(theme.css_content);
+                            if (revision !== themeApplyRevision) return;
+
+                            const style = document.createElement('style');
+                            style.textContent = resolved.css_content;
+                            style.setAttribute('data-custom-theme', 'true');
+                            style.setAttribute('data-theme-id', theme.id);
+                            style.setAttribute('data-source-url', resolved.resolved_url);
+                            document.head.appendChild(style);
+                        } catch (err) {
+                            console.error('[Theme] Failed to resolve URL theme, falling back to link:', err);
                             const link = document.createElement('link');
                             link.rel = 'stylesheet';
                             link.href = theme.css_content;
                             link.setAttribute('data-custom-theme', 'true');
+                            link.setAttribute('data-theme-id', theme.id);
                             document.head.appendChild(link);
-                        } else {
-                            const style = document.createElement('style');
-                            style.textContent = theme.css_content;
-                            style.setAttribute('data-custom-theme', 'true');
-                            document.head.appendChild(style);
                         }
+                    } else {
+                        const style = document.createElement('style');
+                        style.textContent = theme.css_content;
+                        style.setAttribute('data-custom-theme', 'true');
+                        style.setAttribute('data-theme-id', theme.id);
+                        document.head.appendChild(style);
                     }
-                });
+                }
 
                 // Apply local themes from Electron
                 localThemes.forEach((css, index) => {
@@ -101,7 +120,7 @@ export const useThemeStore = create<ThemeState>()(
                 if (typeof window !== 'undefined' && (window as any).electron?.onThemeUpdate) {
                     (window as any).electron.onThemeUpdate((themes: string[]) => {
                         set({ localThemes: themes });
-                        get().applyThemes();
+                        void get().applyThemes();
                     });
                 }
             }
