@@ -253,12 +253,17 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             const { audioInputDeviceId } = get();
             console.log(`[WebRTC] Starting call in room ${roomId} (Device: ${audioInputDeviceId || 'default'})`);
 
-            const constraints = {
-                audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
-                video: false
-            };
-
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            let stream: MediaStream | null = null;
+            try {
+                const preferredConstraints = {
+                    audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
+                    video: false
+                };
+                stream = await navigator.mediaDevices.getUserMedia(preferredConstraints);
+            } catch (preferredErr) {
+                console.warn('[WebRTC] Preferred mic constraint failed, falling back to default microphone:', preferredErr);
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            }
             console.log("[WebRTC] Local stream acquired, tracks:", stream.getAudioTracks().map(t => `${t.label} (enabled: ${t.enabled})`));
 
             (get() as any).setupAudioAnalyser(stream, userId);
@@ -303,10 +308,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
         try {
             const { audioInputDeviceId } = get();
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
-                video: false
-            });
+            let stream: MediaStream | null = null;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: audioInputDeviceId ? { deviceId: { exact: audioInputDeviceId } } : true,
+                    video: false
+                });
+            } catch (preferredErr) {
+                console.warn('[WebRTC] Preferred mic constraint failed in joinCall, falling back to default microphone:', preferredErr);
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            }
             (get() as any).setupAudioAnalyser(stream, userId);
 
             set({
