@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('electron', {
     minimize: () => ipcRenderer.send('window-minimize'),
     maximize: () => ipcRenderer.send('window-maximize'),
     close: () => ipcRenderer.send('window-close'),
+    startResize: (edge, screenX, screenY) => ipcRenderer.invoke('window-resize-start', { edge, screenX, screenY }),
+    moveResize: (screenX, screenY) => ipcRenderer.send('window-resize-move', { screenX, screenY }),
+    endResize: () => ipcRenderer.send('window-resize-end'),
     // Error Handling
     onUpdateError: (callback) => ipcRenderer.on('update-error', (_event, message) => callback(message))
 });

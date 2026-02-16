@@ -8,6 +8,7 @@ import { ChatArea } from './components/ChatArea';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { ThemeAnnouncementModal } from './components/modals/ThemeAnnouncementModal';
 import { MemberList } from './components/MemberList';
+import { WindowResizeHandles } from './components/WindowResizeHandles';
 import { useAuthStore } from './stores/authStore';
 import { useAppData } from './hooks/useAppData';
 import { useThemeStore } from './stores/themeStore';
@@ -77,6 +78,7 @@ const MainFramework = () => {
         data-theme={hasActiveCustomTheme ? 'custom' : currentBuiltInTheme}
       >
         {isElectron && <TitleBar />}
+        {isElectron && <WindowResizeHandles />}
 
         <div className="flex flex-row flex-1 overflow-hidden relative">
           <div
