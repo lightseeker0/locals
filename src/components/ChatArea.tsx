@@ -17,7 +17,7 @@ export const ChatArea: React.FC = () => {
     const { selectedChannelId, channels, setMobileMenuOpen } = useAppStore();
     const { user } = useAuthStore();
     const { t } = useI18nStore();
-    const { startCall, activeCall } = useVoiceStore();
+    const { startCall } = useVoiceStore();
     const currentChannel = channels.find(c => c.id === selectedChannelId);
     const { messages, sendMessage, deleteMessage } = useChatMessages(selectedChannelId || '');
     const { typingUsers, setTyping } = useTypingIndicator(selectedChannelId || '');
@@ -200,8 +200,7 @@ export const ChatArea: React.FC = () => {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8 custom-scrollbar flex flex-col-reverse relative z-10" ref={scrollRef}>
-                <div className="h-2" />
+            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar flex flex-col-reverse relative z-10" ref={scrollRef}>
 
                 {messages.slice().reverse().map((msg: ChatMessage, index, arr) => {
                     const nextMsg = arr[index + 1];
@@ -237,25 +236,6 @@ export const ChatArea: React.FC = () => {
                     </div>
                 )}
             </div>
-
-            {/* Voice Join Prompt */}
-            {currentChannel?.type === 'voice' && activeCall?.roomId !== selectedChannelId && (
-                <div className="mx-4 md:mx-8 mb-4 p-6 bg-matrix-green/10 border border-matrix-green/20 rounded-3xl flex flex-col items-center gap-4 animate-in slide-in-from-bottom-4 duration-500">
-                    <div className="w-16 h-16 bg-matrix-green/20 rounded-2xl flex items-center justify-center">
-                        <Phone size={32} className="text-matrix-green" />
-                    </div>
-                    <div className="text-center">
-                        <h4 className="text-lg font-black text-white mb-1">Voice Channel Selected</h4>
-                        <p className="text-sm text-matrix-muted font-bold uppercase tracking-widest opacity-60">You are viewing the chat for this channel.</p>
-                    </div>
-                    <button
-                        onClick={() => user && startCall(selectedChannelId || '', user)}
-                        className="bg-matrix-green text-matrix-darker px-8 py-3 rounded-2xl font-black hover:shadow-[0_0_20px_rgba(0,255,102,0.4)] transition-all active:scale-95"
-                    >
-                        Join Voice Call
-                    </button>
-                </div>
-            )}
 
             {/* Input Area */}
             <div className="px-4 md:px-8 pb-4 md:pb-8 pb-safe-lg shrink-0 relative z-20">
@@ -446,13 +426,13 @@ const MessageItem = ({ message, showMeta, onReply, onImageClick, onDelete }: { m
                 </div>
             );
         }
-        return <p className={clsx("text-[15px] leading-relaxed whitespace-pre-wrap break-words font-medium text-white/90")}>{content}</p>;
+        return <p className={clsx("m-0 text-[15px] leading-[1.35] whitespace-pre-wrap break-words font-medium text-white/90")}>{content}</p>;
     };
 
     return (
         <div className={clsx(
-            "group flex flex-col animate-in slide-in-from-bottom-2 duration-300 items-start hover:bg-white/[0.02] -mx-4 px-4 py-0.5 transition-colors",
-            showMeta ? "mb-2.5" : "mb-0.5"
+            "group flex flex-col animate-in slide-in-from-bottom-2 duration-300 items-start hover:bg-white/[0.02] -mx-4 px-4 py-0 transition-colors",
+            showMeta ? "mb-1.5" : "mb-0"
         )}>
             <div className="flex w-full gap-4 flex-row items-start">
                 {showMeta ? (

@@ -18,6 +18,8 @@ export interface ChatMessage {
 
 const messageCache = new Map<string, ChatMessage[]>();
 const inflightFetches = new Map<string, Promise<ChatMessage[]>>();
+const messageCacheTs = new Map<string, number>();
+const CACHE_REVALIDATE_MS = 15000;
 
 const normalizeMessages = (data: any): ChatMessage[] => (Array.isArray(data) ? data : []);
 
@@ -30,6 +32,7 @@ const fetchMessagesShared = async (roomId: string, userId?: string): Promise<Cha
         .then((data) => {
             const messages = normalizeMessages(data);
             messageCache.set(roomId, messages);
+            messageCacheTs.set(roomId, Date.now());
             return messages;
         })
         .finally(() => {
@@ -55,6 +58,10 @@ export const useChatMessages = (roomId: string) => {
         if (cached) {
             // Show cached room history immediately while revalidating in background.
             setMessages(cached);
+            const lastFetchAt = messageCacheTs.get(roomId) || 0;
+            if (Date.now() - lastFetchAt < CACHE_REVALIDATE_MS) {
+                return;
+            }
         }
 
         try {
@@ -99,12 +106,35 @@ export const useChatMessages = (roomId: string) => {
 
     const sendMessage = useCallback(async (content: string, replyToId?: string) => {
         if (!roomId || !user) return;
+        const optimisticId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const optimisticMessage: ChatMessage = {
+            id: optimisticId,
+            user_id: user.id,
+            content,
+            created_at: new Date().toISOString(),
+            username: user.username,
+            display_name: user.display_name,
+            avatar_url: user.avatar_url,
+            reply_to_id: replyToId
+        };
+
+        setMessages((prev) => {
+            const next = [...prev, optimisticMessage];
+            messageCache.set(roomId, next);
+            return next;
+        });
+
         try {
             await ApiService.sendMessage(roomId, user.id, content, replyToId);
-            // WS can lag or drop; refresh once to guarantee the sender sees the message.
-            await fetchMessages();
+            // Revalidate in background; do not block UI.
+            fetchMessages();
         } catch (error) {
             console.error("Failed to send message", error);
+            setMessages((prev) => {
+                const next = prev.filter((m) => m.id !== optimisticId);
+                messageCache.set(roomId, next);
+                return next;
+            });
             throw error;
         }
     }, [roomId, user, fetchMessages]);
