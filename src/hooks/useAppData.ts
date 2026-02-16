@@ -3,6 +3,7 @@ import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
 import { ApiService } from '../services/api';
 import { useVoiceStore } from '../stores/useVoiceStore';
+import { prefetchRoomMessages } from './useChatMessages';
 
 export const useAppData = () => {
     const { setServers, setChannels, selectedServerId } = useAppStore();
@@ -43,6 +44,10 @@ export const useAppData = () => {
                     mention_count: r.mention_count || 0
                 }));
                 setChannels(mappedChannels);
+                const firstTextChannel = mappedChannels.find((c: any) => c.type === 'text') || mappedChannels[0];
+                if (firstTextChannel?.id) {
+                    prefetchRoomMessages(firstTextChannel.id, user.id);
+                }
 
             } else {
                 const dms = await ApiService.fetchDMs(user.id);
@@ -59,6 +64,9 @@ export const useAppData = () => {
                     mention_count: d.mention_count || 0
                 }));
                 setChannels(mappedDms);
+                if (mappedDms[0]?.id) {
+                    prefetchRoomMessages(mappedDms[0].id, user.id);
+                }
             }
         } catch (error) {
             console.error('Failed to fetch rooms/dms:', error);

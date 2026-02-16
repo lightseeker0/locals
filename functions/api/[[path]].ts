@@ -154,7 +154,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
                     FROM messages m 
                     JOIN users u ON m.user_id = u.id 
                     WHERE m.room_id = ? 
-                    ORDER BY m.created_at ASC LIMIT 100
+                    ORDER BY m.created_at ASC LIMIT 200
                 `).bind(roomId).all();
                 return Response.json(results, { headers: corsHeaders });
             }

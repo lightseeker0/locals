@@ -43,6 +43,13 @@ const fetchMessagesShared = async (roomId: string, userId?: string): Promise<Cha
     return request;
 };
 
+export const hasRoomMessageCache = (roomId: string) => messageCache.has(roomId);
+
+export const prefetchRoomMessages = (roomId: string, userId?: string) => {
+    if (!roomId || hasRoomMessageCache(roomId)) return;
+    void fetchMessagesShared(roomId, userId);
+};
+
 export const useChatMessages = (roomId: string) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const { user } = useAuthStore();
@@ -127,7 +134,9 @@ export const useChatMessages = (roomId: string) => {
         try {
             await ApiService.sendMessage(roomId, user.id, content, replyToId);
             // Revalidate in background; do not block UI.
-            fetchMessages();
+            setTimeout(() => {
+                void fetchMessages();
+            }, 1200);
         } catch (error) {
             console.error("Failed to send message", error);
             setMessages((prev) => {

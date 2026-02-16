@@ -22,6 +22,8 @@ export const ChatArea: React.FC = () => {
     const { messages, sendMessage, deleteMessage } = useChatMessages(selectedChannelId || '');
     const { typingUsers, setTyping } = useTypingIndicator(selectedChannelId || '');
     const [showPinned, setShowPinned] = useState(false);
+    const [messageSearch, setMessageSearch] = useState('');
+    const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
     const [inputValue, setInputValue] = useState('');
     const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
@@ -31,6 +33,7 @@ export const ChatArea: React.FC = () => {
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const typingTimeoutRef = useRef<any>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const GROUP_WINDOW_MS = 3 * 60 * 1000;
 
     const parseMessageTime = (value?: string) => {
@@ -117,6 +120,22 @@ export const ChatArea: React.FC = () => {
         }
     };
 
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key !== 'Enter') return;
+        const query = messageSearch.trim().toLowerCase();
+        if (!query) return;
+
+        const target = [...messages].reverse().find((m) => (m.content || '').toLowerCase().includes(query));
+        if (!target) return;
+
+        const el = messageRefs.current[target.id];
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setHighlightedMessageId(target.id);
+            setTimeout(() => setHighlightedMessageId((prev) => (prev === target.id ? null : prev)), 1800);
+        }
+    };
+
 
     if (!selectedChannelId) {
         return (
@@ -167,14 +186,18 @@ export const ChatArea: React.FC = () => {
                     {isDM ? <AtSign size={18} className="text-matrix-green" /> : <Hash size={18} className="text-matrix-green" />}
                     <h3 className="font-black text-[var(--text-normal)] text-[14px] md:text-[15px] tracking-tight truncate max-w-[120px] md:max-w-none">{currentChannel?.title}</h3>
                     <div className="h-4 w-[1px] bg-white/10 mx-1 md:block hidden" />
-                    <div className="text-matrix-muted text-[11px] font-bold uppercase tracking-widest opacity-40 truncate md:block hidden">
-                        {isDM ? 'Private Conversation' : 'General Room'}
-                    </div>
+                    <div className="text-matrix-muted text-[11px] font-bold uppercase tracking-widest opacity-40 truncate md:block hidden" />
                 </div>
 
                 <div className="flex items-center gap-6 text-matrix-muted">
                     <div className="relative group lg:block hidden">
-                        <input className="bg-matrix-darker border border-white/5 text-[12px] font-bold rounded-xl px-4 py-2 text-white w-48 transition-all focus:w-72 focus:border-matrix-green/30 outline-none placeholder:text-white/10" placeholder="Search message..." />
+                        <input
+                            className="bg-matrix-darker border border-white/5 text-[12px] font-bold rounded-xl px-4 py-2 text-white w-48 transition-all focus:w-72 focus:border-matrix-green/30 outline-none placeholder:text-white/10"
+                            placeholder="Mesaj ara..."
+                            value={messageSearch}
+                            onChange={(e) => setMessageSearch(e.target.value)}
+                            onKeyDown={handleSearchKeyDown}
+                        />
                         <Search size={14} className="absolute right-4 top-2.5 opacity-20 group-focus-within:opacity-100 group-focus-within:text-matrix-green" />
                     </div>
                     <div className="flex items-center gap-3 md:gap-4">
@@ -200,7 +223,7 @@ export const ChatArea: React.FC = () => {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar flex flex-col-reverse relative z-10" ref={scrollRef}>
+            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar flex flex-col-reverse gap-0.5 relative z-10" ref={scrollRef}>
 
                 {messages.slice().reverse().map((msg: ChatMessage, index, arr) => {
                     const nextMsg = arr[index + 1];
@@ -212,6 +235,8 @@ export const ChatArea: React.FC = () => {
                         key={msg.id}
                         message={msg}
                         showMeta={showMeta}
+                        highlighted={highlightedMessageId === msg.id}
+                        bindRef={(el) => { messageRefs.current[msg.id] = el; }}
                         onReply={() => setReplyingTo(msg)}
                         onImageClick={(url) => setLightboxImage(url)}
                         onDelete={() => deleteMessage(msg.id)}
@@ -381,7 +406,7 @@ export const ChatArea: React.FC = () => {
         </div>
     );
 };
-const MessageItem = ({ message, showMeta, onReply, onImageClick, onDelete }: { message: ChatMessage, showMeta: boolean, onReply: () => void, onImageClick: (url: string) => void, onDelete: () => void }) => {
+const MessageItem = ({ message, showMeta, highlighted, bindRef, onReply, onImageClick, onDelete }: { message: ChatMessage, showMeta: boolean, highlighted: boolean, bindRef: (el: HTMLDivElement | null) => void, onReply: () => void, onImageClick: (url: string) => void, onDelete: () => void }) => {
     const { user } = useAuthStore();
     const { t } = useI18nStore();
     const { reactions, toggleReaction } = useReactions(message.id);
@@ -430,10 +455,14 @@ const MessageItem = ({ message, showMeta, onReply, onImageClick, onDelete }: { m
     };
 
     return (
-        <div className={clsx(
-            "group flex flex-col animate-in slide-in-from-bottom-2 duration-300 items-start hover:bg-white/[0.02] -mx-4 px-4 py-0 transition-colors",
-            showMeta ? "mb-1.5" : "mb-0"
-        )}>
+        <div
+            ref={bindRef}
+            className={clsx(
+                "group flex flex-col animate-in slide-in-from-bottom-2 duration-300 items-start hover:bg-white/[0.02] -mx-4 px-4 py-0 transition-colors rounded-lg",
+                showMeta ? "pt-2" : "pt-0",
+                highlighted && "bg-matrix-green/10"
+            )}
+        >
             <div className="flex w-full gap-4 flex-row items-start">
                 {showMeta ? (
                     <div className={clsx(
