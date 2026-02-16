@@ -8,6 +8,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import crypto from 'node:crypto';
 import { createNodeWebSocket } from '@hono/node-ws';
+import { AccessToken } from 'livekit-server-sdk';
 
 const app = new Hono();
 const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
@@ -17,6 +18,12 @@ if (!fs.existsSync(path.dirname(dbPath))) fs.mkdirSync(path.dirname(dbPath), { r
 
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
+db.pragma('busy_timeout = 5000');
+
+const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
+const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
+const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
 
 const schemaPath = path.join(process.cwd(), 'schema.sql');
 if (fs.existsSync(schemaPath)) db.exec(fs.readFileSync(schemaPath, 'utf8'));
@@ -25,11 +32,19 @@ if (fs.existsSync(schemaPath)) db.exec(fs.readFileSync(schemaPath, 'utf8'));
 try {
     const tableInfo = db.prepare("PRAGMA table_info(users)").all() as any[];
     if (!tableInfo.some(col => col.name === 'session_token')) db.exec("ALTER TABLE users ADD COLUMN session_token TEXT;");
+    // SFU-only cleanup: remove legacy mesh signaling storage if it exists.
+    db.exec(`
+        DROP INDEX IF EXISTS idx_call_signals_call_id_id;
+        DROP INDEX IF EXISTS idx_call_signals_created_at;
+        DROP TABLE IF EXISTS call_signals;
+    `);
     db.exec(`
         CREATE INDEX IF NOT EXISTS idx_messages_room_id_created ON messages(room_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_rooms_space_id ON rooms(space_id);
         CREATE INDEX IF NOT EXISTS idx_participants_user_id ON participants(user_id);
         CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen);
+        CREATE INDEX IF NOT EXISTS idx_calls_room_status_created ON calls(room_id, status, created_at);
+        CREATE INDEX IF NOT EXISTS idx_call_participants_call_id ON call_participants(call_id);
     `);
 } catch (err) { }
 
@@ -149,14 +164,7 @@ app.get('/ws', upgradeWebSocket((c) => {
         onMessage(event, ws) {
             try {
                 const data = JSON.parse(event.data.toString());
-                if (data.type === 'signal' && data.to) {
-                    const targetWs = wsRegistry.get(data.to);
-                    if (targetWs) targetWs.send(JSON.stringify({
-                        type: 'signal',
-                        from: userId,
-                        signal: data.signal // Correctly pass the signal payload
-                    }));
-                } else if (data.type === 'heartbeat') {
+                if (data.type === 'heartbeat') {
                     updateLastSeen(userId);
                 } else if (data.type === 'typing') {
                     // Broadcast typing status to room members
@@ -173,6 +181,27 @@ app.get('/ws', upgradeWebSocket((c) => {
                     const participants = db.prepare('SELECT user_id FROM participants WHERE room_id = ?').all(room_id) as any[];
                     participants.forEach(p => {
                         wsRegistry.get(p.user_id)?.send(JSON.stringify({ type: 'voice_room_update', room_id }));
+                    });
+                } else if (data.type === 'voice_speaking') {
+                    const { room_id, is_speaking } = data;
+                    if (!room_id) return;
+
+                    const activeCall = db.prepare('SELECT id FROM calls WHERE room_id=? AND status=\'active\' ORDER BY created_at DESC LIMIT 1').get(room_id) as any;
+                    if (!activeCall?.id) return;
+
+                    const senderInCall = db.prepare('SELECT 1 as ok FROM call_participants WHERE call_id = ? AND user_id = ?').get(activeCall.id, userId) as any;
+                    if (!senderInCall?.ok) return;
+
+                    const participants = db.prepare('SELECT user_id FROM call_participants WHERE call_id = ?').all(activeCall.id) as any[];
+                    participants.forEach((p) => {
+                        if (p.user_id !== userId) {
+                            wsRegistry.get(p.user_id)?.send(JSON.stringify({
+                                type: 'voice_speaking',
+                                room_id,
+                                user_id: userId,
+                                is_speaking: !!is_speaking
+                            }));
+                        }
                     });
                 }
             } catch (err) { }
@@ -325,7 +354,7 @@ app.get('/api/typing', (c) => {
     return ids.length ? c.json(db.prepare(`SELECT id, username, display_name FROM users WHERE id IN(${ids.map(() => '?').join(',')})`).all(...ids)) : c.json([]);
 });
 
-app.get('/api/messages/:roomId', (c) => c.json(db.prepare('SELECT m.*, u.username, u.display_name, u.avatar_url FROM messages m JOIN users u ON m.user_id = u.id WHERE m.room_id = ? ORDER BY m.created_at ASC LIMIT 100').all(c.req.param('roomId'))));
+app.get('/api/messages/:roomId', (c) => c.json(db.prepare('SELECT m.*, u.username, u.display_name, u.avatar_url FROM messages m JOIN users u ON m.user_id = u.id WHERE m.room_id = ? ORDER BY m.created_at ASC LIMIT 200').all(c.req.param('roomId'))));
 app.post('/api/messages/send', async (c) => {
     const { room_id, user_id, content, reply_to_id } = await c.req.json(), id = uuidv4(), san = sanitize(content);
     db.prepare('INSERT INTO messages (id, room_id, user_id, content, reply_to_id) VALUES (?, ?, ?, ?, ?)').run(id, room_id, user_id, san, reply_to_id || null);
@@ -364,6 +393,7 @@ app.post('/api/voice/call', async (c) => {
     db.prepare('INSERT OR IGNORE INTO call_participants (call_id, user_id) VALUES (?, ?)').run(call.id, uid);
     return c.json({ id: call.id, status: 'joined' });
 });
+
 app.post('/api/voice/end', (c) => {
     const uid = c.req.header('X-User-ID');
     if (uid) {
@@ -372,6 +402,34 @@ app.post('/api/voice/end', (c) => {
         cs.forEach(({ call_id }) => { if ((db.prepare('SELECT COUNT(*) as c FROM call_participants WHERE call_id=?').get(call_id) as any).c === 0) db.prepare('UPDATE calls SET status=\'ended\' WHERE id=?').run(call_id); });
     }
     return c.json({ status: 'ended' });
+});
+
+app.post('/api/voice/sfu-token', async (c) => {
+    const uid = c.req.header('X-User-ID');
+    if (!uid) return c.json({ error: 'Unauthorized' }, 401);
+    if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
+        return c.json({ error: 'SFU is not configured on server' }, 503);
+    }
+
+    const body = await c.req.json().catch(() => ({} as any));
+    const roomId = (body?.room_id || '').toString().trim();
+    const name = (body?.name || '').toString().trim();
+    if (!roomId) return c.json({ error: 'Missing room_id' }, 400);
+
+    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+        identity: uid,
+        name: name || uid,
+        ttl: '2h'
+    });
+    at.addGrant({
+        roomJoin: true,
+        room: roomId,
+        canPublish: true,
+        canSubscribe: true
+    });
+
+    const token = await at.toJwt();
+    return c.json({ token, url: LIVEKIT_URL });
 });
 
 const potentialDistPaths = [
@@ -398,7 +456,6 @@ if (distDir) {
 }
 
 setInterval(() => {
-    db.prepare("DELETE FROM call_signals WHERE created_at < datetime('now', '-30 minutes')").run();
     db.prepare("DELETE FROM call_participants WHERE user_id IN (SELECT id FROM users WHERE last_seen < datetime('now', '-10 minutes'))").run();
 }, 600000);
 

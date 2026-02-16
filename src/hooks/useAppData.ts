@@ -3,6 +3,7 @@ import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
 import { ApiService } from '../services/api';
 import { useVoiceStore } from '../stores/useVoiceStore';
+import { prefetchRoomMessages } from './useChatMessages';
 
 export const useAppData = () => {
     const { setServers, setChannels, selectedServerId } = useAppStore();
@@ -43,18 +44,17 @@ export const useAppData = () => {
                     mention_count: r.mention_count || 0
                 }));
                 setChannels(mappedChannels);
-
-                const { selectedChannelId, setSelectedChannel } = useAppStore.getState();
-                if (mappedChannels.length > 0 && !selectedChannelId) {
-                    const firstTextChannel = mappedChannels.find((c: any) => c.type === 'text') || mappedChannels[0];
-                    setSelectedChannel(firstTextChannel.id);
+                const firstTextChannel = mappedChannels.find((c: any) => c.type === 'text') || mappedChannels[0];
+                if (firstTextChannel?.id) {
+                    prefetchRoomMessages(firstTextChannel.id, user.id);
                 }
+
             } else {
                 const dms = await ApiService.fetchDMs(user.id);
                 const { selectedServerId: latestServerId } = useAppStore.getState();
                 if (latestServerId !== null) return;
 
-                setChannels(dms.map((d: any) => ({
+                const mappedDms = dms.map((d: any) => ({
                     id: d.id,
                     title: d.other_display_name || d.other_username,
                     type: 'dm',
@@ -62,7 +62,11 @@ export const useAppData = () => {
                     last_seen: d.last_seen,
                     unread_count: d.unread_count || 0,
                     mention_count: d.mention_count || 0
-                })));
+                }));
+                setChannels(mappedDms);
+                if (mappedDms[0]?.id) {
+                    prefetchRoomMessages(mappedDms[0].id, user.id);
+                }
             }
         } catch (error) {
             console.error('Failed to fetch rooms/dms:', error);

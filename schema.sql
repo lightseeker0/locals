@@ -63,21 +63,15 @@ CREATE TABLE IF NOT EXISTS calls (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS call_signals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    call_id TEXT REFERENCES calls(id),
-    sender_id TEXT REFERENCES users(id),
-    type TEXT NOT NULL, -- 'offer', 'answer', 'candidate', 'end'
-    payload TEXT NOT NULL, -- JSON string
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS call_participants (
     call_id TEXT REFERENCES calls(id),
     user_id TEXT REFERENCES users(id),
     joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (call_id, user_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_calls_room_status_created ON calls(room_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_call_participants_call_id ON call_participants(call_id);
 
 -- User Themes (BetterDiscord Style)
 CREATE TABLE IF NOT EXISTS user_themes (

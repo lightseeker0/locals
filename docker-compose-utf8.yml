@@ -7,6 +7,9 @@
       - ./server/data:/app/server/data
     environment:
       - NODE_ENV=production
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
     restart: always
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
@@ -19,6 +22,24 @@
     restart: always
     depends_on:
       - api
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: always
+    command: ["--config", "/etc/livekit/livekit.yaml"]
+    depends_on:
+      - redis
+    ports:
+      - "7880:7880/tcp"
+      - "7881:7881/tcp"
+      - "50000-50100:50000-50100/udp"
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit/livekit.yaml:ro
 
   watchtower:
     image: containrrr/watchtower

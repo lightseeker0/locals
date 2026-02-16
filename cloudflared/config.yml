@@ -8,6 +8,8 @@ ingress:
     service: http://api:3000
   - hostname: www.fiskos.xyz
     service: http://api:3000
+  - hostname: livekit.fiskos.xyz
+    service: http://livekit:7880
   - service: http_status:404
 
 loglevel: debug
