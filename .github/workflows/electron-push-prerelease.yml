@@ -1,0 +1,34 @@
+name: Build and Publish Electron Prerelease
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  prerelease:
+    permissions: write-all
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Compute Prerelease Version
+        run: |
+          node -e "const fs=require('fs'); const pkg=require('./package.json'); const m=String(pkg.version).match(/^(\d+)\.(\d+)\.(\d+)/); if(!m){throw new Error('Invalid package.json version format');} const nextPatch=Number(m[3])+1; const v=m[1]+'.'+m[2]+'.'+nextPatch+'-beta.'+process.env.GITHUB_RUN_NUMBER; fs.appendFileSync(process.env.GITHUB_ENV, 'APP_VERSION='+v+'\\n'); console.log('APP_VERSION=' + v);"
+
+      - name: Build and Publish Prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --config.extraMetadata.version=$env:APP_VERSION --config.publish.releaseType=prerelease

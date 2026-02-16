@@ -29,6 +29,7 @@ autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.allowPrerelease = true;
 
 autoUpdater.on('error', (err) => {
     log.error('Auto-updater error:', err);
