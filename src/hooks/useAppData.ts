@@ -45,7 +45,8 @@ export const useAppData = () => {
                 setChannels(mappedChannels);
 
                 const { selectedChannelId, setSelectedChannel } = useAppStore.getState();
-                if (mappedChannels.length > 0 && !selectedChannelId) {
+                const currentChannelStillValid = !!selectedChannelId && mappedChannels.some((c: any) => c.id === selectedChannelId);
+                if (mappedChannels.length > 0 && !currentChannelStillValid) {
                     const firstTextChannel = mappedChannels.find((c: any) => c.type === 'text') || mappedChannels[0];
                     setSelectedChannel(firstTextChannel.id);
                 }
@@ -54,7 +55,7 @@ export const useAppData = () => {
                 const { selectedServerId: latestServerId } = useAppStore.getState();
                 if (latestServerId !== null) return;
 
-                setChannels(dms.map((d: any) => ({
+                const mappedDms = dms.map((d: any) => ({
                     id: d.id,
                     title: d.other_display_name || d.other_username,
                     type: 'dm',
@@ -62,7 +63,14 @@ export const useAppData = () => {
                     last_seen: d.last_seen,
                     unread_count: d.unread_count || 0,
                     mention_count: d.mention_count || 0
-                })));
+                }));
+                setChannels(mappedDms);
+
+                const { selectedChannelId, setSelectedChannel } = useAppStore.getState();
+                const currentChannelStillValid = !!selectedChannelId && mappedDms.some((c: any) => c.id === selectedChannelId);
+                if (mappedDms.length > 0 && !currentChannelStillValid) {
+                    setSelectedChannel(mappedDms[0].id);
+                }
             }
         } catch (error) {
             console.error('Failed to fetch rooms/dms:', error);

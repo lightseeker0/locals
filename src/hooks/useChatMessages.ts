@@ -22,16 +22,22 @@ export const useChatMessages = (roomId: string) => {
     const { addMessageListener } = useVoiceStore();
 
     const fetchMessages = useCallback(async () => {
-        if (!roomId) return;
+        if (!roomId) {
+            setMessages([]);
+            return;
+        }
         try {
             const data = await ApiService.fetchMessages(roomId, user?.id);
-            setMessages(data);
+            setMessages(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error("Failed to fetch messages", error);
+            setMessages([]);
         }
     }, [roomId, user?.id]);
 
     useEffect(() => {
+        // Prevent showing stale history while switching channels.
+        setMessages([]);
         fetchMessages();
 
         // Subscribe to real-time message updates via WebSocket
@@ -52,14 +58,13 @@ export const useChatMessages = (roomId: string) => {
         if (!roomId || !user) return;
         try {
             await ApiService.sendMessage(roomId, user.id, content, replyToId);
-            // We don't need to fetchMessages here anymore because the server 
-            // will broadcast the message back to us via WS, and our listener handles it.
-            // But for immediate UI feedback, we can leave it or trust the WS.
+            // WS can lag or drop; refresh once to guarantee the sender sees the message.
+            await fetchMessages();
         } catch (error) {
             console.error("Failed to send message", error);
             throw error;
         }
-    }, [roomId, user]);
+    }, [roomId, user, fetchMessages]);
 
     const deleteMessage = useCallback(async (messageId: string) => {
         if (!user) return;
