@@ -31,6 +31,14 @@ export const ChatArea: React.FC = () => {
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const typingTimeoutRef = useRef<any>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const GROUP_WINDOW_MS = 3 * 60 * 1000;
+
+    const parseMessageTime = (value?: string) => {
+        if (!value) return 0;
+        const normalized = value.includes('T') ? value : value.replace(' ', 'T') + 'Z';
+        const time = new Date(normalized).getTime();
+        return Number.isFinite(time) ? time : 0;
+    };
 
     const searchGifs = async (query: string) => {
         if (!query) return;
@@ -195,15 +203,22 @@ export const ChatArea: React.FC = () => {
             <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8 space-y-8 custom-scrollbar flex flex-col-reverse relative z-10" ref={scrollRef}>
                 <div className="h-2" />
 
-                {messages.slice().reverse().map((msg: ChatMessage) => (
+                {messages.slice().reverse().map((msg: ChatMessage, index, arr) => {
+                    const nextMsg = arr[index + 1];
+                    const sameAuthor = !!nextMsg && nextMsg.user_id === msg.user_id;
+                    const withinGroupWindow = sameAuthor && Math.abs(parseMessageTime(msg.created_at) - parseMessageTime(nextMsg.created_at)) <= GROUP_WINDOW_MS;
+                    const showMeta = !sameAuthor || !withinGroupWindow;
+                    return (
                     <MessageItem
                         key={msg.id}
                         message={msg}
+                        showMeta={showMeta}
                         onReply={() => setReplyingTo(msg)}
                         onImageClick={(url) => setLightboxImage(url)}
                         onDelete={() => deleteMessage(msg.id)}
                     />
-                ))}
+                    );
+                })}
 
                 {/* Welcome Banner */}
                 {messages.length < 50 && (
@@ -386,7 +401,7 @@ export const ChatArea: React.FC = () => {
         </div>
     );
 };
-const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: ChatMessage, onReply: () => void, onImageClick: (url: string) => void, onDelete: () => void }) => {
+const MessageItem = ({ message, showMeta, onReply, onImageClick, onDelete }: { message: ChatMessage, showMeta: boolean, onReply: () => void, onImageClick: (url: string) => void, onDelete: () => void }) => {
     const { user } = useAuthStore();
     const { t } = useI18nStore();
     const { reactions, toggleReaction } = useReactions(message.id);
@@ -435,29 +450,36 @@ const MessageItem = ({ message, onReply, onImageClick, onDelete }: { message: Ch
     };
 
     return (
-        <div className="group flex flex-col mb-4 animate-in slide-in-from-bottom-2 duration-300 items-start hover:bg-white/[0.02] -mx-4 px-4 py-1 transition-colors">
+        <div className={clsx(
+            "group flex flex-col animate-in slide-in-from-bottom-2 duration-300 items-start hover:bg-white/[0.02] -mx-4 px-4 py-1 transition-colors",
+            showMeta ? "mb-4" : "mb-1"
+        )}>
             <div className="flex w-full gap-4 flex-row items-start">
-                {/* Avatar */}
-                <div className={clsx(
-                    "w-11 h-11 rounded-full flex items-center justify-center shrink-0 border border-white/5 shadow-lg font-black text-base bg-matrix-green/10 text-matrix-green"
-                )}>
-                    {message.avatar_url ? (
-                        <img src={message.avatar_url} className="w-full h-full rounded-full object-cover" />
-                    ) : (
-                        (message.display_name || message.username || '?')[0].toUpperCase()
-                    )}
-                </div>
+                {showMeta ? (
+                    <div className={clsx(
+                        "w-11 h-11 rounded-full flex items-center justify-center shrink-0 border border-white/5 shadow-lg font-black text-base bg-matrix-green/10 text-matrix-green"
+                    )}>
+                        {message.avatar_url ? (
+                            <img src={message.avatar_url} className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                            (message.display_name || message.username || '?')[0].toUpperCase()
+                        )}
+                    </div>
+                ) : (
+                    <div className="w-11 shrink-0" />
+                )}
 
                 <div className="flex-1 flex flex-col min-w-0">
-                    {/* Username & Time - Header Style Line */}
-                    <div className="flex items-baseline gap-2 mb-0.5 px-0 flex-row">
-                        <span className={clsx("text-[15px] font-black tracking-tight", isMe ? "text-matrix-green" : "text-white")}>
-                            {message.display_name || message.username}
-                        </span>
-                        <span className="text-[11px] font-bold opacity-30 uppercase tracking-widest text-matrix-muted">
-                            {format(new Date(message.created_at || Date.now()), 'HH:mm')}
-                        </span>
-                    </div>
+                    {showMeta && (
+                        <div className="flex items-baseline gap-2 mb-0.5 px-0 flex-row">
+                            <span className={clsx("text-[15px] font-black tracking-tight", isMe ? "text-matrix-green" : "text-white")}>
+                                {message.display_name || message.username}
+                            </span>
+                            <span className="text-[11px] font-bold opacity-30 uppercase tracking-widest text-matrix-muted">
+                                {format(new Date(message.created_at || Date.now()), 'HH:mm')}
+                            </span>
+                        </div>
+                    )}
 
                     {/* Content - No Bubble, just text */}
                     <div className="relative group/content">
