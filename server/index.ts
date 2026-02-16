@@ -364,6 +364,46 @@ app.post('/api/voice/call', async (c) => {
     db.prepare('INSERT OR IGNORE INTO call_participants (call_id, user_id) VALUES (?, ?)').run(call.id, uid);
     return c.json({ id: call.id, status: 'joined' });
 });
+
+app.post('/api/voice/signal', async (c) => {
+    const uid = c.req.header('X-User-ID');
+    if (!uid) return c.json({ error: 'Unauthorized' }, 401);
+
+    const { call_id, type, payload } = await c.req.json();
+    if (!call_id || !payload) return c.json({ error: 'Missing call_id/payload' }, 400);
+
+    db.prepare('INSERT INTO call_signals (call_id, sender_id, type, payload) VALUES (?, ?, ?, ?)')
+        .run(call_id, uid, type || 'signal', JSON.stringify(payload));
+
+    // Best-effort real-time relay through WS as well (fallback remains pollable via DB).
+    if (payload?.to) {
+        const targetWs = wsRegistry.get(payload.to);
+        if (targetWs && targetWs.readyState === 1) {
+            targetWs.send(JSON.stringify({
+                type: 'signal',
+                from: uid,
+                signal: payload.signal
+            }));
+        }
+    }
+
+    return c.json({ status: 'queued' });
+});
+
+app.post('/api/voice/poll', async (c) => {
+    const uid = c.req.header('X-User-ID');
+    if (!uid) return c.json({ error: 'Unauthorized' }, 401);
+
+    const { call_id, last_signal_id } = await c.req.json();
+    if (!call_id) return c.json({ error: 'Missing call_id' }, 400);
+
+    const rows = db.prepare(
+        'SELECT id, call_id, sender_id, type, payload, created_at FROM call_signals WHERE call_id = ? AND id > ? AND sender_id != ? ORDER BY id ASC LIMIT 200'
+    ).all(call_id, Number(last_signal_id || 0), uid);
+
+    return c.json(rows);
+});
+
 app.post('/api/voice/end', (c) => {
     const uid = c.req.header('X-User-ID');
     if (uid) {
