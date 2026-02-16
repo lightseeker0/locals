@@ -7,8 +7,10 @@ import { v4 as uuidv4 } from 'uuid';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import crypto from 'node:crypto';
+import { createNodeWebSocket } from '@hono/node-ws';
 
 const app = new Hono();
+const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 const dbPath = path.join(process.cwd(), 'data', 'locals.db');
 
 // Ensure data directory exists
@@ -227,6 +229,64 @@ app.onError((err, c) => {
 
 // --- Health Check ---
 app.get('/api/health', (c) => c.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() }));
+
+// --- WebSocket Signaling Registry ---
+const wsRegistry = new Map<string, any>();
+
+app.get('/ws', upgradeWebSocket((c) => {
+    const userId = c.req.query('userId');
+    if (!userId) {
+        return {
+            onOpen: () => console.warn('[WS] Connection attempt without userId'),
+            onClose: () => { }
+        };
+    }
+
+    return {
+        onOpen(event, ws) {
+            console.log(`[WS] Connection opened for user: ${userId}`);
+            wsRegistry.set(userId, ws);
+            updateLastSeen(userId);
+        },
+        onMessage(event, ws) {
+            try {
+                const data = JSON.parse(event.data.toString());
+                const { type, to, payload } = data;
+
+                if (type === 'signal' && to) {
+                    const targetWs = wsRegistry.get(to);
+                    if (targetWs) {
+                        targetWs.send(JSON.stringify({
+                            type: 'signal',
+                            from: userId,
+                            payload: payload
+                        }));
+                    } else {
+                        // Fallback: Store in DB if user is not currently connected via WS
+                        // This handles cases where a user is polling or just disconnected
+                        const callId = data.callId;
+                        if (callId) {
+                            db.prepare('INSERT INTO call_signals (call_id, sender_id, type, payload) VALUES (?, ?, ?, ?)')
+                                .run(callId, userId, payload.type || 'signal', JSON.stringify({ ...data, from: userId }));
+                        }
+                    }
+                } else if (type === 'heartbeat') {
+                    updateLastSeen(userId);
+                }
+            } catch (err) {
+                console.error('[WS] Message error:', err);
+            }
+        },
+        onClose() {
+            console.log(`[WS] Connection closed for user: ${userId}`);
+            wsRegistry.delete(userId);
+        },
+        onError(err) {
+            console.error(`[WS] Error for user ${userId}:`, err);
+            wsRegistry.delete(userId);
+        }
+    };
+}));
 
 // --- API Routes (Replicating [[path]].ts) ---
 
@@ -722,8 +782,10 @@ setInterval(() => {
 const port = Number(process.env.PORT) || 3000;
 console.log(`[SERVER] Starting on http://0.0.0.0:${port}`);
 
-serve({
+const server = serve({
     fetch: app.fetch,
     port,
     hostname: '0.0.0.0'
 });
+
+injectWebSocket(server);

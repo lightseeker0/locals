@@ -32,6 +32,10 @@ interface VoiceState {
     processedSignalIds: Set<number>;
     processedSignalHashes: Set<string>;
     pollingBackoff: number;
+    ws: WebSocket | null;
+    wsStatus: 'disconnected' | 'connecting' | 'connected';
+    connectWS: (userId: string) => void;
+    disconnectWS: () => void;
 }
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
@@ -52,9 +56,92 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     pollingBackoff: 0,
     audioInputDeviceId: localStorage.getItem('audioInputDeviceId'),
     audioOutputDeviceId: localStorage.getItem('audioOutputDeviceId'),
+    ws: null,
+    wsStatus: 'disconnected',
+
+    connectWS: (userId: string) => {
+        const { ws, wsStatus } = get();
+        if (ws || wsStatus === 'connecting') return;
+
+        console.log('[WebRTC] Connecting to signaling WebSocket...');
+        set({ wsStatus: 'connecting' });
+
+        const wsUrl = ApiService.getWsUrl();
+        const socket = new WebSocket(`${wsUrl}?userId=${userId}`);
+        let heartbeatInterval: any;
+
+        socket.onopen = () => {
+            console.log('[WebRTC] WebSocket connected.');
+            set({ ws: socket, wsStatus: 'connected' });
+
+            // Heartbeat every 20 seconds
+            heartbeatInterval = setInterval(() => {
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ type: 'heartbeat' }));
+                } else {
+                    clearInterval(heartbeatInterval);
+                }
+            }, 20000);
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'signal') {
+                    const localStream = get().localStream;
+                    if (localStream && get().activeCall) {
+                        (get() as any).handleIncomingSignal(get().activeCall!.id, userId, data, localStream);
+                    }
+                }
+            } catch (err) {
+                console.error('[WebRTC] WS Message Error:', err);
+            }
+        };
+
+        socket.onclose = () => {
+            console.log('[WebRTC] WebSocket closed.');
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            set({ ws: null, wsStatus: 'disconnected' });
+            // Reconnect if call is still active
+            if (get().activeCall) {
+                setTimeout(() => get().connectWS(userId), 3000);
+            }
+        };
+
+        socket.onerror = (err) => {
+            console.error('[WebRTC] WebSocket error:', err);
+        };
+    },
+
+    disconnectWS: () => {
+        const { ws } = get();
+        if (ws) {
+            ws.onclose = null; // Prevent auto-reconnect
+            ws.close();
+        }
+        set({ ws: null, wsStatus: 'disconnected' });
+    },
 
     // Helper for sending signals with retries
     sendSignalWithRetry: async (callId: string, userId: string, type: string, payload: any, attempts = 5) => {
+        const { ws, wsStatus } = get();
+
+        // Try WebSocket first
+        if (ws && wsStatus === 'connected') {
+            try {
+                ws.send(JSON.stringify({
+                    type: 'signal',
+                    callId,
+                    to: payload.to,
+                    payload: payload
+                }));
+                return; // Sent successfully
+            } catch (err) {
+                console.warn('[WebRTC] WS Send failed, falling back to HTTP:', err);
+            }
+        }
+
+        // Fallback to HTTP Polling endpoint (which still exists as a bridge or if WS isn't up yet)
         for (let i = 0; i < attempts; i++) {
             try {
                 await ApiService.sendSignal(callId, userId, type, payload);
@@ -62,8 +149,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             } catch (err: any) {
                 console.warn(`[WebRTC] Signal send failed (Attempt ${i + 1}/${attempts}):`, err.message);
                 if (i === attempts - 1) throw err;
-                // Exponential backoff: 200ms, 400ms, 800ms...
-                await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 200));
+                // Exponential backoff: 1000ms, 2000ms, 4000ms...
+                await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
             }
         }
     },

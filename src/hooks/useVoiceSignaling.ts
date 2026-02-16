@@ -8,45 +8,26 @@ import { useAuthStore } from '../stores/authStore';
  * an unrendered component.
  */
 export const useVoiceSignaling = () => {
-    const { activeCall, pollSignals } = useVoiceStore();
+    const { activeCall, connectWS, disconnectWS, fetchParticipants } = useVoiceStore();
     const { user } = useAuthStore();
 
     useEffect(() => {
-        let timeoutId: any;
-        let isActive = true;
-
-        const pollLoop = async () => {
-            if (!isActive || !activeCall || !user?.id) return;
-
-            const { callStatus, pollingBackoff } = useVoiceStore.getState();
-
-            // Adaptive polling: 1000ms during handshake, 3000ms once connected
-            // This drastically reduces server overhead and prevents 502/504 storms.
-            const interval = (callStatus === 'connected' ? 3000 : 1000) + pollingBackoff;
-
-            try {
-                await pollSignals(user.id);
-            } catch (err) {
-                // Handled in pollSignals
-            }
-
-            if (isActive) {
-                timeoutId = setTimeout(pollLoop, interval);
-            }
-        };
-
         if (activeCall && user?.id) {
-            console.log(`[WebRTC] Global adaptive signaling poll started for call: ${activeCall.id}`);
-            pollLoop();
-        }
+            console.log(`[WebRTC] Starting WebSocket signaling for call: ${activeCall.id}`);
+            connectWS(user.id);
 
-        return () => {
-            isActive = false;
-            if (timeoutId) {
-                console.log("[WebRTC] Global signaling poll stopped.");
-                clearTimeout(timeoutId);
-            }
-        };
-    }, [activeCall?.id, user?.id, pollSignals]);
+            // Periodically fetch participants to keep the list fresh
+            // (even if WS is working, this is a good safety measure for UI)
+            const interval = setInterval(() => {
+                fetchParticipants(activeCall.roomId, user.id);
+            }, 10000);
+
+            return () => {
+                console.log("[WebRTC] Stopping WebSocket signaling.");
+                clearInterval(interval);
+                disconnectWS();
+            };
+        }
+    }, [activeCall?.id, user?.id, connectWS, disconnectWS, fetchParticipants]);
 
 };

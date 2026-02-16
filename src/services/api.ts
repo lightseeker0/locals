@@ -3,6 +3,14 @@ import { useAuthStore } from '../stores/authStore';
 export class ApiService {
     private static baseUrl = '/api';
 
+    static getWsUrl() {
+        // In local development, we might use a full URL in VITE_API_URL
+        // but for production/tunnels, we want to derive from the current location
+        const host = window.location.host;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${protocol}//${host}/ws`;
+    }
+
     private static getHeaders(userId?: string) {
         const headers: any = { 'Content-Type': 'application/json' };
 
