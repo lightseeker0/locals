@@ -16,6 +16,30 @@ export interface ChatMessage {
     reply_to_author?: string;
 }
 
+const messageCache = new Map<string, ChatMessage[]>();
+const inflightFetches = new Map<string, Promise<ChatMessage[]>>();
+
+const normalizeMessages = (data: any): ChatMessage[] => (Array.isArray(data) ? data : []);
+
+const fetchMessagesShared = async (roomId: string, userId?: string): Promise<ChatMessage[]> => {
+    const key = `${roomId}:${userId || ''}`;
+    const existing = inflightFetches.get(key);
+    if (existing) return existing;
+
+    const request = ApiService.fetchMessages(roomId, userId)
+        .then((data) => {
+            const messages = normalizeMessages(data);
+            messageCache.set(roomId, messages);
+            return messages;
+        })
+        .finally(() => {
+            inflightFetches.delete(key);
+        });
+
+    inflightFetches.set(key, request);
+    return request;
+};
+
 export const useChatMessages = (roomId: string) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const { user } = useAuthStore();
@@ -26,18 +50,33 @@ export const useChatMessages = (roomId: string) => {
             setMessages([]);
             return;
         }
+
+        const cached = messageCache.get(roomId);
+        if (cached) {
+            // Show cached room history immediately while revalidating in background.
+            setMessages(cached);
+        }
+
         try {
-            const data = await ApiService.fetchMessages(roomId, user?.id);
-            setMessages(Array.isArray(data) ? data : []);
+            const fresh = await fetchMessagesShared(roomId, user?.id);
+            setMessages(fresh);
         } catch (error) {
             console.error("Failed to fetch messages", error);
-            setMessages([]);
+            if (!cached) {
+                setMessages([]);
+            }
         }
     }, [roomId, user?.id]);
 
     useEffect(() => {
-        // Prevent showing stale history while switching channels.
-        setMessages([]);
+        if (!roomId) {
+            setMessages([]);
+            return;
+        }
+
+        const cached = messageCache.get(roomId);
+        setMessages(cached || []);
+
         fetchMessages();
 
         // Subscribe to real-time message updates via WebSocket
@@ -46,12 +85,16 @@ export const useChatMessages = (roomId: string) => {
                 setMessages(prev => {
                     // Avoid duplicates
                     if (prev.some(m => m.id === msg.id)) return prev;
-                    return [...prev, msg];
+                    const next = [...prev, msg];
+                    messageCache.set(roomId, next);
+                    return next;
                 });
             }
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribe();
+        };
     }, [roomId, fetchMessages, addMessageListener]);
 
     const sendMessage = useCallback(async (content: string, replyToId?: string) => {
@@ -69,14 +112,20 @@ export const useChatMessages = (roomId: string) => {
     const deleteMessage = useCallback(async (messageId: string) => {
         if (!user) return;
         try {
-            setMessages(prev => prev.filter(msg => msg.id !== messageId));
+            setMessages(prev => {
+                const next = prev.filter(msg => msg.id !== messageId);
+                if (roomId) {
+                    messageCache.set(roomId, next);
+                }
+                return next;
+            });
             await ApiService.deleteMessage(messageId, user.id);
         } catch (error) {
             console.error("Failed to delete message", error);
             fetchMessages();
             throw error;
         }
-    }, [user, fetchMessages]);
+    }, [user, fetchMessages, roomId]);
 
     return { messages, sendMessage, deleteMessage };
 };
