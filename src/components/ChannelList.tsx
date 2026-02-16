@@ -76,10 +76,9 @@ export const ChannelList: React.FC = () => {
     }, []);
 
     const checkForUpdates = () => {
-        if (window.electron && updateStatus === 'idle') {
-            setUpdateStatus('checking');
-            window.electron.checkForUpdates();
-        }
+        if (!window.electron) return;
+        setUpdateStatus('checking');
+        window.electron.checkForUpdates();
     };
 
     const currentServer = servers.find(s => s.id === selectedServerId);
@@ -540,11 +539,6 @@ export const ChannelList: React.FC = () => {
                         </div>
                     ))}
                 </div>
-            </div>
-
-            {/* v0.0.27 Version Tag */}
-            <div className="absolute bottom-[64px] right-4 pointer-events-none select-none">
-                <span className="text-[9px] font-black text-matrix-muted/20 uppercase tracking-[0.2em]">v0.0.28</span>
             </div>
 
             {renderUserControls()}
