@@ -132,7 +132,7 @@ function App() {
     setUpdateInfo({ status: 'installing' });
     setTimeout(() => {
       (window as any).electron?.installUpdate();
-    }, 200);
+    }, 2500);
   };
 
   useEffect(() => {
@@ -217,76 +217,76 @@ function App() {
 
           {/* Update Notification - Shared logic */}
           {updateInfo && (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-fade-in">
-              <div className="bg-matrix-darker border-2 border-matrix-green shadow-[0_0_50px_rgba(13,189,139,0.3)] rounded-2xl p-8 max-w-md w-full text-center relative overflow-hidden group">
-                {/* Background pulse effect */}
-                <div className="absolute inset-0 bg-matrix-green/5 animate-pulse" />
-
-                <div className="relative z-10">
-                  <div className="mb-6 inline-flex p-4 rounded-full bg-matrix-green/10 border border-matrix-green/20">
-                    <div className="w-12 h-12 border-4 border-matrix-green/30 border-t-matrix-green rounded-full animate-spin" />
-                  </div>
-
-                  <h2 className="text-2xl font-black text-white mb-2 tracking-tight">
-                    {updateInfo.status === 'available' && 'Yeni guncelleme var'}
-                    {updateInfo.status === 'downloading' && 'Dosyalar indiriliyor'}
-                    {updateInfo.status === 'ready' && 'Guncelleme hazir'}
-                    {updateInfo.status === 'installing' && 'Yeniden baslatiliyor'}
-                  </h2>
-
-                  <p className="text-matrix-muted text-sm mb-8 leading-relaxed">
-                    {updateInfo.status === 'available' && 'Yeni bir surum bulundu.'}
-                    {updateInfo.status === 'downloading' && 'Dosyalar indiriliyor, lutfen bekleyin.'}
-                    {updateInfo.status === 'ready' && 'Indirme tamamlandi. Guncellemek icin yeniden baslatin.'}
-                    {updateInfo.status === 'installing' && 'Guncelleme uygulanirken uygulama yeniden baslatiliyor.'}
-                  </p>
-
-                  {updateInfo.status === 'downloading' && (
-                    <div className="mb-8">
-                      <div className="flex justify-between text-[10px] font-bold text-matrix-green uppercase mb-2">
-                        <span>İlerleme</span>
-                        <span>{Math.round(updateInfo.progress || 0)}%</span>
-                      </div>
-                      <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/10">
-                        <div
-                          className="bg-matrix-green h-full transition-all duration-300 shadow-[0_0_15px_rgba(13,189,139,0.5)]"
-                          style={{ width: `${updateInfo.progress || 0}%` }}
-                        />
-                      </div>
+            <div className={clsx(
+              "fixed inset-0 z-[9999] flex items-center justify-center p-6 animate-fade-in",
+              updateInfo.status === 'installing' ? "bg-black/55 backdrop-blur-sm" : "bg-black/90 backdrop-blur-md"
+            )}>
+              {updateInfo.status === 'installing' ? (
+                <div className="bg-matrix-darker border border-matrix-green/40 rounded-2xl px-6 py-5 w-[320px] text-center shadow-[0_0_35px_rgba(13,189,139,0.2)]">
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="relative w-14 h-14">
+                      <div className="absolute inset-0 rounded-full border-2 border-white/10" />
+                      <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-matrix-green animate-spin" />
+                      <img src="/logo.png" alt="Fiskos" className="absolute inset-2 w-10 h-10 rounded-xl object-cover" />
                     </div>
-                  )}
+                  </div>
+                  <div className="text-white font-black text-lg tracking-tight mb-1">Yeniden başlatılıyor</div>
+                  <div className="text-matrix-muted text-xs leading-relaxed">Güncelleme başlatılıyor. Uygulama birazdan kapanacak.</div>
+                </div>
+              ) : (
+                <div className="bg-matrix-darker border-2 border-matrix-green shadow-[0_0_50px_rgba(13,189,139,0.3)] rounded-2xl p-8 max-w-md w-full text-center relative overflow-hidden group">
+                  {/* Background pulse effect */}
+                  <div className="absolute inset-0 bg-matrix-green/5 animate-pulse" />
 
-                  <div className="flex flex-col gap-3">
-                    {updateInfo.status === 'ready' ? (
-                      <button
-                        onClick={handleInstallUpdate}
-                        className="w-full bg-matrix-green text-black py-4 rounded-xl font-black text-sm hover:bg-white transition-all shadow-[0_0_30px_rgba(13,189,139,0.4)] active:scale-[0.98] uppercase tracking-widest"
-                      >
-                        Guncelle ve yeniden baslat
-                      </button>
-                    ) : updateInfo.status === 'installing' ? (
-                      <div className="flex flex-col items-center gap-4 py-2">
-                        <div className="relative w-16 h-16">
-                          <div className="absolute inset-0 rounded-full border-2 border-white/10" />
-                          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-matrix-green animate-spin" />
-                          <img
-                            src="/logo.png"
-                            alt="Fiskos"
-                            className="absolute inset-2 w-12 h-12 rounded-2xl object-cover"
+                  <div className="relative z-10">
+                    <div className="mb-6 inline-flex p-4 rounded-full bg-matrix-green/10 border border-matrix-green/20">
+                      <div className="w-12 h-12 border-4 border-matrix-green/30 border-t-matrix-green rounded-full animate-spin" />
+                    </div>
+
+                    <h2 className="text-2xl font-black text-white mb-2 tracking-tight">
+                      {updateInfo.status === 'available' && 'Yeni güncelleme var'}
+                      {updateInfo.status === 'downloading' && 'Dosyalar indiriliyor'}
+                      {updateInfo.status === 'ready' && 'Güncelleme hazır'}
+                    </h2>
+
+                    <p className="text-matrix-muted text-sm mb-8 leading-relaxed">
+                      {updateInfo.status === 'available' && 'Yeni bir sürüm bulundu.'}
+                      {updateInfo.status === 'downloading' && 'Dosyalar indiriliyor, lütfen bekleyin.'}
+                      {updateInfo.status === 'ready' && 'İndirme tamamlandı. Güncellemek için yeniden başlatın.'}
+                    </p>
+
+                    {updateInfo.status === 'downloading' && (
+                      <div className="mb-8">
+                        <div className="flex justify-between text-[10px] font-bold text-matrix-green uppercase mb-2">
+                          <span>İlerleme</span>
+                          <span>{Math.round(updateInfo.progress || 0)}%</span>
+                        </div>
+                        <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/10">
+                          <div
+                            className="bg-matrix-green h-full transition-all duration-300 shadow-[0_0_15px_rgba(13,189,139,0.5)]"
+                            style={{ width: `${updateInfo.progress || 0}%` }}
                           />
                         </div>
-                        <div className="text-[11px] font-bold text-matrix-muted uppercase tracking-[0.18em]">
-                          Lutfen bekleyin
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-[10px] font-bold text-matrix-green/40 uppercase tracking-[0.2em] animate-pulse">
-                        Lutfen bekleyin
                       </div>
                     )}
+
+                    <div className="flex flex-col gap-3">
+                      {updateInfo.status === 'ready' ? (
+                        <button
+                          onClick={handleInstallUpdate}
+                          className="w-full bg-matrix-green text-black py-4 rounded-xl font-black text-sm hover:bg-white transition-all shadow-[0_0_30px_rgba(13,189,139,0.4)] active:scale-[0.98] uppercase tracking-widest"
+                        >
+                          Güncelle ve yeniden başlat
+                        </button>
+                      ) : (
+                        <div className="text-[10px] font-bold text-matrix-green/40 uppercase tracking-[0.2em] animate-pulse">
+                          Lütfen bekleyin
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </>

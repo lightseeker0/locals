@@ -200,7 +200,7 @@ export const ChatArea: React.FC = () => {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8 space-y-8 custom-scrollbar flex flex-col-reverse relative z-10" ref={scrollRef}>
+            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8 custom-scrollbar flex flex-col-reverse relative z-10" ref={scrollRef}>
                 <div className="h-2" />
 
                 {messages.slice().reverse().map((msg: ChatMessage, index, arr) => {
@@ -451,8 +451,8 @@ const MessageItem = ({ message, showMeta, onReply, onImageClick, onDelete }: { m
 
     return (
         <div className={clsx(
-            "group flex flex-col animate-in slide-in-from-bottom-2 duration-300 items-start hover:bg-white/[0.02] -mx-4 px-4 py-1 transition-colors",
-            showMeta ? "mb-4" : "mb-1"
+            "group flex flex-col animate-in slide-in-from-bottom-2 duration-300 items-start hover:bg-white/[0.02] -mx-4 px-4 py-0.5 transition-colors",
+            showMeta ? "mb-2.5" : "mb-0.5"
         )}>
             <div className="flex w-full gap-4 flex-row items-start">
                 {showMeta ? (
