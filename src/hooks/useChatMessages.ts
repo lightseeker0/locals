@@ -99,7 +99,25 @@ export const useChatMessages = (roomId: string) => {
                 setMessages(prev => {
                     // Avoid duplicates
                     if (prev.some(m => m.id === msg.id)) return prev;
-                    const next = [...prev, msg];
+
+                    // Reconcile optimistic local message with server-confirmed message
+                    // so the UI doesn't temporarily show duplicates.
+                    const optimisticIdx = prev.findIndex(m => {
+                        if (!m.id.startsWith('tmp-')) return false;
+                        if (m.user_id !== msg.user_id) return false;
+                        if ((m.content || '') !== (msg.content || '')) return false;
+                        const localTs = new Date(m.created_at || 0).getTime();
+                        const serverTs = new Date(msg.created_at || 0).getTime();
+                        return Math.abs(localTs - serverTs) < 15000;
+                    });
+
+                    let next: ChatMessage[];
+                    if (optimisticIdx >= 0) {
+                        next = [...prev];
+                        next[optimisticIdx] = msg;
+                    } else {
+                        next = [...prev, msg];
+                    }
                     messageCache.set(roomId, next);
                     return next;
                 });
@@ -136,7 +154,7 @@ export const useChatMessages = (roomId: string) => {
             // Revalidate in background; do not block UI.
             setTimeout(() => {
                 void fetchMessages();
-            }, 1200);
+            }, 2500);
         } catch (error) {
             console.error("Failed to send message", error);
             setMessages((prev) => {

@@ -343,7 +343,22 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         if (activeCall?.roomId === roomId || get().callStatus === 'joining') return;
         if (activeCall) await get().endCall(userId);
 
-        set({ callStatus: 'joining' });
+        const optimisticCallId = `pending-${Date.now()}`;
+        set(state => ({
+            callStatus: 'joining',
+            activeCall: { id: optimisticCallId, roomId },
+            roomParticipants: {
+                ...state.roomParticipants,
+                [roomId]: state.roomParticipants[roomId]?.length
+                    ? state.roomParticipants[roomId]
+                    : [{
+                        id: user.id,
+                        username: user.username,
+                        display_name: user.display_name,
+                        avatar_url: user.avatar_url
+                    }]
+            }
+        }));
         (get() as any).playJoinSound();
 
         try {
@@ -420,7 +435,21 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             get().roomParticipants[rid]?.some(p => p.id === userId)
         ) || '';
 
-        set({ callStatus: 'calling' });
+        set(state => ({
+            callStatus: 'calling',
+            activeCall: { id: callId, roomId },
+            roomParticipants: roomId ? {
+                ...state.roomParticipants,
+                [roomId]: state.roomParticipants[roomId]?.length
+                    ? state.roomParticipants[roomId]
+                    : [{
+                        id: user.id,
+                        username: user.username,
+                        display_name: user.display_name,
+                        avatar_url: user.avatar_url
+                    }]
+            } : state.roomParticipants
+        }));
         (get() as any).playJoinSound();
 
         try {
