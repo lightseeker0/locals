@@ -307,23 +307,60 @@ app.post('/api/invites/join', async (c) => {
     return c.json({ space_id: invite.space_id, status: 'joined' });
 });
 
-app.post('/api/spaces/delete/:spaceId', (c) => {
+app.post('/api/spaces/delete/:spaceId', async (c) => {
     const sid = c.req.param('spaceId'), uid = c.req.header('X-User-ID');
     const owner = db.prepare('SELECT owner_id FROM spaces WHERE id = ?').get(sid) as any;
     if (uid && (owner?.owner_id === uid || isAdmin(uid))) {
-        db.transaction(() => {
-            db.prepare('DELETE FROM messages WHERE room_id IN (SELECT id FROM rooms WHERE space_id = ?)').run(sid);
-            db.prepare('DELETE FROM rooms WHERE space_id = ?').run(sid);
-            db.prepare('DELETE FROM spaces WHERE id = ?').run(sid);
-        })();
-        return c.json({ status: 'deleted' });
+        try {
+            db.transaction(() => {
+                const rooms = db.prepare('SELECT id FROM rooms WHERE space_id = ?').all(sid) as any[];
+                const roomIds = rooms.map(r => r.id);
+
+                if (roomIds.length > 0) {
+                    const placeholders = roomIds.map(() => '?').join(',');
+                    // 1. Reactions and Receipts (Dependent on messages/rooms)
+                    db.prepare(`DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE room_id IN (${placeholders}))`).run(...roomIds);
+                    db.prepare(`DELETE FROM read_receipts WHERE room_id IN (${placeholders})`).run(...roomIds);
+
+                    // 2. Messages
+                    db.prepare(`DELETE FROM messages WHERE room_id IN (${placeholders})`).run(...roomIds);
+
+                    // 3. Call data
+                    db.prepare(`DELETE FROM call_participants WHERE call_id IN (SELECT id FROM calls WHERE room_id IN (${placeholders}))`).run(...roomIds);
+                    db.prepare(`DELETE FROM calls WHERE room_id IN (${placeholders})`).run(...roomIds);
+
+                    // 4. Room Participants
+                    db.prepare(`DELETE FROM participants WHERE room_id IN (${placeholders})`).run(...roomIds);
+                }
+
+                // 5. Space broad data
+                db.prepare('DELETE FROM invitations WHERE space_id = ?').run(sid);
+                db.prepare('DELETE FROM participants WHERE space_id = ?').run(sid);
+                db.prepare('DELETE FROM rooms WHERE space_id = ?').run(sid);
+                db.prepare('DELETE FROM spaces WHERE id = ?').run(sid);
+            })();
+            return c.json({ status: 'deleted' });
+        } catch (err: any) {
+            console.error('[Server] Deletion error details:', {
+                message: err.message,
+                stack: err.stack,
+                sid,
+                uid
+            });
+            return c.json({ error: 'Deletion failed', details: err.message, stack: err.stack }, 500);
+        }
     }
     return c.json({ error: 'Forbidden' }, 403);
 });
 
+app.get('/api/ping', (c) => c.json({ status: 'ok', version: '0.0.46', timestamp: new Date().toISOString() }));
+
 app.get('/api/auth/me', (c) => {
     const uid = c.req.header('X-User-ID');
-    return uid ? c.json(db.prepare('SELECT id, username, display_name, avatar_url, last_seen, is_banned, custom_status FROM users WHERE id = ?').get(uid)) : c.json({ error: 'Unauthorized' }, 401);
+    if (!uid) return c.json({ error: 'Unauthorized' }, 401);
+    const user = db.prepare('SELECT id, username, display_name, avatar_url, last_seen, is_banned, custom_status, role FROM users WHERE id = ?').get(uid) as any;
+    if (!user) return c.json({ error: 'User not found' }, 404);
+    return c.json({ ...user, is_admin: user.role === 'admin' });
 });
 
 app.get('/api/dm/list', (c) => {
@@ -427,7 +464,7 @@ app.post('/api/auth/login', async (c) => {
     if (await hashPassword(password, Buffer.from(s, 'base64')) !== h) return c.json({ error: 'Forbidden' }, 401);
     const token = crypto.randomUUID(); db.prepare('UPDATE users SET session_token=? WHERE id=?').run(token, user.id);
     const { password_hash, session_token, ...safe } = user;
-    return c.json({ ...safe, session_token: token });
+    return c.json({ ...safe, session_token: token, is_admin: user.role === 'admin' });
 });
 
 app.get('/api/voice/participants/:roomId', (c) => {
