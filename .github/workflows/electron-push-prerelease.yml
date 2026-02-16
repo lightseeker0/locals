@@ -26,9 +26,9 @@ jobs:
 
       - name: Compute Prerelease Version
         run: |
-          node -e "const fs=require('fs'); const pkg=require('./package.json'); const m=String(pkg.version).match(/^(\d+)\.(\d+)\.(\d+)/); if(!m){throw new Error('Invalid package.json version format');} const nextPatch=Number(m[3])+1; const v=m[1]+'.'+m[2]+'.'+nextPatch+'-beta.'+process.env.GITHUB_RUN_NUMBER; fs.appendFileSync(process.env.GITHUB_ENV, 'APP_VERSION='+v+'\\n'); console.log('APP_VERSION=' + v);"
+          node -e "const fs=require('fs'); const pkg=require('./package.json'); const m=String(pkg.version).match(/^(\d+)\.(\d+)\.(\d+)/); if(!m){throw new Error('Invalid package.json version format');} const nextPatch=Number(m[3])+1; const v=m[1]+'.'+m[2]+'.'+nextPatch+'-beta.'+process.env.GITHUB_RUN_NUMBER; fs.appendFileSync(process.env.GITHUB_ENV, 'APP_VERSION='+v+'\n'); console.log('APP_VERSION=' + v);"
 
       - name: Build and Publish Prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --config.extraMetadata.version=$env:APP_VERSION --config.publish.releaseType=prerelease
+        run: npx electron-builder --publish always --config.extraMetadata.version=$env:APP_VERSION --config.publish.releaseType=prerelease
